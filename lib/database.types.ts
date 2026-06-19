@@ -36,7 +36,7 @@ export const MODULES = [
 ] as const;
 export type ModuleName = (typeof MODULES)[number];
 
-export interface Branch {
+export type Branch = {
   id: string;
   code: string;
   city: string;
@@ -53,7 +53,7 @@ export interface Branch {
   updated_at: string;
 }
 
-export interface Category {
+export type Category = {
   id: string;
   name: string;
   slug: string | null;
@@ -64,7 +64,7 @@ export interface Category {
   updated_at: string;
 }
 
-export interface Brand {
+export type Brand = {
   id: string;
   name: string;
   is_active: boolean;
@@ -72,20 +72,20 @@ export interface Brand {
   updated_at: string;
 }
 
-export interface Size {
+export type Size = {
   id: string;
   label: string;
   sort_order: number;
 }
 
-export interface ColorRow {
+export type ColorRow = {
   id: string;
   name: string;
   hex: string | null;
   sort_order: number;
 }
 
-export interface Supplier {
+export type Supplier = {
   id: string;
   name: string;
   contact: string | null;
@@ -96,7 +96,7 @@ export interface Supplier {
   updated_at: string;
 }
 
-export interface Product {
+export type Product = {
   id: string;
   name: string;
   description: string | null;
@@ -110,7 +110,7 @@ export interface Product {
   updated_at: string;
 }
 
-export interface ProductVariant {
+export type ProductVariant = {
   id: string;
   product_id: string;
   sku: string;
@@ -125,7 +125,7 @@ export interface ProductVariant {
   updated_at: string;
 }
 
-export interface Inventory {
+export type Inventory = {
   id: string;
   variant_id: string;
   branch_id: string;
@@ -135,7 +135,7 @@ export interface Inventory {
   updated_at: string;
 }
 
-export interface Profile {
+export type Profile = {
   id: string;
   user_id: string | null;
   full_name: string;
@@ -150,7 +150,7 @@ export interface Profile {
   updated_at: string;
 }
 
-export interface Customer {
+export type Customer = {
   id: string;
   name: string;
   email: string | null;
@@ -165,7 +165,7 @@ export interface Customer {
   updated_at: string;
 }
 
-export interface CustomerEvent {
+export type CustomerEvent = {
   id: string;
   customer_id: string;
   type: EventType;
@@ -175,7 +175,7 @@ export interface CustomerEvent {
   occurred_at: string;
 }
 
-export interface Sale {
+export type Sale = {
   id: string;
   invoice_number: string;
   customer_id: string | null;
@@ -195,7 +195,7 @@ export interface Sale {
   updated_at: string;
 }
 
-export interface SaleItem {
+export type SaleItem = {
   id: string;
   sale_id: string;
   variant_id: string | null;
@@ -206,7 +206,7 @@ export interface SaleItem {
   line_total: number;
 }
 
-export interface PurchaseOrder {
+export type PurchaseOrder = {
   id: string;
   code: string;
   supplier_id: string | null;
@@ -218,7 +218,7 @@ export interface PurchaseOrder {
   updated_at: string;
 }
 
-export interface PurchaseOrderItem {
+export type PurchaseOrderItem = {
   id: string;
   po_id: string;
   variant_id: string | null;
@@ -226,27 +226,27 @@ export interface PurchaseOrderItem {
   cost: number;
 }
 
-export interface RoleRow {
+export type RoleRow = {
   id: string;
   name: string;
   sort_order: number;
 }
 
-export interface RolePermission {
+export type RolePermission = {
   id: string;
   role: string;
   module: string;
   level: number; // 0 sin acceso, 1 ver, 2 total
 }
 
-export interface PaymentMethod {
+export type PaymentMethod = {
   id: string;
   name: string;
   enabled: boolean;
   sort_order: number;
 }
 
-export interface ExchangeRate {
+export type ExchangeRate = {
   id: string;
   source: string;
   rate: number;
@@ -254,7 +254,7 @@ export interface ExchangeRate {
   effective_date: string;
 }
 
-export interface AuditLog {
+export type AuditLog = {
   id: string;
   user_id: string | null;
   who: string | null;
@@ -265,7 +265,7 @@ export interface AuditLog {
   created_at: string;
 }
 
-export interface Settings {
+export type Settings = {
   id: number;
   company_name: string | null;
   rif: string | null;
@@ -284,9 +284,35 @@ export interface Settings {
   updated_at: string;
 }
 
+export type VInventory = {
+  id: string;
+  variant_id: string;
+  branch_id: string;
+  quantity: number;
+  reserved: number;
+  min_stock: number;
+  sku: string;
+  color: string | null;
+  color_hex: string | null;
+  size: string | null;
+  price: number;
+  cost: number;
+  product_id: string;
+  product_name: string;
+  category: string | null;
+  category_color: string | null;
+  brand: string | null;
+  branch_city: string;
+  branch_code: string;
+  estado: "Agotado" | "Stock bajo" | "En stock";
+  stock_value: number;
+}
+
 type Tbl<T> = { Row: T; Insert: Partial<T>; Update: Partial<T>; Relationships: [] };
+type Vw<T> = { Row: T; Relationships: [] };
 
 export type Database = {
+  __InternalSupabase: { PostgrestVersion: "12" };
   wm: {
     Tables: {
       branches: Tbl<Branch>;
@@ -312,12 +338,15 @@ export type Database = {
       audit_log: Tbl<AuditLog>;
       settings: Tbl<Settings>;
     };
-    Views: Record<string, never>;
+    Views: {
+      v_inventory: Vw<VInventory>;
+    };
     Functions: {
       is_member: { Args: Record<string, never>; Returns: boolean };
       my_role: { Args: Record<string, never>; Returns: string };
       my_profile_id: { Args: Record<string, never>; Returns: string };
       has_module: { Args: { p_module: string; p_min?: number }; Returns: boolean };
+      claim_profile: { Args: Record<string, never>; Returns: Profile };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

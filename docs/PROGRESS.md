@@ -6,8 +6,8 @@ Estado por fase. Actualizar al cerrar cada módulo. Leyenda: ✅ hecho · 🚧 e
 |---|---|---|---|
 | 0 | Scaffold (Next 16, Tailwind v4, shadcn, tokens, providers, BCV, format) | ✅ | Tokens del handoff en `globals.css`; Inter; sonner; next-themes |
 | 1 | Supabase: esquema `wm`, tablas, RLS, grants, seed, admin, tipos | ✅ | Login validado end-to-end; advisor sin errores (solo WARN) |
-| 2 | Auth (login, aceptar invitación, middleware, contexto sesión/rol) | ⬜ | |
-| 3 | Shell (sidebar, header, tema, sucursal global, BCV, notif, perfil) | ⬜ | |
+| 2 | Auth (login, aceptar invitación, middleware, contexto sesión/rol) | ✅ | `proxy.ts` gatea rutas; `claim_profile` enlaza perfil por email; login validado en runtime |
+| 3 | Shell (sidebar, header, tema, sucursal global, BCV, notif, perfil) | ✅ | shadcn=Radix (new-york); tokens del handoff; tipos `wm` como `type` (no interface) |
 | 4 | Sucursales (CRUD + mapa + ranking + detalle) | ⬜ | |
 | 5 | Productos (lista + detalle/editor con variantes) | ⬜ | |
 | 6 | Inventario (tabla stock, KPIs, filtros, editar) | ⬜ | |
