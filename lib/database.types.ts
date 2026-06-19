@@ -326,6 +326,23 @@ export type VBranchStats = {
   month_sales: number;
 };
 
+export type VProductSummary = {
+  id: string;
+  name: string;
+  is_active: boolean;
+  visible_in_catalog: boolean;
+  tax_rate: number;
+  category_id: string | null;
+  brand_id: string | null;
+  category: string | null;
+  category_color: string | null;
+  brand: string | null;
+  variant_count: number;
+  min_price: number;
+  max_price: number;
+  total_stock: number;
+};
+
 type Tbl<T> = { Row: T; Insert: Partial<T>; Update: Partial<T>; Relationships: [] };
 type Vw<T> = { Row: T; Relationships: [] };
 
@@ -359,6 +376,7 @@ export type Database = {
     Views: {
       v_inventory: Vw<VInventory>;
       v_branch_stats: Vw<VBranchStats>;
+      v_product_summary: Vw<VProductSummary>;
     };
     Functions: {
       is_member: { Args: Record<string, never>; Returns: boolean };
