@@ -343,6 +343,30 @@ export type VProductSummary = {
   total_stock: number;
 };
 
+export type VCustomerStats = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  document: string | null;
+  segment: CustomerSegment;
+  city: string | null;
+  branch_id: string | null;
+  since: string;
+  notes: string | null;
+  created_at: string;
+  branch_city: string | null;
+  total_spent: number;
+  orders_count: number;
+  avg_ticket: number;
+};
+
+export type VCustomerFavorite = {
+  customer_id: string;
+  product_name: string;
+  qty: number;
+};
+
 type Tbl<T> = { Row: T; Insert: Partial<T>; Update: Partial<T>; Relationships: [] };
 type Vw<T> = { Row: T; Relationships: [] };
 
@@ -377,6 +401,8 @@ export type Database = {
       v_inventory: Vw<VInventory>;
       v_branch_stats: Vw<VBranchStats>;
       v_product_summary: Vw<VProductSummary>;
+      v_customer_stats: Vw<VCustomerStats>;
+      v_customer_favorites: Vw<VCustomerFavorite>;
     };
     Functions: {
       is_member: { Args: Record<string, never>; Returns: boolean };
