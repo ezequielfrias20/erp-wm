@@ -10,7 +10,7 @@ Estado por fase. Actualizar al cerrar cada módulo. Leyenda: ✅ hecho · 🚧 e
 | 3 | Shell (sidebar, header, tema, sucursal global, BCV, notif, perfil) | ✅ | shadcn=Radix (new-york); tokens del handoff; tipos `wm` como `type` (no interface) |
 | 4 | Sucursales (CRUD + mapa + ranking + detalle) | ✅ | Validado con Playwright (claro/oscuro); vista `v_branch_stats`; tasa BCV en vivo |
 | 5 | Productos (lista + detalle/editor con variantes) | ✅ | `v_product_summary`; lista + editor `/productos/[id]` con CRUD de variantes |
-| 6 | Inventario (tabla stock, KPIs, filtros, editar) | ⬜ | |
+| 6 | Inventario (tabla stock, KPIs, filtros, editar) | ✅ | `v_inventory`; KPIs, tabs, filtros, ajuste de stock, export CSV; filtra por sucursal activa |
 | 7 | Clientes (lista + detalle + timeline + CRUD) | ⬜ | |
 | 8 | Ventas / POS (carrito, cobro, descuento de inventario) | ⬜ | |
 | 9 | Dashboard (KPIs, gráficos, listas, filtrado por sucursal) | ⬜ | |
