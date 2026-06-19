@@ -308,6 +308,24 @@ export type VInventory = {
   stock_value: number;
 }
 
+export type VBranchStats = {
+  id: string;
+  code: string;
+  city: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  monthly_goal: number;
+  color: string | null;
+  map_x: number | null;
+  map_y: number | null;
+  is_active: boolean;
+  manager_id: string | null;
+  manager_name: string | null;
+  inventory_units: number;
+  month_sales: number;
+};
+
 type Tbl<T> = { Row: T; Insert: Partial<T>; Update: Partial<T>; Relationships: [] };
 type Vw<T> = { Row: T; Relationships: [] };
 
@@ -340,6 +358,7 @@ export type Database = {
     };
     Views: {
       v_inventory: Vw<VInventory>;
+      v_branch_stats: Vw<VBranchStats>;
     };
     Functions: {
       is_member: { Args: Record<string, never>; Returns: boolean };
