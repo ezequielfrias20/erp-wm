@@ -367,6 +367,21 @@ export type VCustomerFavorite = {
   qty: number;
 };
 
+export type VSaleLine = {
+  id: string;
+  sale_id: string;
+  branch_id: string;
+  created_at: string;
+  status: SaleStatus;
+  payment_method: string | null;
+  quantity: number;
+  line_total: number;
+  cost: number;
+  product_name: string | null;
+  category: string | null;
+  category_color: string | null;
+};
+
 type Tbl<T> = { Row: T; Insert: Partial<T>; Update: Partial<T>; Relationships: [] };
 type Vw<T> = { Row: T; Relationships: [] };
 
@@ -403,6 +418,7 @@ export type Database = {
       v_product_summary: Vw<VProductSummary>;
       v_customer_stats: Vw<VCustomerStats>;
       v_customer_favorites: Vw<VCustomerFavorite>;
+      v_sale_lines: Vw<VSaleLine>;
     };
     Functions: {
       is_member: { Args: Record<string, never>; Returns: boolean };
