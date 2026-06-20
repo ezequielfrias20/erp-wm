@@ -27,6 +27,8 @@ import {
   updateCompany,
   updateSales,
   updateColors,
+  updateAvatar,
+  updateBrandAsset,
   updateNotifications,
   togglePaymentMethod,
   addMaster,
@@ -37,7 +39,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { fmtVES, fmtDateTime, initials } from "@/lib/format";
+import { AvatarBubble } from "@/components/shell/avatar-bubble";
+import { ImageUpload } from "@/components/configuracion/image-upload";
+import { fmtVES, fmtDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type {
   AuditLog,
@@ -161,15 +165,27 @@ function Fld({
 
 function PerfilSection({ profile, canEdit }: Data) {
   const [state, action] = useActionState<FormState, FormData>(updateMyProfile, null);
+  const [avatar, setAvatar] = useState(profile.avatar_url);
   useToastState(state);
   return (
     <Card title="Información personal">
       <form action={action} className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
-          <span className="flex size-14 items-center justify-center rounded-full bg-surface-2 text-[17px] font-bold text-text-2">
-            {initials(profile.full_name)}
-          </span>
-          <div className="text-[12px] text-text-3">JPG o PNG. Máximo 2 MB.</div>
+          <AvatarBubble name={profile.full_name} url={avatar} size={56} />
+          <div className="flex flex-col gap-1.5">
+            {canEdit && (
+              <ImageUpload
+                folder="avatars"
+                label="Cambiar foto"
+                onUploaded={async (url) => {
+                  setAvatar(url);
+                  const r = await updateAvatar(url);
+                  if (r?.error) toast.error(r.error);
+                }}
+              />
+            )}
+            <div className="text-[12px] text-text-3">JPG o PNG. Máximo 2 MB.</div>
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Fld label="Nombre completo" name="full_name" defaultValue={profile.full_name} disabled={!canEdit} />
@@ -225,7 +241,9 @@ function EmpresaSection({ settings, canEdit }: Data) {
 
 function ColorsSection({ settings, canEdit }: Data & { which: "primary" }) {
   const [primary, setPrimary] = useState(settings.primary_color ?? "#0EA5E9");
-  const [accent, setAccent] = useState(settings.accent_color ?? "#0EA5E9");
+  const [accent] = useState(settings.accent_color ?? "#0EA5E9");
+  const [logo, setLogo] = useState(settings.logo_url);
+  const [favicon, setFavicon] = useState(settings.favicon_url);
   const [, start] = useTransition();
   function save(p: string, a: string) {
     start(async () => {
@@ -239,15 +257,47 @@ function ColorsSection({ settings, canEdit }: Data & { which: "primary" }) {
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
           <Label>Logotipo</Label>
-          <div className="flex h-24 items-center justify-center rounded-xl border border-dashed border-border text-[12px] text-text-3">
-            Arrastra o haz clic para subir
+          <div className="flex h-24 items-center justify-center overflow-hidden rounded-xl border border-dashed border-border p-2 text-[12px] text-text-3">
+            {logo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logo} alt="logo" className="max-h-full max-w-full object-contain" />
+            ) : (
+              "Sube tu logotipo"
+            )}
           </div>
+          {canEdit && (
+            <ImageUpload
+              folder="brand"
+              label="Subir logotipo"
+              onUploaded={async (url) => {
+                setLogo(url);
+                const r = await updateBrandAsset("logo", url);
+                if (r?.error) toast.error(r.error);
+              }}
+            />
+          )}
         </div>
         <div className="flex flex-col gap-1.5">
           <Label>Favicon</Label>
-          <div className="flex h-24 items-center justify-center rounded-xl border border-dashed border-border text-[12px] text-text-3">
-            PNG 64×64 px
+          <div className="flex h-24 items-center justify-center overflow-hidden rounded-xl border border-dashed border-border p-2 text-[12px] text-text-3">
+            {favicon ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={favicon} alt="favicon" className="size-12 object-contain" />
+            ) : (
+              "PNG 64×64 px"
+            )}
           </div>
+          {canEdit && (
+            <ImageUpload
+              folder="brand"
+              label="Subir favicon"
+              onUploaded={async (url) => {
+                setFavicon(url);
+                const r = await updateBrandAsset("favicon", url);
+                if (r?.error) toast.error(r.error);
+              }}
+            />
+          )}
         </div>
       </div>
       <div className="mt-4 text-[12.5px] font-semibold text-foreground">

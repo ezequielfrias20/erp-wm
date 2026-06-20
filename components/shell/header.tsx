@@ -27,7 +27,8 @@ import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { useBranch } from "@/context/branch";
 import { useSession } from "@/context/session";
 import { signOut } from "@/app/(auth)/actions";
-import { fmtVES, initials } from "@/lib/format";
+import { fmtVES } from "@/lib/format";
+import { AvatarBubble } from "@/components/shell/avatar-bubble";
 import { cn } from "@/lib/utils";
 import type { BcvRate } from "@/lib/bcv";
 import Link from "next/link";
@@ -193,12 +194,7 @@ export function Header({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="iconbtn flex h-[38px] items-center gap-[9px] rounded-full border border-border bg-card py-[3px] pr-[9px] pl-1">
-            <span
-              className="flex size-[30px] flex-none items-center justify-center rounded-full text-[12px] font-bold text-white"
-              style={{ background: "linear-gradient(140deg,#6366F1,#0EA5E9)" }}
-            >
-              {initials(profile.full_name)}
-            </span>
+            <AvatarBubble name={profile.full_name} url={profile.avatar_url} size={30} />
             <div className="flex flex-col text-left leading-[1.15]">
               <span className="text-[12.5px] font-semibold whitespace-nowrap text-foreground">
                 {profile.full_name}
@@ -212,12 +208,7 @@ export function Header({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-[230px]">
           <div className="flex items-center gap-2.5 p-2.5">
-            <span
-              className="flex size-[38px] flex-none items-center justify-center rounded-full text-[13px] font-bold text-white"
-              style={{ background: "linear-gradient(140deg,#6366F1,#0EA5E9)" }}
-            >
-              {initials(profile.full_name)}
-            </span>
+            <AvatarBubble name={profile.full_name} url={profile.avatar_url} size={38} />
             <div className="leading-[1.2]">
               <div className="text-[13px] font-semibold text-foreground">
                 {profile.full_name}

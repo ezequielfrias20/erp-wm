@@ -28,6 +28,33 @@ export async function updateMyProfile(
   return { ok: true };
 }
 
+export async function updateAvatar(url: string): Promise<FormState> {
+  const supabase = await createClient();
+  const { data: profile } = await supabase.rpc("claim_profile");
+  if (!profile) return { error: "Sesión no válida." };
+  const { error } = await supabase
+    .from("profiles")
+    .update({ avatar_url: url })
+    .eq("id", profile.id);
+  if (error) return { error: error.message };
+  revalidatePath("/configuracion");
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function updateBrandAsset(
+  kind: "logo" | "favicon",
+  url: string,
+): Promise<FormState> {
+  const supabase = await createClient();
+  const field = kind === "logo" ? { logo_url: url } : { favicon_url: url };
+  const { error } = await supabase.from("settings").update(field).eq("id", 1);
+  if (error) return { error: error.message };
+  await audit(`Actualizó ${kind === "logo" ? "el logotipo" : "el favicon"}`, "Configuración");
+  revalidatePath("/configuracion");
+  return { ok: true };
+}
+
 export async function updateCompany(
   _prev: FormState,
   formData: FormData,

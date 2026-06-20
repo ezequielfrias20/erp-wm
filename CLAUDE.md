@@ -79,7 +79,22 @@ Ver `docs/PROGRESS.md`. Orden por dependencias:
 Auth → Shell → Sucursales → Productos → Inventario → Clientes → Ventas(POS) →
 Dashboard → Usuarios → Reportes → Configuración.
 
+## Primer ingreso
+Guía completa en **`docs/PRIMER-INGRESO.md`**. Resumen: entrar en `/login` con el Super
+Admin sembrado (`pedro.salas@worldmedics.ve` / `WorldMedics.2026`); el resto del personal
+se da de alta en **Usuarios → Invitar** y activa su cuenta en `/invite` (mismo correo).
+Acceso gateado por `wm.profiles` (no por estar en `auth.users`).
+
+## Storage
+Bucket público **`wm-public`** (avatares en `avatars/`, marca en `brand/`). Lectura
+pública, escritura solo autenticados. Subidas desde Configuración (perfil/marca) vía
+`components/configuracion/image-upload.tsx`; URLs en `profiles.avatar_url` /
+`settings.logo_url` / `settings.favicon_url`.
+
 ## Pendientes / notas
-- Auth: activar "Leaked password protection" en el dashboard de Supabase (advisor WARN).
+- Supabase (panel, no código): ver `docs/PRIMER-INGRESO.md §5` — confirmación de correo
+  off o SMTP, registro Auth habilitado, y activar **"Leaked password protection"** (advisor WARN).
+- Cambio de contraseña dentro del ERP aún no está cableado (la sección Seguridad de
+  Configuración es informativa); usar Supabase → Auth → Users o reset por correo (SMTP).
 - Si PostgREST dejara de ver `wm` tras un cambio de plataforma: añadir `wm` en
   Dashboard → API → Exposed schemas (fallback de la exposición por SQL).

@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState, useActionState, useEffect } from "react";
+import { useMemo, useState, useActionState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useFormStatus } from "react-dom";
 import {
   Plus,
   Search,
   Download,
+  Upload,
   Wallet,
   AlertTriangle,
   XCircle,
@@ -14,7 +15,14 @@ import {
   Pencil,
   Loader2,
 } from "lucide-react";
-import { updateStock, type FormState } from "@/app/(app)/inventario/actions";
+import {
+  updateStock,
+  importInventory,
+  type FormState,
+  type ImportRow,
+} from "@/app/(app)/inventario/actions";
+import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -61,6 +69,7 @@ export function InventarioView({
   const [cat, setCat] = useState("");
   const [brand, setBrand] = useState("");
   const [editing, setEditing] = useState<VInventory | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const kpis = useMemo(
     () => ({
@@ -151,6 +160,14 @@ export function InventarioView({
           </p>
         </div>
         <div className="flex items-center gap-2.5">
+          {canEdit && (
+            <button
+              onClick={() => setImportOpen(true)}
+              className="iconbtn flex h-[38px] items-center gap-2 rounded-[10px] border border-border bg-card px-[13px] text-[13px] font-medium text-foreground"
+            >
+              <Upload className="size-4 text-text-3" /> Importar
+            </button>
+          )}
           <button
             onClick={exportCsv}
             className="iconbtn flex h-[38px] items-center gap-2 rounded-[10px] border border-border bg-card px-[13px] text-[13px] font-medium text-foreground"
@@ -313,7 +330,125 @@ export function InventarioView({
       {canEdit && (
         <StockDialog row={editing} onClose={() => setEditing(null)} />
       )}
+      {canEdit && (
+        <ImportDialog open={importOpen} onOpenChange={setImportOpen} />
+      )}
     </div>
+  );
+}
+
+function parseInventoryCsv(text: string): ImportRow[] {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (!lines.length) return [];
+  const split = (l: string) =>
+    l.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+  const header = split(lines[0]).map((h) => h.toLowerCase());
+  const find = (names: string[]) => header.findIndex((h) => names.includes(h));
+  const iSku = find(["sku", "código", "codigo"]);
+  const iBranch = find(["sucursal", "branch", "tienda", "ciudad"]);
+  const iQty = find(["stock", "cantidad", "quantity", "existencia", "qty"]);
+  const iMin = find(["minimo", "mínimo", "min", "min_stock"]);
+
+  // Headerless fallback: assume order sku, sucursal, stock, minimo.
+  const hasHeader = iSku >= 0 && iBranch >= 0;
+  const dataLines = hasHeader ? lines.slice(1) : lines;
+  const cols = hasHeader
+    ? { sku: iSku, branch: iBranch, qty: iQty, min: iMin }
+    : { sku: 0, branch: 1, qty: 2, min: 3 };
+
+  return dataLines
+    .map((l) => split(l))
+    .filter((c) => c[cols.sku] && c[cols.branch])
+    .map((c) => ({
+      sku: c[cols.sku],
+      branch: c[cols.branch],
+      quantity: Number(c[cols.qty] ?? 0),
+      min_stock: cols.min >= 0 && c[cols.min] !== "" && c[cols.min] != null
+        ? Number(c[cols.min])
+        : null,
+    }));
+}
+
+function ImportDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function run() {
+    const rows = parseInventoryCsv(text);
+    if (!rows.length) {
+      toast.error("No se detectaron filas válidas. Revisa el formato.");
+      return;
+    }
+    setBusy(true);
+    const res = await importInventory(rows);
+    setBusy(false);
+    if (res.error) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success(
+      `${res.imported} fila(s) importada(s)${res.skipped ? `, ${res.skipped} omitida(s)` : ""}.`,
+    );
+    setText("");
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-[560px]">
+        <DialogHeader>
+          <DialogTitle>Importar inventario</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          <p className="text-[12.5px] text-text-3">
+            Columnas: <code className="text-text-2">sku, sucursal, stock, minimo</code>.
+            Sucursal puede ser la ciudad o el código (CCS, VLN…). El mínimo es opcional.
+          </p>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,text/csv"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) f.text().then(setText);
+              e.target.value = "";
+            }}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => fileRef.current?.click()}
+            className="w-max"
+          >
+            <Upload className="size-4" /> Cargar archivo .csv
+          </Button>
+          <Textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={7}
+            placeholder={"sku,sucursal,stock,minimo\nSCB-AZ-M,Caracas,40,12\nBAT-BL-M,VLN,25,20"}
+            className="font-mono text-[12px]"
+          />
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button type="button" onClick={run} disabled={busy || !text.trim()} className="font-semibold">
+            {busy && <Loader2 className="size-4 animate-spin" />}
+            Importar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
