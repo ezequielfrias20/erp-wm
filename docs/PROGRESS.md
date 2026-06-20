@@ -16,7 +16,7 @@ Estado por fase. Actualizar al cerrar cada módulo. Leyenda: ✅ hecho · 🚧 e
 | 9 | Dashboard (KPIs, gráficos, listas, filtrado por sucursal) | ✅ | `v_sale_lines`; 8 KPIs, área Recharts, donas pagos/categorías, listas; validado visualmente |
 | 10 | Usuarios y permisos (lista, invitar, matriz de permisos) | ✅ | Tabla con filtros, drawer de detalle, matriz editable (click cicla nivel), invitar/editar/eliminar |
 | 11 | Reportes (filtros, gráficos, tabla detalle, exportar) | ✅ | Desglose mensual ingresos/costo/ganancia/margen, KPIs, tendencia, breakdown, export CSV/PDF |
-| 12 | Configuración (perfil, empresa, marca, apariencia, ventas, inventario, notif, auditoría) | ⬜ | |
+| 12 | Configuración (perfil, empresa, marca, apariencia, ventas, inventario, notif, auditoría) | ✅ | 9 secciones; perfil/empresa/ventas/notif/colores persistentes; maestros CRUD; auditoría |
 
 ## Cómo reanudar
 1. Leer `CLAUDE.md` (stack, Supabase, RLS, credenciales, convenciones).
