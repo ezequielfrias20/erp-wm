@@ -410,6 +410,18 @@ export type Database = {
       my_profile_id: { Args: Record<string, never>; Returns: string };
       has_module: { Args: { p_module: string; p_min?: number }; Returns: boolean };
       claim_profile: { Args: Record<string, never>; Returns: Profile };
+      create_sale: {
+        Args: {
+          p_branch_id: string;
+          p_customer_id: string | null;
+          p_payment_method: string;
+          p_discount_pct: number;
+          p_rate: number;
+          p_items: unknown;
+          p_status?: string;
+        };
+        Returns: Sale;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

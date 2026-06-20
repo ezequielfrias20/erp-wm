@@ -12,7 +12,7 @@ Estado por fase. Actualizar al cerrar cada módulo. Leyenda: ✅ hecho · 🚧 e
 | 5 | Productos (lista + detalle/editor con variantes) | ✅ | `v_product_summary`; lista + editor `/productos/[id]` con CRUD de variantes |
 | 6 | Inventario (tabla stock, KPIs, filtros, editar) | ✅ | `v_inventory`; KPIs, tabs, filtros, ajuste de stock, export CSV; filtra por sucursal activa |
 | 7 | Clientes (lista + detalle + timeline + CRUD) | ✅ | `v_customer_stats`, `v_customer_favorites`; maestro-detalle, KPIs, historial, notas, CRUD |
-| 8 | Ventas / POS (carrito, cobro, descuento de inventario) | ⬜ | |
+| 8 | Ventas / POS (carrito, cobro, descuento de inventario) | ✅ | RPC `create_sale` (atómica, SECURITY DEFINER); validado: FAC-008422 creada + inventario descontado |
 | 9 | Dashboard (KPIs, gráficos, listas, filtrado por sucursal) | ⬜ | |
 | 10 | Usuarios y permisos (lista, invitar, matriz de permisos) | ⬜ | |
 | 11 | Reportes (filtros, gráficos, tabla detalle, exportar) | ⬜ | |
