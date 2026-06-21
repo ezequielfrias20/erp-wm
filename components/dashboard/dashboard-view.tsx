@@ -64,6 +64,16 @@ export function DashboardView({
     { icon: UserPlus, label: "Clientes nuevos", value: fmtNum(kpis.newCustomers), sub: "este mes" },
     { icon: Wallet, label: "Ganancia bruta", value: fmtUSD(kpis.grossProfit), sub: fmtVES(kpis.grossProfit * rate) },
     { icon: Percent, label: "Margen promedio", value: `${kpis.margin.toFixed(1)}%`, sub: "sobre costo" },
+    ...(kpis.porCobrarCashea > 0
+      ? [
+          {
+            icon: Clock,
+            label: "Por cobrar a Cashea",
+            value: fmtUSD(kpis.porCobrarCashea),
+            sub: fmtVES(kpis.porCobrarCashea * rate),
+          },
+        ]
+      : []),
   ];
 
   const payTotal = data.payments.reduce((a, p) => a + p.value, 0);
@@ -161,7 +171,7 @@ export function DashboardView({
                 <Legend
                   key={s.name}
                   color={s.color}
-                  name={s.name}
+                  name={s.is_financed ? `${s.name} · por cobrar` : s.name}
                   pct={payTotal ? Math.round((s.value / payTotal) * 100) : 0}
                 />
               ))}

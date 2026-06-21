@@ -18,6 +18,7 @@ Estado por fase. Actualizar al cerrar cada módulo. Leyenda: ✅ hecho · 🚧 e
 | 11 | Reportes (filtros, gráficos, tabla detalle, exportar) | ✅ | Desglose mensual ingresos/costo/ganancia/margen, KPIs, tendencia, breakdown, export CSV/PDF |
 | 12 | Configuración (perfil, empresa, marca, apariencia, ventas, inventario, notif, auditoría) | ✅ | 9 secciones; perfil/empresa/ventas/notif/colores persistentes; maestros CRUD; auditoría |
 | 13 | Mejoras operativas (carga masiva, POS avanzado, reportes con rango y factura) | ✅ | Ver detalle abajo; build de producción OK |
+| 14 | Cashea (financiamiento: inicial en caja + cuenta por cobrar, conciliación, comisión) | ✅ | Ver detalle abajo; build de producción OK |
 
 ## Fase 13 — Mejoras operativas
 
@@ -40,6 +41,36 @@ Librerías: `exceljs`, `@react-pdf/renderer`.
   (moneda nativa + equivalente USD + tasa); **PDF con membrete** (logo + datos de empresa)
   vía `@react-pdf` en lugar de `window.print()`.
 - **Doble moneda**: helpers `fmtDual`/`fmtByCurrency` en `lib/format.ts`; siempre se muestra la tasa.
+
+## Fase 14 — Cashea (financiamiento / cuentas por cobrar)
+
+Migraciones: `wm_payment_methods_is_financed`, `wm_cashea_orders`, `wm_cashea_orders_rls`,
+`wm_create_sale_v3`, `wm_cashea_void_on_sale_status`, `wm_cashea_orders_channel`, `wm_create_sale_v4`.
+
+- **Modelo contable**: una venta Cashea es un pago mixto = **inicial** (efectivo real en caja) +
+  **financiado** (`total − inicial`, cuenta por cobrar a Cashea, en USD; no es deuda del cliente).
+  La venta queda `Pagada`; lo pendiente vive en `cashea_orders.status`. Dos fuentes de verdad:
+  `sale_payments` cuadra la venta (lleva la línea `Cashea`), `cashea_orders` es el libro de
+  cuentas por cobrar (referencia, financiado, comisión, neto, conciliación).
+- **`payment_methods.is_financed`** (nueva columna) distingue financiamiento de efectivo sin
+  hardcodear `'Cashea'`. Método `Cashea` sembrado (USD, requiere referencia, `is_financed`).
+- **POS** (`pos-view.tsx`): botón **Cashea** (junto a Mixto) → `CasheaPaymentForm`: captura la
+  inicial (uno o varios métodos, no Cashea) + referencia de orden; calcula `financia Cashea`.
+  `create_sale` recibe `p_cashea` y escribe `cashea_orders` en la misma transacción.
+- **Factura**: la línea Cashea se rotula "Financiado por Cashea (por cobrar)" + resumen inicial/financiado.
+- **Módulo `/cashea`** (`lib/queries/cashea.ts`, `app/(app)/cashea/*`, `components/cashea/*`):
+  lista de órdenes con filtros (estado/rango), KPIs (ventas Cashea, inicial cobrada, por cobrar,
+  cobrado, comisión) y acción **"Marcar cobrada"** (depósito + comisión derivada + anti-doble-conciliación).
+  Gateado por módulo **Reportes**; nav en sección Gestión.
+- **Reportes/Dashboard**: el desglose por método marca lo financiado como "por cobrar"; Reportes
+  añade bloque "Cashea · conciliación" (también en PDF); Dashboard separa la rebanada Cashea del
+  efectivo y añade KPI **"Por cobrar a Cashea"**. Ingresos siguen siendo devengados (sin cambio).
+- **Anulación**: trigger en `wm.sales` pone `cashea_orders.status='anulada'` si la venta pasa a
+  Reembolso/Anulada (`ON DELETE CASCADE` cubre borrados).
+- **Canal Tienda/Online**: `cashea_orders.channel` (`tienda|online`, default tienda) distingue ventas
+  en sucursal del **marketplace** de la app (comisiones distintas). Selector en el modal del POS;
+  el módulo `/cashea` filtra por canal, muestra badge y tarjetas comparativas **Tienda vs Online**
+  (ventas, por cobrar, cobrado, comisión); Reportes (vista + PDF) desglosan Cashea por canal.
 
 ## Cómo reanudar
 1. Leer `CLAUDE.md` (stack, Supabase, RLS, credenciales, convenciones).

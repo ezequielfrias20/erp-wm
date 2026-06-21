@@ -86,6 +86,15 @@ export type PaymentMethodOption = {
   name: string;
   currency: "USD" | "VES";
   requires_reference: boolean;
+  is_financed: boolean;
+};
+
+/** Pago con Cashea capturado en el POS: inicial (efectivo) + lo que financia Cashea. */
+export type CasheaDraft = {
+  initial: SalePaymentInput[];
+  reference: string;
+  financed: number; // USD por cobrar a Cashea = total − inicial
+  channel: "tienda" | "online"; // canal: en sucursal o marketplace
 };
 
 type CartLine = PosProduct & { qty: number };
@@ -141,10 +150,12 @@ export function PosView({
   const [pending, startTransition] = useTransition();
 
   const realMethods = useMemo(
-    () => paymentMethods.filter((m) => m.name !== "Mixto"),
+    // Excluye Mixto y métodos financiados (Cashea): la inicial no se paga con Cashea.
+    () => paymentMethods.filter((m) => m.name !== "Mixto" && !m.is_financed),
     [paymentMethods],
   );
   const hasMixto = paymentMethods.some((m) => m.name === "Mixto");
+  const hasCashea = paymentMethods.some((m) => m.is_financed);
 
   const [selectedMethod, setSelectedMethod] = useState(
     realMethods[0]?.name ?? "Efectivo USD",
@@ -152,6 +163,8 @@ export function PosView({
   const [singleReference, setSingleReference] = useState("");
   const [mixed, setMixed] = useState<SalePaymentInput[] | null>(null);
   const [mixedOpen, setMixedOpen] = useState(false);
+  const [cashea, setCashea] = useState<CasheaDraft | null>(null);
+  const [casheaOpen, setCasheaOpen] = useState(false);
 
   const drafts = useSyncExternalStore(
     subscribeDrafts,
@@ -216,6 +229,21 @@ export function PosView({
   }
 
   function resolvePayments(): { payments?: SalePaymentInput[]; error?: string } {
+    if (cashea) {
+      // Inicial (efectivo real) + una línea financiada por Cashea (por cobrar).
+      return {
+        payments: [
+          ...cashea.initial,
+          {
+            method: "Cashea",
+            currency: "USD",
+            amount: cashea.financed,
+            amount_usd: cashea.financed,
+            reference: cashea.reference,
+          },
+        ],
+      };
+    }
     if (mixed && mixed.length) return { payments: mixed };
     const pm = realMethods.find((m) => m.name === selectedMethod);
     if (!pm) return { error: "Selecciona un método de pago." };
@@ -241,6 +269,7 @@ export function PosView({
     setCustomer(null);
     setDiscountPct(0);
     setMixed(null);
+    setCashea(null);
     setSingleReference("");
     setActiveDraftId(null);
   }
@@ -301,6 +330,17 @@ export function PosView({
         rate,
         items,
         status: "Pagada",
+        cashea: cashea
+          ? {
+              reference: cashea.reference,
+              initial_amount: round2(
+                cashea.initial.reduce((a, p) => a + p.amount_usd, 0),
+              ),
+              financed_amount: cashea.financed,
+              commission_pct: 0,
+              channel: cashea.channel,
+            }
+          : undefined,
       });
       if (res.error) {
         toast.error(res.error);
@@ -328,7 +368,11 @@ export function PosView({
         total: snapshot.total,
         rate,
         total_ves: round2(snapshot.total * rate),
-        payments: snapshot.payments,
+        payments: snapshot.payments.map((p) => ({
+          ...p,
+          is_financed:
+            paymentMethods.find((m) => m.name === p.method)?.is_financed ?? false,
+        })),
       };
       setLastSale(inv);
       setSaleCompleteOpen(true);
@@ -619,11 +663,12 @@ export function PosView({
                 onClick={() => {
                   setSelectedMethod(m.name);
                   setMixed(null);
+                  setCashea(null);
                   setSingleReference("");
                 }}
                 className={cn(
                   "rounded-lg px-2.5 py-1.5 text-[11.5px] font-medium transition",
-                  !mixed && selectedMethod === m.name
+                  !mixed && !cashea && selectedMethod === m.name
                     ? "bg-brand-soft text-brand"
                     : "border border-border bg-card text-text-2 hover:bg-[var(--hover)]",
                 )}
@@ -645,10 +690,23 @@ export function PosView({
                 Mixto
               </button>
             )}
+            {hasCashea && (
+              <button
+                onClick={() => setCasheaOpen(true)}
+                className={cn(
+                  "rounded-lg px-2.5 py-1.5 text-[11.5px] font-medium transition",
+                  cashea
+                    ? "bg-brand-soft text-brand"
+                    : "border border-border bg-card text-text-2 hover:bg-[var(--hover)]",
+                )}
+              >
+                Cashea
+              </button>
+            )}
           </div>
 
           {/* Referencia para método único que la requiere */}
-          {!mixed && selectedPm?.requires_reference && (
+          {!mixed && !cashea && selectedPm?.requires_reference && (
             <input
               value={singleReference}
               onChange={(e) => setSingleReference(e.target.value)}
@@ -657,7 +715,7 @@ export function PosView({
             />
           )}
           {/* Conversión para método único en VES */}
-          {!mixed && selectedPm?.currency === "VES" && (
+          {!mixed && !cashea && selectedPm?.currency === "VES" && (
             <p className="mt-1.5 text-[11px] text-text-3">
               A cobrar: <strong className="text-foreground">{fmtVES(total * rate)}</strong>
             </p>
@@ -692,6 +750,42 @@ export function PosView({
                 >
                   {fmtUSD(mixedPaidUsd)} / {fmtUSD(total)}
                 </span>
+              </div>
+            </div>
+          )}
+
+          {/* Resumen de pago con Cashea */}
+          {cashea && (
+            <div className="mt-2 rounded-[10px] border border-border bg-surface-2 p-2.5 text-[11.5px]">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="font-semibold text-foreground">
+                  Cashea {cashea.channel === "online" ? "Online" : "Tienda"} · ref{" "}
+                  {cashea.reference}
+                </span>
+                <button
+                  onClick={() => setCasheaOpen(true)}
+                  className="flex items-center gap-1 text-brand"
+                >
+                  <Pencil className="size-3" /> Editar
+                </button>
+              </div>
+              {cashea.initial.map((p, i) => (
+                <div key={i} className="flex justify-between text-text-2">
+                  <span>
+                    Inicial · {p.method} {p.reference ? `· ${p.reference}` : ""}
+                  </span>
+                  <span>{fmtByCurrency(p.amount, p.currency, rate)}</span>
+                </div>
+              ))}
+              {cashea.initial.length === 0 && (
+                <div className="flex justify-between text-text-2">
+                  <span>Inicial</span>
+                  <span>{fmtUSD(0)}</span>
+                </div>
+              )}
+              <div className="mt-1 flex justify-between border-t border-border pt-1 font-medium text-warning">
+                <span>Financia Cashea (por cobrar)</span>
+                <span>{fmtUSD(cashea.financed)}</span>
               </div>
             </div>
           )}
@@ -738,7 +832,22 @@ export function PosView({
         initial={mixed}
         onConfirm={(lines2) => {
           setMixed(lines2);
+          setCashea(null);
           setMixedOpen(false);
+        }}
+      />
+
+      <CasheaPaymentModal
+        open={casheaOpen}
+        onOpenChange={setCasheaOpen}
+        methods={realMethods}
+        rate={rate}
+        total={total}
+        initial={cashea}
+        onConfirm={(draft) => {
+          setCashea(draft);
+          setMixed(null);
+          setCasheaOpen(false);
         }}
       />
 
@@ -862,7 +971,9 @@ function CustomerDialog({
         <div className="flex flex-col gap-3">
           <div className="flex items-end gap-2">
             <div className="flex-1">
-              <Label htmlFor="pos-doc">Documento / Cédula</Label>
+              <Label htmlFor="pos-doc" className="mb-1.5 block">
+                Documento / Cédula
+              </Label>
               <Input
                 id="pos-doc"
                 value={doc}
@@ -931,7 +1042,9 @@ function CustomerDialog({
           {/* Búsqueda rápida por nombre */}
           {found === undefined && (
             <div>
-              <Label htmlFor="pos-name">Buscar por nombre</Label>
+              <Label htmlFor="pos-name" className="mb-1.5 block">
+                Buscar por nombre
+              </Label>
               <Input
                 id="pos-name"
                 value={name}
@@ -1222,6 +1335,286 @@ function MixedPaymentForm({
         </Button>
         <Button type="button" onClick={confirm}>
           Confirmar pago
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
+// ───────────────────────── Pago con Cashea ─────────────────────────
+
+function CasheaPaymentModal({
+  open,
+  onOpenChange,
+  methods,
+  rate,
+  total,
+  initial,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  methods: PaymentMethodOption[];
+  rate: number;
+  total: number;
+  initial: CasheaDraft | null;
+  onConfirm: (draft: CasheaDraft) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] max-w-[720px] overflow-y-auto overflow-x-hidden">
+        <DialogHeader>
+          <DialogTitle>Pago con Cashea · Total {fmtUSD(total)}</DialogTitle>
+        </DialogHeader>
+        {open && (
+          <CasheaPaymentForm
+            methods={methods}
+            rate={rate}
+            total={total}
+            initial={initial}
+            onCancel={() => onOpenChange(false)}
+            onConfirm={onConfirm}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CasheaPaymentForm({
+  methods,
+  rate,
+  total,
+  initial,
+  onCancel,
+  onConfirm,
+}: {
+  methods: PaymentMethodOption[];
+  rate: number;
+  total: number;
+  initial: CasheaDraft | null;
+  onCancel: () => void;
+  onConfirm: (draft: CasheaDraft) => void;
+}) {
+  const [rows, setRows] = useState<DraftPayLine[]>(() =>
+    initial && initial.initial.length
+      ? initial.initial.map((p) => ({
+          method: p.method,
+          amount: String(p.amount),
+          reference: p.reference ?? "",
+        }))
+      : [{ method: methods[0]?.name ?? "", amount: "", reference: "" }],
+  );
+  const [reference, setReference] = useState(initial?.reference ?? "");
+  const [channel, setChannel] = useState<"tienda" | "online">(
+    initial?.channel ?? "tienda",
+  );
+
+  const pmOf = (name: string) => methods.find((m) => m.name === name);
+  const isValidAmount = (amount: string) => {
+    const value = amount.trim();
+    return !value || moneyPattern.test(value);
+  };
+  const toUsd = (r: DraftPayLine) => {
+    if (!isValidAmount(r.amount)) return 0;
+    const pm = pmOf(r.method);
+    const amt = Number(r.amount.trim()) || 0;
+    if (!pm) return 0;
+    return round2(pm.currency === "VES" ? (rate ? amt / rate : 0) : amt);
+  };
+  const initialUsd = round2(rows.reduce((a, r) => a + toUsd(r), 0));
+  const financedCents = cents(total) - cents(initialUsd);
+  const financed = centsToMoney(financedCents);
+
+  function update(i: number, patch: Partial<DraftPayLine>) {
+    setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  }
+  function addRow() {
+    setRows((rs) => [...rs, { method: methods[0]?.name ?? "", amount: "", reference: "" }]);
+  }
+  function removeRow(i: number) {
+    setRows((rs) => rs.filter((_, idx) => idx !== i));
+  }
+
+  function confirm() {
+    if (!reference.trim()) return toast.error("Ingresa el número de orden de Cashea.");
+    const lines: SalePaymentInput[] = [];
+    for (const r of rows) {
+      const pm = pmOf(r.method);
+      const amountText = r.amount.trim();
+      if (amountText && !moneyPattern.test(amountText)) {
+        toast.error(`El monto de ${pm?.name ?? "la fila"} debe tener máximo 2 decimales.`);
+        return;
+      }
+      const amount = Number(amountText) || 0;
+      if (!pm || amount <= 0) continue;
+      if (pm.requires_reference && !r.reference.trim()) {
+        toast.error(`Falta la referencia de ${pm.name}.`);
+        return;
+      }
+      lines.push({
+        method: pm.name,
+        currency: pm.currency,
+        amount: round2(amount),
+        amount_usd: round2(toUsd(r)),
+        reference: r.reference.trim() || null,
+      });
+    }
+    const initUsd = round2(lines.reduce((a, p) => a + p.amount_usd, 0));
+    const fCents = cents(total) - cents(initUsd);
+    if (fCents < 0) return toast.error("El inicial no puede superar el total.");
+    if (fCents === 0)
+      return toast.error("El inicial cubre el total; usa un método de pago normal.");
+    onConfirm({
+      initial: lines,
+      reference: reference.trim(),
+      financed: centsToMoney(fCents),
+      channel,
+    });
+  }
+
+  return (
+    <>
+      <div className="flex flex-col gap-2.5">
+        <div>
+          <Label className="text-[12px] text-text-2">Canal</Label>
+          <div className="mt-1 grid grid-cols-2 gap-1.5">
+            {(["tienda", "online"] as const).map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setChannel(c)}
+                className={cn(
+                  "h-10 rounded-[10px] border text-[12.5px] font-medium transition",
+                  channel === c
+                    ? "border-brand bg-brand-soft text-brand"
+                    : "border-border bg-card text-text-2 hover:bg-[var(--hover)]",
+                )}
+              >
+                {c === "tienda" ? "Tienda" : "Online (marketplace)"}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <Label className="text-[12px] text-text-2">N° de orden Cashea</Label>
+          <Input
+            value={reference}
+            onChange={(e) => setReference(e.target.value)}
+            placeholder="Referencia de la orden Cashea"
+            className="mt-1 h-10"
+          />
+        </div>
+
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-text-3">
+          Inicial cobrada en caja
+        </div>
+
+        {rows.map((r, i) => {
+          const pm = pmOf(r.method);
+          return (
+            <div key={i} className="min-w-0 rounded-[10px] border border-border p-3">
+              <div className="grid min-w-0 grid-cols-1 items-center gap-2 sm:grid-cols-[minmax(150px,190px)_minmax(0,1fr)_auto]">
+                <Select value={r.method} onValueChange={(v) => update(i, { method: v })}>
+                  <SelectTrigger className="h-10 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {methods.map((m) => (
+                      <SelectItem key={m.name} value={m.name}>
+                        {m.name} ({m.currency})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={r.amount}
+                  onChange={(e) => update(i, { amount: e.target.value })}
+                  onBlur={(e) => {
+                    const value = e.target.value.trim();
+                    if (value && moneyPattern.test(value)) {
+                      update(i, { amount: formatAmountInput(Number(value)) });
+                    }
+                  }}
+                  placeholder={pm?.currency === "VES" ? "Monto Bs." : "Monto $"}
+                  className="h-10"
+                />
+                {rows.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeRow(i)}
+                    className="iconbtn flex size-10 items-center justify-center rounded-md text-danger"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                )}
+              </div>
+              <div className="mt-2 grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_210px] sm:items-center">
+                <span className="min-w-0 text-[11px] text-text-3">
+                  {isValidAmount(r.amount) ? (
+                    <>
+                      ≈ {fmtUSD(toUsd(r))}
+                      {pm?.currency === "VES" ? ` · ${fmtVES(Number(r.amount) || 0)}` : ""}
+                    </>
+                  ) : (
+                    <span className="text-danger">Monto inválido: máximo 2 decimales</span>
+                  )}
+                </span>
+                {pm?.requires_reference && (
+                  <Input
+                    value={r.reference}
+                    onChange={(e) => update(i, { reference: e.target.value })}
+                    placeholder="N° referencia"
+                    className="h-8 w-full text-[12px]"
+                  />
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        <button
+          type="button"
+          onClick={addRow}
+          className="flex items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-border py-2 text-[12.5px] font-medium text-text-2 hover:bg-[var(--hover)]"
+        >
+          <Plus className="size-4" /> Agregar método a la inicial
+        </button>
+
+        <div className="rounded-[10px] bg-surface-2 px-3 py-2.5 text-[13px]">
+          <div className="flex items-center justify-between">
+            <span className="text-text-2">Inicial cobrada</span>
+            <span className="font-semibold text-foreground">{fmtUSD(initialUsd)}</span>
+          </div>
+          <div className="mt-1 flex items-center justify-between border-t border-border pt-1">
+            <span className="font-semibold text-foreground">
+              Financia Cashea (por cobrar)
+            </span>
+            <span
+              className={cn(
+                "flex flex-col items-end text-right font-semibold",
+                financedCents > 0 ? "text-warning" : "text-danger",
+              )}
+            >
+              <span>{fmtUSD(financed)}</span>
+              {financedCents > 0 && (
+                <span className="text-[11px] font-medium leading-tight text-text-2">
+                  {fmtVES(round2(financed * rate))}
+                </span>
+              )}
+            </span>
+          </div>
+        </div>
+      </div>
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancelar
+        </Button>
+        <Button type="button" onClick={confirm}>
+          Confirmar Cashea
         </Button>
       </DialogFooter>
     </>

@@ -33,6 +33,13 @@ handoff de diseño `World Medics ERP.dc.html` (claude.ai/design) **tal cual**.
 6. `wm_payment_methods_currency` — añade `currency` (`USD|VES`) y `requires_reference` a `payment_methods`; siembra `Zelle` y `Binance` (USD, con referencia); marca Pago Móvil/Transferencia con referencia; `Mixto` queda como meta-método (sort_order 99).
 7. `wm_sale_payments` — tabla `wm.sale_payments` (pagos por venta: método, moneda, monto nativo, `amount_usd`, referencia) + RLS + índices.
 8. `wm_create_sale_v2` — redefine `wm.create_sale` para recibir `p_payments jsonb` (array de pagos) en vez de `p_payment_method`; inserta en `sale_payments`, guarda `payment_method='Mixto'` si hay >1 pago.
+9. `wm_payment_methods_is_financed` — añade `is_financed` a `payment_methods` (true = financiamiento/por cobrar, no efectivo en caja) y siembra el método **Cashea** (USD, con referencia, `is_financed`, sort_order 98).
+10. `wm_cashea_orders` — tabla `wm.cashea_orders` (cuenta por cobrar a Cashea, 1:1 con la venta: referencia, total, inicial, financiado, comisión, neto, estado `pendiente|cobrada|anulada`, conciliación) + índices + trigger `set_updated_at`.
+11. `wm_cashea_orders_rls` — RLS: lectura miembros; insert `has_module('Ventas',2)`; update (conciliar) `has_module('Reportes',2)`.
+12. `wm_create_sale_v3` — añade `p_cashea jsonb` (opcional) a `create_sale`; cuando viene, inserta la fila `cashea_orders` en la misma transacción (la inicial + la línea `Cashea` van en `sale_payments`).
+13. `wm_cashea_void_on_sale_status` — trigger en `wm.sales` que pone `cashea_orders.status='anulada'` si la venta pasa a Reembolso/Anulada.
+14. `wm_cashea_orders_channel` — añade `channel` (`tienda|online`, default `tienda`) a `cashea_orders` para distinguir ventas en sucursal del marketplace (comisiones distintas) + índice.
+15. `wm_create_sale_v4` — `create_sale` persiste el `channel` Cashea desde `p_cashea`.
 Bootstrap del admin (login) se hizo con `execute_sql` (crea `auth.users` + `auth.identities`).
 
 ### Modelo RLS
@@ -51,13 +58,19 @@ Bootstrap del admin (login) se hizo con `execute_sql` (crea `auth.users` + `auth
 ## Tablas (esquema `wm`)
 branches, categories, brands, sizes, colors, suppliers, products, product_variants,
 inventory, profiles, customers, customer_events, sales, sale_items, **sale_payments**,
-purchase_orders, purchase_order_items, roles, role_permissions, payment_methods,
-exchange_rates, audit_log, settings. (Detalle de campos en `lib/database.types.ts`.)
-- `payment_methods` lleva `currency` (`USD|VES`) y `requires_reference`. Métodos VES
+**cashea_orders**, purchase_orders, purchase_order_items, roles, role_permissions,
+payment_methods, exchange_rates, audit_log, settings. (Detalle de campos en `lib/database.types.ts`.)
+- `payment_methods` lleva `currency` (`USD|VES`), `requires_reference` e `is_financed`. Métodos VES
   (Efectivo VES, Pago Móvil, Transferencia, Tarjeta débito/crédito) se cobran en bolívares;
   métodos USD (Efectivo USD, Zelle, Binance) en dólares. `Mixto` es meta-método (abre modal).
+  `Cashea` (`is_financed`) es meta-método de financiamiento (abre su propio modal en el POS).
 - `sale_payments` registra uno o varios pagos por venta con `amount` (moneda nativa),
-  `amount_usd` (normalizado) y `reference`. Lo escribe el RPC `create_sale`.
+  `amount_usd` (normalizado) y `reference`. Lo escribe el RPC `create_sale`. Una venta Cashea
+  guarda aquí la inicial + una línea `Cashea` por el monto financiado (cuadra la venta).
+- `cashea_orders` es el libro de **cuentas por cobrar a Cashea** (1:1 con la venta, en USD):
+  referencia, total, inicial cobrada, financiado (por cobrar), comisión, neto, estado
+  (`pendiente|cobrada|anulada`), **`channel`** (`tienda|online`) y conciliación. Lo escribe
+  `create_sale` (vía `p_cashea`). El canal distingue ventas en sucursal del marketplace (comisión distinta).
 
 ## Fidelidad visual (tokens del handoff)
 `app/globals.css` mapea los tokens **exactos** del handoff a las variables de shadcn:
@@ -90,6 +103,14 @@ Utilidades extra: `bg-brand`, `text-brand`, `bg-brand-soft`, `text-success`,
 - **Factura/Reportes**: plantilla HTML imprimible `components/factura/invoice-template.tsx`
   (POS y descarga por venta en Reportes) y PDF con membrete
   `components/reportes/report-pdf.tsx`. Ver `docs/FACTURACION-Y-REPORTES.md`.
+- **Cashea** (financiamiento): venta = inicial (efectivo en caja) + financiado (por cobrar a
+  Cashea, USD). El POS captura con `CasheaPaymentForm` (`pos-view.tsx`) y `create_sale` recibe
+  `p_cashea` (escribe `cashea_orders`). Módulo `/cashea` (`lib/queries/cashea.ts`,
+  `app/(app)/cashea/*`, `components/cashea/cashea-view.tsx`) lista las cuentas por cobrar, las
+  concilia (depósito + comisión) y muestra KPIs. Reportes/Dashboard separan **cobrado** vs
+  **por cobrar** vía `payment_methods.is_financed`; los ingresos siguen devengados.
+  El modal del POS captura el **canal** (`tienda|online`); el módulo `/cashea` y Reportes
+  desglosan por canal (comisiones distintas entre tienda y marketplace).
 
 ## Cómo correr
 ```bash
@@ -97,6 +118,18 @@ npm run dev      # http://localhost:3000  (→ /login)
 npm run build    # build de producción
 npm run lint
 ```
+
+## Multi-negocio (arrancar otro negocio desde cero)
+El mismo esquema se reutiliza para varios negocios; **cada negocio = un proyecto Supabase aparte**.
+El arranque vive en **`supabase/bootstrap/`** (3 scripts `psql`, estado final, sin data demo):
+`01_schema.sql` (estructura completa), `02_seed.sql` (seed mínimo: 6 roles + matriz de 54 permisos +
+10 métodos de pago + 1 sucursal + `settings`) y `03_owner.sql` (primer usuario, Super Admin,
+parametrizado). Comando guiado: **`/nuevo-negocio`** (`.claude/commands/nuevo-negocio.md`). Runbook
+para humanos: **`docs/NUEVO-NEGOCIO.md`**. Facturas/OC arrancan en `FAC-000001`/`OC-1`.
+- `01_schema.sql` es un **snapshot a mano** del esquema (como `lib/database.types.ts`): al cambiar
+  el esquema por MCP, re-sincronizar (cómo, en `supabase/bootstrap/README.md`). Excluye los seeds
+  demo y pliega las migraciones incrementales (solo `create_sale` v4; columnas dentro del `CREATE TABLE`).
+- Las vistas usan `security_invoker` → requieren Postgres 15+ (Supabase ya lo cumple).
 
 ## Estado de módulos
 Ver `docs/PROGRESS.md`. Orden por dependencias:

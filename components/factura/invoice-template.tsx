@@ -31,6 +31,7 @@ export type InvoicePayment = {
   amount: number; // moneda nativa
   amount_usd: number;
   reference: string | null;
+  is_financed?: boolean; // true = financiado por Cashea (por cobrar, no entró a caja)
 };
 
 export type InvoiceData = {
@@ -249,17 +250,41 @@ export const InvoiceDocument = forwardRef<HTMLDivElement, { data: InvoiceData }>
               <tbody>
                 {data.payments.map((p, i) => (
                   <tr key={i}>
-                    <td style={td}>
-                      {p.method}{" "}
+                    <td style={{ ...td, color: p.is_financed ? muted : ink }}>
+                      {p.is_financed ? "Financiado por Cashea (por cobrar)" : p.method}{" "}
                       <span style={{ color: muted, fontSize: 10 }}>({p.currency})</span>
                     </td>
                     <td style={{ ...td, color: muted }}>{p.reference ?? "—"}</td>
-                    <td style={{ ...td, ...rt }}>{fmtByCurrency(p.amount, p.currency, data.rate)}</td>
-                    <td style={{ ...td, ...rt }}>{fmtUSD(p.amount_usd)}</td>
+                    <td style={{ ...td, ...rt, color: p.is_financed ? muted : ink }}>
+                      {fmtByCurrency(p.amount, p.currency, data.rate)}
+                    </td>
+                    <td style={{ ...td, ...rt, color: p.is_financed ? muted : ink }}>
+                      {fmtUSD(p.amount_usd)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            {data.payments.some((p) => p.is_financed) ? (
+              <div style={{ marginTop: 8, fontSize: 11, color: muted }}>
+                Inicial pagada hoy:{" "}
+                <span style={{ color: ink, fontWeight: 700 }}>
+                  {fmtUSD(
+                    data.payments
+                      .filter((p) => !p.is_financed)
+                      .reduce((a, p) => a + p.amount_usd, 0),
+                  )}
+                </span>
+                {"  ·  Financiado por Cashea: "}
+                <span style={{ color: ink, fontWeight: 700 }}>
+                  {fmtUSD(
+                    data.payments
+                      .filter((p) => p.is_financed)
+                      .reduce((a, p) => a + p.amount_usd, 0),
+                  )}
+                </span>
+              </div>
+            ) : null}
           </div>
         ) : null}
 

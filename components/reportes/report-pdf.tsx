@@ -71,7 +71,7 @@ function ReportPDFDoc({
   company: InvoiceCompany;
   branchLabel: string;
 }) {
-  const { kpis, monthly, byPayment, sales, range, rate } = data;
+  const { kpis, monthly, byPayment, sales, range, rate, cashea } = data;
   return (
     <Document>
       <Page size="A4" style={s.page}>
@@ -129,7 +129,7 @@ function ReportPDFDoc({
         </View>
         {byPayment.map((p) => (
           <View style={s.trow} key={p.name}>
-            <Td w="34%">{p.name}</Td>
+            <Td w="34%">{p.is_financed ? `${p.name} (por cobrar)` : p.name}</Td>
             <Td w="14%">{p.currency}</Td>
             <Td w="26%" right>
               {p.currency === "VES" ? fmtVES(p.native) : fmtUSD(p.native)}
@@ -139,6 +139,73 @@ function ReportPDFDoc({
             </Td>
           </View>
         ))}
+
+        {cashea.ventasCashea > 0 ? (
+          <>
+            <Text style={s.sectionTitle}>Cashea · conciliación</Text>
+            <View style={s.trow}>
+              <Td w="50%">Ventas Cashea</Td>
+              <Td w="50%" right>
+                {fmtUSD(cashea.ventasCashea)}
+              </Td>
+            </View>
+            <View style={s.trow}>
+              <Td w="50%">Inicial cobrada (caja)</Td>
+              <Td w="50%" right>
+                {fmtUSD(cashea.inicialCobrado)}
+              </Td>
+            </View>
+            <View style={s.trow}>
+              <Td w="50%">Por cobrar a Cashea</Td>
+              <Td w="50%" right>
+                {fmtUSD(cashea.porCobrar)}
+              </Td>
+            </View>
+            <View style={s.trow}>
+              <Td w="50%">Cobrado a Cashea</Td>
+              <Td w="50%" right>
+                {fmtUSD(cashea.cobrado)}
+              </Td>
+            </View>
+            <View style={s.trow}>
+              <Td w="50%">Comisión Cashea</Td>
+              <Td w="50%" right>
+                {fmtUSD(cashea.comisionTotal)}
+              </Td>
+            </View>
+            <View style={s.trow}>
+              <Th w="34%">Canal</Th>
+              <Th w="22%" right>
+                Ventas
+              </Th>
+              <Th w="22%" right>
+                Por cobrar
+              </Th>
+              <Th w="22%" right>
+                Comisión
+              </Th>
+            </View>
+            {(
+              [
+                { label: "Tienda", c: cashea.tienda },
+                { label: "Online", c: cashea.online },
+              ] as const
+            ).map((row) => (
+              <View style={s.trow} key={row.label}>
+                <Td w="34%">{row.label}</Td>
+                <Td w="22%" right>
+                  {fmtUSD(row.c.ventas)}
+                </Td>
+                <Td w="22%" right>
+                  {fmtUSD(row.c.porCobrar)}
+                </Td>
+                <Td w="22%" right>
+                  {fmtUSD(row.c.comision)}
+                </Td>
+              </View>
+            ))}
+          </>
+        ) : null}
 
         <Text style={s.sectionTitle}>Desglose mensual</Text>
         <View style={s.trow}>

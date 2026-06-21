@@ -246,6 +246,7 @@ export type PaymentMethod = {
   sort_order: number;
   currency: "USD" | "VES";
   requires_reference: boolean;
+  is_financed: boolean; // true = financiamiento / por cobrar (Cashea), no es efectivo en caja
 }
 
 export type SalePayment = {
@@ -257,6 +258,30 @@ export type SalePayment = {
   amount_usd: number; // normalizado a USD para agregaciones
   reference: string | null;
   created_at: string;
+}
+
+export type CasheaStatus = "pendiente" | "cobrada" | "anulada";
+export type CasheaChannel = "tienda" | "online"; // tienda = en sucursal · online = marketplace
+
+// Cuenta por cobrar a Cashea (1:1 con la venta). Todo en USD.
+export type CasheaOrder = {
+  id: string;
+  sale_id: string;
+  branch_id: string;
+  reference: string; // nro de orden Cashea
+  total: number; // snapshot del total de la venta (USD)
+  initial_amount: number; // inicial cobrado en caja (USD)
+  financed_amount: number; // por cobrar a Cashea (USD)
+  commission_pct: number; // % retenido por Cashea
+  commission_amount: number | null; // monto de comisión (al conciliar)
+  net_amount: number | null; // neto recibido (al conciliar)
+  status: CasheaStatus;
+  channel: CasheaChannel; // canal de venta (comisión distinta por canal)
+  settled_at: string | null;
+  settled_amount: number | null; // lo que Cashea depositó (USD)
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export type ExchangeRate = {
@@ -417,6 +442,7 @@ export type Database = {
       sales: Tbl<Sale>;
       sale_items: Tbl<SaleItem>;
       sale_payments: Tbl<SalePayment>;
+      cashea_orders: Tbl<CasheaOrder>;
       purchase_orders: Tbl<PurchaseOrder>;
       purchase_order_items: Tbl<PurchaseOrderItem>;
       roles: Tbl<RoleRow>;
@@ -449,6 +475,7 @@ export type Database = {
           p_rate: number;
           p_items: unknown;
           p_status?: string;
+          p_cashea?: unknown; // CasheaInput | null
         };
         Returns: Sale;
       };

@@ -47,6 +47,51 @@ export async function getDashboard(branchId: string | null) {
   const monthPaid = paid.filter((s) => s.created_at >= monthStart);
   const sum = (arr: { total: number }[]) => arr.reduce((a, s) => a + Number(s.total), 0);
 
+  // Desglose de pagos del mes desde sale_payments (separa lo financiado por Cashea
+  // del efectivo en caja) + cuentas por cobrar a Cashea pendientes.
+  const monthPaidIds = monthPaid.map((s) => s.id);
+  const casheaPendQ = supabase
+    .from("cashea_orders")
+    .select("financed_amount")
+    .eq("status", "pendiente");
+  const [monthPayRes, pmRes, casheaPendRes] = await Promise.all([
+    monthPaidIds.length
+      ? supabase
+          .from("sale_payments")
+          .select("sale_id, method, amount_usd")
+          .in("sale_id", monthPaidIds)
+      : Promise.resolve({
+          data: [] as { sale_id: string; method: string; amount_usd: number }[],
+        }),
+    supabase.from("payment_methods").select("name, is_financed"),
+    branchId ? casheaPendQ.eq("branch_id", branchId) : casheaPendQ,
+  ]);
+  const pmFinanced = new Map((pmRes.data ?? []).map((p) => [p.name, !!p.is_financed]));
+  const payAgg = new Map<string, number>();
+  const salesWithPay = new Set<string>();
+  for (const p of monthPayRes.data ?? []) {
+    salesWithPay.add(p.sale_id);
+    payAgg.set(p.method, (payAgg.get(p.method) ?? 0) + Number(p.amount_usd));
+  }
+  // Fallback para ventas sin filas de pago (datos previos a sale_payments).
+  for (const s of monthPaid) {
+    if (salesWithPay.has(s.id)) continue;
+    const m = s.payment_method ?? "Otro";
+    payAgg.set(m, (payAgg.get(m) ?? 0) + Number(s.total));
+  }
+  const payments = [...payAgg.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, value], i) => ({
+      name,
+      value: Math.round(value),
+      color: CHART_COLORS[i % CHART_COLORS.length],
+      is_financed: pmFinanced.get(name) ?? false,
+    }));
+  const porCobrarCashea =
+    Math.round(
+      (casheaPendRes.data ?? []).reduce((a, c) => a + Number(c.financed_amount), 0) * 100,
+    ) / 100;
+
   // KPIs
   const monthSales = sum(monthPaid);
   const monthLines = lines.filter((l) => l.status === "Pagada" && l.created_at >= monthStart);
@@ -65,6 +110,7 @@ export async function getDashboard(branchId: string | null) {
     newCustomers,
     grossProfit,
     margin: monthSales > 0 ? (grossProfit / monthSales) * 100 : 0,
+    porCobrarCashea,
   };
 
   // Monthly series (current year, paid)
@@ -74,14 +120,6 @@ export async function getDashboard(branchId: string | null) {
       .reduce((a, s) => a + Number(s.total), 0);
     return { label, value: Math.round(v) };
   });
-
-  // Payment breakdown (month, paid)
-  const payMap = new Map<string, number>();
-  for (const s of monthPaid)
-    payMap.set(s.payment_method ?? "Otro", (payMap.get(s.payment_method ?? "Otro") ?? 0) + Number(s.total));
-  const payments = [...payMap.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([name, value], i) => ({ name, value: Math.round(value), color: CHART_COLORS[i % CHART_COLORS.length] }));
 
   // Branch sales bars
   const branches = (branchStatsRes.data ?? []).map((b) => ({

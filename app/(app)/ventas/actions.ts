@@ -20,6 +20,15 @@ export type SalePaymentInput = {
   reference: string | null;
 };
 
+// Datos de la cuenta por cobrar a Cashea cuando la venta se financia con Cashea.
+export type CasheaInput = {
+  reference: string; // nro de orden Cashea
+  initial_amount: number; // inicial cobrado en caja (USD)
+  financed_amount: number; // por cobrar a Cashea (USD) = total − inicial
+  commission_pct: number; // 0 en el POS salvo que se conozca
+  channel: "tienda" | "online"; // canal: en sucursal o marketplace
+};
+
 export type CheckoutInput = {
   branch_id: string;
   customer_id: string;
@@ -28,6 +37,7 @@ export type CheckoutInput = {
   rate: number;
   items: CheckoutItem[];
   status?: "Pagada" | "Pendiente";
+  cashea?: CasheaInput;
 };
 
 export async function checkout(input: CheckoutInput): Promise<{
@@ -49,6 +59,7 @@ export async function checkout(input: CheckoutInput): Promise<{
     p_rate: input.rate,
     p_items: input.items,
     p_status: input.status ?? "Pagada",
+    p_cashea: input.cashea ?? null,
   });
 
   if (error) return { error: error.message };
@@ -57,6 +68,7 @@ export async function checkout(input: CheckoutInput): Promise<{
   revalidatePath("/inventario");
   revalidatePath("/dashboard");
   revalidatePath("/reportes");
+  revalidatePath("/cashea");
   return { invoice: data.invoice_number, saleId: data.id, createdAt: data.created_at };
 }
 

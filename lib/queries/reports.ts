@@ -23,6 +23,24 @@ export type PaymentBreakdown = {
   usd: number; // total normalizado a USD (para comparar/ordenar)
   native: number; // total en la moneda nativa del método
   color: string;
+  is_financed: boolean; // true = financiado (Cashea, por cobrar), no es efectivo cobrado
+};
+
+export type CasheaChannelTotals = {
+  ventas: number;
+  porCobrar: number;
+  cobrado: number;
+  comision: number;
+};
+
+export type CasheaSummary = {
+  ventasCashea: number; // total de ventas con financiamiento Cashea (USD)
+  inicialCobrado: number; // inicial cobrada en caja (USD)
+  porCobrar: number; // financiado pendiente de cobro a Cashea (USD)
+  cobrado: number; // depositado por Cashea (órdenes conciliadas, USD)
+  comisionTotal: number; // comisión retenida por Cashea (USD)
+  tienda: CasheaChannelTotals; // desglose canal en sucursal
+  online: CasheaChannelTotals; // desglose canal marketplace
 };
 
 /** Enumera los meses (year-month) incluidos en el rango [from, to]. */
@@ -74,12 +92,15 @@ export async function getReports(
   const [salesRes, linesRes, pmRes] = await Promise.all([
     branchId ? salesQ.eq("branch_id", branchId) : salesQ,
     branchId ? linesQ.eq("branch_id", branchId) : linesQ,
-    supabase.from("payment_methods").select("name, currency"),
+    supabase.from("payment_methods").select("name, currency, is_financed"),
   ]);
   const sales = salesRes.data ?? [];
   const lines = linesRes.data ?? [];
   const pmCurrency = new Map(
     (pmRes.data ?? []).map((p) => [p.name, (p.currency ?? "VES") as "USD" | "VES"]),
+  );
+  const pmFinanced = new Map(
+    (pmRes.data ?? []).map((p) => [p.name, !!p.is_financed]),
   );
 
   // Desglose de pagos por método (desde wm.sale_payments cuando existe).
@@ -119,6 +140,7 @@ export async function getReports(
       usd: Math.round(v.usd * 100) / 100,
       native: Math.round(v.native * 100) / 100,
       color: COLORS[i % COLORS.length],
+      is_financed: pmFinanced.get(name) ?? false,
     }));
 
   // Desglose mensual dentro del rango.
@@ -178,12 +200,72 @@ export async function getReports(
     status: s.status,
   }));
 
+  // Resumen Cashea (cuentas por cobrar) — fuente de verdad: wm.cashea_orders.
+  let casheaQ = supabase
+    .from("cashea_orders")
+    .select(
+      "total, initial_amount, financed_amount, commission_amount, settled_amount, status, channel",
+    )
+    .gte("created_at", fromIso)
+    .lte("created_at", toIso);
+  if (branchId) casheaQ = casheaQ.eq("branch_id", branchId);
+  const { data: casheaRows } = await casheaQ;
+  const mkChannelTotals = (): CasheaChannelTotals => ({
+    ventas: 0,
+    porCobrar: 0,
+    cobrado: 0,
+    comision: 0,
+  });
+  const cashea: CasheaSummary = {
+    ventasCashea: 0,
+    inicialCobrado: 0,
+    porCobrar: 0,
+    cobrado: 0,
+    comisionTotal: 0,
+    tienda: mkChannelTotals(),
+    online: mkChannelTotals(),
+  };
+  for (const c of casheaRows ?? []) {
+    const ch = c.channel === "online" ? cashea.online : cashea.tienda;
+    if (c.status !== "anulada") {
+      cashea.ventasCashea += Number(c.total);
+      cashea.inicialCobrado += Number(c.initial_amount);
+      ch.ventas += Number(c.total);
+    }
+    if (c.status === "pendiente") {
+      cashea.porCobrar += Number(c.financed_amount);
+      ch.porCobrar += Number(c.financed_amount);
+    }
+    if (c.status === "cobrada") {
+      cashea.cobrado += Number(c.settled_amount ?? 0);
+      cashea.comisionTotal += Number(c.commission_amount ?? 0);
+      ch.cobrado += Number(c.settled_amount ?? 0);
+      ch.comision += Number(c.commission_amount ?? 0);
+    }
+  }
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  cashea.ventasCashea = r2(cashea.ventasCashea);
+  cashea.inicialCobrado = r2(cashea.inicialCobrado);
+  cashea.porCobrar = r2(cashea.porCobrar);
+  cashea.cobrado = r2(cashea.cobrado);
+  cashea.comisionTotal = r2(cashea.comisionTotal);
+  for (const ch of [cashea.tienda, cashea.online]) {
+    ch.ventas = r2(ch.ventas);
+    ch.porCobrar = r2(ch.porCobrar);
+    ch.cobrado = r2(ch.cobrado);
+    ch.comision = r2(ch.comision);
+  }
+  // Vista de caja: ingresos devengados menos lo que aún está por cobrar a Cashea.
+  const efectivoCobrado = Math.round((kpis.ingresos - cashea.porCobrar) * 100) / 100;
+
   return {
     kpis,
     monthly,
     trend,
     byCategory,
     byPayment,
+    cashea,
+    efectivoCobrado,
     sales: salesList,
     range: { from, to },
     rate,
@@ -203,7 +285,7 @@ export async function getSaleDetail(id: string) {
     .maybeSingle();
   if (!sale) return null;
 
-  const [itemsRes, paymentsRes] = await Promise.all([
+  const [itemsRes, paymentsRes, pmRes] = await Promise.all([
     supabase
       .from("sale_items")
       .select("description, quantity, unit_price, line_total")
@@ -212,7 +294,15 @@ export async function getSaleDetail(id: string) {
       .from("sale_payments")
       .select("method, currency, amount, amount_usd, reference")
       .eq("sale_id", id),
+    supabase.from("payment_methods").select("name, is_financed"),
   ]);
+  const financedMethods = new Set(
+    (pmRes.data ?? []).filter((m) => m.is_financed).map((m) => m.name),
+  );
+  const payments = (paymentsRes.data ?? []).map((p) => ({
+    ...p,
+    is_financed: financedMethods.has(p.method),
+  }));
 
   let customer: { name: string; document: string | null; phone: string | null; email: string | null } | null = null;
   if (sale.customer_id) {
@@ -241,7 +331,7 @@ export async function getSaleDetail(id: string) {
   return {
     sale,
     items: itemsRes.data ?? [],
-    payments: paymentsRes.data ?? [],
+    payments,
     customer,
     branchName: b?.city ?? null,
     cashier,

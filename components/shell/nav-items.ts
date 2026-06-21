@@ -7,6 +7,7 @@ import {
   Store,
   Shield,
   BarChart3,
+  Wallet,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -39,6 +40,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/sucursales", label: "Sucursales", icon: Store, module: "Sucursales" },
       { href: "/usuarios", label: "Usuarios", icon: Shield, module: "Usuarios" },
       { href: "/reportes", label: "Reportes", icon: BarChart3, module: "Reportes" },
+      { href: "/cashea", label: "Cashea", icon: Wallet, module: "Reportes" },
     ],
   },
   {

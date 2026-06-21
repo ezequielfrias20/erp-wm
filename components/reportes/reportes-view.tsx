@@ -281,6 +281,11 @@ export function ReportesView({
             <span className="flex items-center gap-1.5 font-medium text-foreground">
               <span className="size-2.5 rounded-[3px]" style={{ background: p.color }} />
               {p.name}
+              {p.is_financed && (
+                <span className="rounded-md bg-warning-soft px-1.5 py-0.5 text-[10px] font-semibold text-warning">
+                  por cobrar
+                </span>
+              )}
             </span>
             <span className="text-text-2">{p.currency}</span>
             <span className="text-right text-foreground">
@@ -295,6 +300,57 @@ export function ReportesView({
           </div>
         )}
       </div>
+
+      {/* Cashea · conciliación */}
+      {data.cashea.ventasCashea > 0 && (
+        <div className="fadeup mb-[18px] overflow-hidden rounded-2xl border border-border bg-card shadow-card-sm">
+          <div className="px-5 pt-[18px] pb-3.5">
+            <div className="text-[15px] font-bold tracking-tight text-foreground">
+              Cashea · conciliación
+            </div>
+            <div className="text-[12.5px] text-text-3">
+              Inicial = efectivo en caja · Financiado = cuenta por cobrar a Cashea
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-px border-t border-border bg-border sm:grid-cols-3 lg:grid-cols-5">
+            <CasheaStat label="Ventas Cashea" value={fmtUSD(data.cashea.ventasCashea)} />
+            <CasheaStat label="Inicial cobrada" value={fmtUSD(data.cashea.inicialCobrado)} />
+            <CasheaStat
+              label="Por cobrar"
+              value={fmtUSD(data.cashea.porCobrar)}
+              tone="warning"
+            />
+            <CasheaStat
+              label="Cobrado a Cashea"
+              value={fmtUSD(data.cashea.cobrado)}
+              tone="success"
+            />
+            <CasheaStat label="Comisión" value={fmtUSD(data.cashea.comisionTotal)} />
+          </div>
+          <div className="grid grid-cols-[1.2fr_1fr_1fr_1fr] border-t border-border px-5 py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
+            <span>Canal</span>
+            <span className="text-right">Ventas</span>
+            <span className="text-right">Por cobrar</span>
+            <span className="text-right">Comisión</span>
+          </div>
+          {(
+            [
+              { label: "Tienda", c: data.cashea.tienda },
+              { label: "Online", c: data.cashea.online },
+            ] as const
+          ).map((row) => (
+            <div
+              key={row.label}
+              className="grid grid-cols-[1.2fr_1fr_1fr_1fr] items-center border-b border-border px-5 py-2.5 text-[12.5px] last:border-b-0"
+            >
+              <span className="font-medium text-foreground">{row.label}</span>
+              <span className="text-right text-foreground">{fmtUSD(row.c.ventas)}</span>
+              <span className="text-right text-warning">{fmtUSD(row.c.porCobrar)}</span>
+              <span className="text-right text-text-2">{fmtUSD(row.c.comision)}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Ventas del período */}
       <div className="fadeup mb-[18px] overflow-hidden rounded-2xl border border-border bg-card shadow-card-sm">
@@ -444,6 +500,7 @@ function detailToInvoice(
       amount: p.amount,
       amount_usd: p.amount_usd,
       reference: p.reference,
+      is_financed: p.is_financed,
     })),
   };
 }
@@ -540,6 +597,34 @@ function Kpi({
       </div>
       <div className="mt-2 text-[22px] font-bold tracking-tight text-foreground">{value}</div>
       {sub && <div className="mt-0.5 text-[11.5px] text-text-3">{sub}</div>}
+    </div>
+  );
+}
+
+function CasheaStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "warning" | "success";
+}) {
+  return (
+    <div className="bg-card px-5 py-3.5">
+      <div className="text-[11.5px] text-text-3">{label}</div>
+      <div
+        className={cn(
+          "mt-1 text-[16px] font-bold tracking-tight",
+          tone === "warning"
+            ? "text-warning"
+            : tone === "success"
+              ? "text-success"
+              : "text-foreground",
+        )}
+      >
+        {value}
+      </div>
     </div>
   );
 }

@@ -49,7 +49,7 @@ export default async function VentasPage() {
       .order("name"),
     supabase
       .from("payment_methods")
-      .select("name, currency, requires_reference")
+      .select("name, currency, requires_reference, is_financed")
       .eq("enabled", true)
       .order("sort_order"),
     supabase
@@ -84,6 +84,7 @@ export default async function VentasPage() {
         name: p.name,
         currency: (p.currency ?? "VES") as "USD" | "VES",
         requires_reference: !!p.requires_reference,
+        is_financed: !!p.is_financed,
       }))}
       branch={branchRes.data ?? null}
       rate={bcv.rate}
