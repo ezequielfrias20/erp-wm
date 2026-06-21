@@ -27,6 +27,21 @@ export default async function InventarioPage() {
     ...new Set(list.map((r) => r.brand).filter(Boolean)),
   ] as string[];
 
+  // Opciones para la plantilla de carga masiva (todos los SKU y sucursales).
+  const [{ data: allVariants }, { data: allBranches }] = await Promise.all([
+    supabase
+      .from("product_variants")
+      .select("sku, size, color, products(name)")
+      .order("sku"),
+    supabase.from("branches").select("city, code").order("city"),
+  ]);
+  const skuOptions = (allVariants ?? []).map((v) => {
+    const pname = (v.products as { name?: string } | null)?.name ?? "";
+    const extra = [v.size, v.color].filter(Boolean).join(" ");
+    return `${v.sku} — ${pname}${extra ? ` ${extra}` : ""}`.trim();
+  });
+  const branchOptions = (allBranches ?? []).map((b) => b.city);
+
   let branchLabel = "5 sucursales";
   if (branchId) {
     const { data: b } = await supabase
@@ -42,6 +57,8 @@ export default async function InventarioPage() {
       rows={list}
       categories={categories.sort()}
       brands={brands.sort()}
+      skuOptions={skuOptions}
+      branchOptions={branchOptions}
       branchLabel={branchLabel}
       canEdit={canEdit(session.permissions, "Inventario")}
     />

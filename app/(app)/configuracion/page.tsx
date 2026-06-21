@@ -12,11 +12,12 @@ export default async function ConfiguracionPage() {
   if (!session) redirect("/login");
 
   const supabase = await createClient();
-  const [settingsRes, pmRes, catRes, sizeRes, colorRes, auditRes, bcv] =
+  const [settingsRes, pmRes, catRes, brandRes, sizeRes, colorRes, auditRes, bcv] =
     await Promise.all([
       supabase.from("settings").select("*").eq("id", 1).maybeSingle(),
       supabase.from("payment_methods").select("*").order("sort_order"),
       supabase.from("categories").select("*").order("sort_order"),
+      supabase.from("brands").select("*").order("name"),
       supabase.from("sizes").select("*").order("sort_order"),
       supabase.from("colors").select("*").order("sort_order"),
       supabase
@@ -37,6 +38,7 @@ export default async function ConfiguracionPage() {
       settings={settingsRes.data!}
       paymentMethods={pmRes.data ?? []}
       categories={catRes.data ?? []}
+      brands={brandRes.data ?? []}
       sizes={sizeRes.data ?? []}
       colors={colorRes.data ?? []}
       audit={auditRes.data ?? []}

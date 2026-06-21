@@ -34,6 +34,7 @@ export type ImportRow = {
   sku: string;
   branch: string;
   quantity: number;
+  reserved?: number | null;
   min_stock?: number | null;
 };
 
@@ -44,7 +45,6 @@ export async function importInventory(rows: ImportRow[]): Promise<ImportResult> 
   if (!rows.length) return { error: "El archivo no contiene filas." };
   const supabase = await createClient();
 
-  const skus = [...new Set(rows.map((r) => r.sku.toLowerCase()))];
   const [{ data: variants }, { data: branches }] = await Promise.all([
     supabase.from("product_variants").select("id, sku"),
     supabase.from("branches").select("id, city, code"),
@@ -56,21 +56,23 @@ export async function importInventory(rows: ImportRow[]): Promise<ImportResult> 
     bMap.set(b.code.toLowerCase(), b.id);
   }
 
+  const num = (v: number | null | undefined): number | null =>
+    v == null || !Number.isFinite(v) ? null : Math.max(0, Math.trunc(v));
+
   // Resolve rows + keep only matches.
   const resolved = rows
     .map((r) => ({
       variant_id: vMap.get(r.sku.toLowerCase()),
       branch_id: bMap.get(String(r.branch).trim().toLowerCase()),
       quantity: Number.isFinite(r.quantity) ? Math.max(0, Math.trunc(r.quantity)) : 0,
-      min_stock:
-        r.min_stock == null || !Number.isFinite(r.min_stock)
-          ? null
-          : Math.max(0, Math.trunc(r.min_stock)),
+      reserved: num(r.reserved),
+      min_stock: num(r.min_stock),
     }))
     .filter((r) => r.variant_id && r.branch_id) as {
     variant_id: string;
     branch_id: string;
     quantity: number;
+    reserved: number | null;
     min_stock: number | null;
   }[];
 
@@ -78,22 +80,29 @@ export async function importInventory(rows: ImportRow[]): Promise<ImportResult> 
   if (!resolved.length)
     return { error: "Ninguna fila coincidió con un SKU y una sucursal válidos.", skipped };
 
-  // Merge with existing min_stock so an omitted column doesn't reset it.
+  // Merge with existing reserved/min_stock so una columna omitida no los resetea.
   const variantIds = [...new Set(resolved.map((r) => r.variant_id))];
   const { data: existing } = await supabase
     .from("inventory")
-    .select("variant_id, branch_id, min_stock")
+    .select("variant_id, branch_id, reserved, min_stock")
     .in("variant_id", variantIds);
-  const minMap = new Map(
-    (existing ?? []).map((e) => [`${e.variant_id}:${e.branch_id}`, e.min_stock]),
+  const existingMap = new Map(
+    (existing ?? []).map((e) => [
+      `${e.variant_id}:${e.branch_id}`,
+      { reserved: e.reserved, min_stock: e.min_stock },
+    ]),
   );
 
-  const payload = resolved.map((r) => ({
-    variant_id: r.variant_id,
-    branch_id: r.branch_id,
-    quantity: r.quantity,
-    min_stock: r.min_stock ?? minMap.get(`${r.variant_id}:${r.branch_id}`) ?? 0,
-  }));
+  const payload = resolved.map((r) => {
+    const prev = existingMap.get(`${r.variant_id}:${r.branch_id}`);
+    return {
+      variant_id: r.variant_id,
+      branch_id: r.branch_id,
+      quantity: r.quantity,
+      reserved: r.reserved ?? prev?.reserved ?? 0,
+      min_stock: r.min_stock ?? prev?.min_stock ?? 0,
+    };
+  });
 
   const { error } = await supabase
     .from("inventory")

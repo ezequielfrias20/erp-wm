@@ -17,6 +17,29 @@ Estado por fase. Actualizar al cerrar cada módulo. Leyenda: ✅ hecho · 🚧 e
 | 10 | Usuarios y permisos (lista, invitar, matriz de permisos) | ✅ | Tabla con filtros, drawer de detalle, matriz editable (click cicla nivel), invitar/editar/eliminar |
 | 11 | Reportes (filtros, gráficos, tabla detalle, exportar) | ✅ | Desglose mensual ingresos/costo/ganancia/margen, KPIs, tendencia, breakdown, export CSV/PDF |
 | 12 | Configuración (perfil, empresa, marca, apariencia, ventas, inventario, notif, auditoría) | ✅ | 9 secciones; perfil/empresa/ventas/notif/colores persistentes; maestros CRUD; auditoría |
+| 13 | Mejoras operativas (carga masiva, POS avanzado, reportes con rango y factura) | ✅ | Ver detalle abajo; build de producción OK |
+
+## Fase 13 — Mejoras operativas
+
+Migraciones: `wm_payment_methods_currency`, `wm_sale_payments`, `wm_create_sale_v2`.
+Librerías: `exceljs`, `@react-pdf/renderer`.
+
+- **Productos**: SKU autogenerado `[CAT]-[slug]-[0001]` (`lib/sku.ts`); plantilla Excel de 2 hojas
+  (Productos + Variantes) con listas desplegables, importación y exportación `.xlsx`
+  (`components/productos/bulk-bar.tsx`, `importProducts/getProductsExport`).
+- **Inventario**: corregida la alineación de la tabla de stock (`minmax(0,…)` + `truncate`);
+  plantilla/importación/exportación Excel con selector de SKU y sucursal; `importInventory`
+  soporta `reservado`.
+- **Configuración**: alta/baja de **Marcas** en la sección Inventario.
+- **Ventas/POS**: búsqueda de cliente por cédula con alta inline y auto-selección; métodos
+  `Zelle`/`Binance` (USD); número de referencia obligatorio donde aplica; **pago mixto** (modal,
+  multi-método con restante); **borradores** en localStorage (guardar/restaurar/eliminar);
+  factura imprimible tras cobrar. `create_sale` ahora recibe `p_payments[]` y guarda `sale_payments`.
+- **Reportes**: rango **desde/hasta** (recalcula todo); KPIs con equivalente en Bs.; tabla de
+  ventas del período con **detalle + descarga de factura**; **facturado por método de pago**
+  (moneda nativa + equivalente USD + tasa); **PDF con membrete** (logo + datos de empresa)
+  vía `@react-pdf` en lugar de `window.print()`.
+- **Doble moneda**: helpers `fmtDual`/`fmtByCurrency` en `lib/format.ts`; siempre se muestra la tasa.
 
 ## Cómo reanudar
 1. Leer `CLAUDE.md` (stack, Supabase, RLS, credenciales, convenciones).

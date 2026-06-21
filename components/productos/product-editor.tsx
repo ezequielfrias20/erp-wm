@@ -499,7 +499,12 @@ function VariantDialog({
           <input type="hidden" name="product_id" value={productId} />
           {variant && <input type="hidden" name="id" value={variant.id} />}
           <div className="grid grid-cols-2 gap-3">
-            <Fld label="SKU" name="sku" defaultValue={variant?.sku} required />
+            <Fld
+              label="SKU"
+              name="sku"
+              defaultValue={variant?.sku}
+              placeholder="Auto si se deja vacío"
+            />
             <Fld label="Talla" name="size" defaultValue={variant?.size ?? ""} />
           </div>
           <div className="grid grid-cols-2 gap-3">

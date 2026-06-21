@@ -29,7 +29,7 @@ export default async function VentasPage() {
     branchId = first?.id ?? null;
   }
 
-  const [branchRes, invRes, customersRes, pmRes, bcv] = await Promise.all([
+  const [branchRes, invRes, customersRes, pmRes, settingsRes, bcv] = await Promise.all([
     branchId
       ? supabase.from("branches").select("id, city").eq("id", branchId).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -49,9 +49,14 @@ export default async function VentasPage() {
       .order("name"),
     supabase
       .from("payment_methods")
-      .select("name")
+      .select("name, currency, requires_reference")
       .eq("enabled", true)
       .order("sort_order"),
+    supabase
+      .from("settings")
+      .select("company_name, rif, fiscal_address, phone, logo_url")
+      .eq("id", 1)
+      .maybeSingle(),
     fetchBcvRate().catch(() => ({
       rate: BCV_FALLBACK,
       updatedAt: "",
@@ -70,13 +75,26 @@ export default async function VentasPage() {
     stock: r.quantity,
   }));
 
+  const s = settingsRes.data;
   return (
     <PosView
       products={products}
       customers={customersRes.data ?? []}
-      paymentMethods={(pmRes.data ?? []).map((p) => p.name)}
+      paymentMethods={(pmRes.data ?? []).map((p) => ({
+        name: p.name,
+        currency: (p.currency ?? "VES") as "USD" | "VES",
+        requires_reference: !!p.requires_reference,
+      }))}
       branch={branchRes.data ?? null}
       rate={bcv.rate}
+      company={{
+        name: s?.company_name ?? null,
+        rif: s?.rif ?? null,
+        address: s?.fiscal_address ?? null,
+        phone: s?.phone ?? null,
+        logoUrl: s?.logo_url ?? null,
+      }}
+      cashier={session.profile.full_name ?? null}
     />
   );
 }

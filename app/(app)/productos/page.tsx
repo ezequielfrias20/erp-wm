@@ -18,6 +18,8 @@ export default async function ProductosPage() {
       products={products}
       categories={refs.categories}
       brands={refs.brands}
+      sizes={refs.sizes}
+      colors={refs.colors}
       canEdit={canEdit(session.permissions, "Productos")}
     />
   );

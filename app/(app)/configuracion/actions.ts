@@ -139,7 +139,7 @@ export async function togglePaymentMethod(
 }
 
 export async function addMaster(
-  table: "categories" | "sizes" | "colors" | "payment_methods",
+  table: "categories" | "sizes" | "colors" | "brands" | "payment_methods",
   value: string,
 ): Promise<FormState> {
   if (!value.trim()) return { error: "Valor vacío." };
@@ -151,7 +151,9 @@ export async function addMaster(
         ? { label: value.trim() }
         : table === "colors"
           ? { name: value.trim(), hex: "#0EA5E9" }
-          : { name: value.trim(), enabled: true };
+          : table === "brands"
+            ? { name: value.trim(), is_active: true }
+            : { name: value.trim(), enabled: true };
   const { error } = await supabase.from(table).insert(payload as never);
   if (error) return { error: error.message };
   await audit(`Agregó ${value} a ${table}`, "Configuración");
@@ -161,7 +163,7 @@ export async function addMaster(
 }
 
 export async function deleteMaster(
-  table: "categories" | "sizes" | "colors",
+  table: "categories" | "sizes" | "colors" | "brands",
   id: string,
 ): Promise<FormState> {
   const supabase = await createClient();

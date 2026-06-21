@@ -67,6 +67,37 @@ export function fmtRelative(d: string | Date | null | undefined): string {
   return fmtDate(date);
 }
 
+/** USD -> Bs. usando la tasa BCV. */
+export function usdToVes(usd: number | null | undefined, rate: number): number {
+  return Number(usd ?? 0) * (rate || 0);
+}
+
+/** Bs. -> USD usando la tasa BCV. */
+export function vesToUsd(ves: number | null | undefined, rate: number): number {
+  return rate ? Number(ves ?? 0) / rate : 0;
+}
+
+/**
+ * Monto en USD mostrado siempre con su equivalente en bolívares.
+ * Ej: "$25.00 · Bs. 15.184,75"
+ */
+export function fmtDual(usd: number | null | undefined, rate: number): string {
+  return `${fmtUSD(usd)} · ${fmtVES(usdToVes(usd, rate))}`;
+}
+
+/**
+ * Formatea un monto en su moneda nativa y, cuando es VES, agrega el equivalente
+ * en USD para que siempre se vea el cambio. `amount` está en la moneda `currency`.
+ */
+export function fmtByCurrency(
+  amount: number | null | undefined,
+  currency: "USD" | "VES",
+  rate: number,
+): string {
+  if (currency === "USD") return fmtUSD(amount);
+  return `${fmtVES(amount)} · ${fmtUSD(vesToUsd(amount, rate))}`;
+}
+
 /** Initials from a name, e.g. "María González" -> "MG". */
 export function initials(name: string | null | undefined): string {
   if (!name) return "?";

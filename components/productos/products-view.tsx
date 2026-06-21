@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { fmtUSD, fmtNum, initials } from "@/lib/format";
+import { ProductsBulkBar } from "@/components/productos/bulk-bar";
 import type { VProductSummary } from "@/lib/database.types";
 
 type Ref = { id: string; name: string };
@@ -33,11 +34,15 @@ export function ProductsView({
   products,
   categories,
   brands,
+  sizes,
+  colors,
   canEdit,
 }: {
   products: VProductSummary[];
   categories: Ref[];
   brands: Ref[];
+  sizes: { id: string; label: string }[];
+  colors: { id: string; name: string; hex: string | null }[];
   canEdit: boolean;
 }) {
   const [query, setQuery] = useState("");
@@ -66,12 +71,22 @@ export function ProductsView({
           </p>
         </div>
         {canEdit && (
-          <button
-            onClick={() => setOpen(true)}
-            className="hoverlift flex h-[38px] items-center gap-2 rounded-[10px] bg-brand px-[15px] text-[13px] font-semibold text-white"
-          >
-            <Plus className="size-4" /> Nuevo producto
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <ProductsBulkBar
+              lists={{
+                categories: categories.map((c) => c.name),
+                brands: brands.map((b) => b.name),
+                sizes: sizes.map((s) => s.label),
+                colors: colors.map((c) => c.name),
+              }}
+            />
+            <button
+              onClick={() => setOpen(true)}
+              className="hoverlift flex h-[38px] items-center gap-2 rounded-[10px] bg-brand px-[15px] text-[13px] font-semibold text-white"
+            >
+              <Plus className="size-4" /> Nuevo producto
+            </button>
+          </div>
         )}
       </div>
 

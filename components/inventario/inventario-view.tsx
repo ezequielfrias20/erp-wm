@@ -8,6 +8,7 @@ import {
   Search,
   Download,
   Upload,
+  FileSpreadsheet,
   Wallet,
   AlertTriangle,
   XCircle,
@@ -22,6 +23,7 @@ import {
   type ImportRow,
 } from "@/app/(app)/inventario/actions";
 import { toast } from "sonner";
+import { buildWorkbookBlob, downloadBlob, parseSheet } from "@/lib/excel";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -51,16 +53,29 @@ const TABS = [
   "Más vendidos",
 ] as const;
 
+const INVENTORY_SHEET = "Inventario";
+const INV_COLS = {
+  sku: "Producto (SKU)",
+  branch: "Sucursal",
+  stock: "Stock",
+  reserved: "Reservado",
+  min: "Mínimo",
+} as const;
+
 export function InventarioView({
   rows,
   categories,
   brands,
+  skuOptions,
+  branchOptions,
   branchLabel,
   canEdit,
 }: {
   rows: VInventory[];
   categories: string[];
   brands: string[];
+  skuOptions: string[];
+  branchOptions: string[];
   branchLabel: string;
   canEdit: boolean;
 }) {
@@ -101,50 +116,63 @@ export function InventarioView({
     return list;
   }, [rows, tab, cat, brand, query]);
 
-  function exportCsv() {
-    const head = [
-      "SKU",
-      "Producto",
-      "Categoría",
-      "Marca",
-      "Talla",
-      "Color",
-      "Stock",
-      "Reservado",
-      "Mínimo",
-      "Costo",
-      "Precio",
-      "Sucursal",
-      "Estado",
-    ];
-    const lines = filtered.map((r) =>
-      [
-        r.sku,
-        r.product_name,
-        r.category ?? "",
-        r.brand ?? "",
-        r.size ?? "",
-        r.color ?? "",
-        r.quantity,
-        r.reserved,
-        r.min_stock,
-        r.cost,
-        r.price,
-        r.branch_city,
-        r.estado,
-      ]
-        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-        .join(","),
-    );
-    const blob = new Blob([[head.join(","), ...lines].join("\n")], {
-      type: "text/csv;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "inventario-world-medics.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+  async function downloadTemplate() {
+    try {
+      const blob = await buildWorkbookBlob([
+        {
+          name: INVENTORY_SHEET,
+          columns: [
+            { header: INV_COLS.sku, key: "sku", width: 40, list: skuOptions },
+            { header: INV_COLS.branch, key: "branch", width: 18, list: branchOptions },
+            { header: INV_COLS.stock, key: "stock", width: 10 },
+            { header: INV_COLS.reserved, key: "reserved", width: 12 },
+            { header: INV_COLS.min, key: "min", width: 10 },
+          ],
+        },
+      ]);
+      downloadBlob(blob, "plantilla-inventario-world-medics.xlsx");
+    } catch (e) {
+      toast.error("No se pudo generar la plantilla.");
+      console.error(e);
+    }
+  }
+
+  async function exportXlsx() {
+    try {
+      const blob = await buildWorkbookBlob([
+        {
+          name: INVENTORY_SHEET,
+          columns: [
+            { header: INV_COLS.sku, key: "sku", width: 40 },
+            { header: INV_COLS.branch, key: "branch", width: 18 },
+            { header: INV_COLS.stock, key: "stock", width: 10 },
+            { header: INV_COLS.reserved, key: "reserved", width: 12 },
+            { header: INV_COLS.min, key: "min", width: 10 },
+            { header: "Categoría", key: "category", width: 18 },
+            { header: "Marca", key: "brand", width: 18 },
+            { header: "Costo", key: "cost", width: 12 },
+            { header: "Precio", key: "price", width: 12 },
+            { header: "Estado", key: "estado", width: 14 },
+          ],
+          rows: filtered.map((r) => ({
+            sku: `${r.sku} — ${r.product_name}${[r.size, r.color].filter(Boolean).length ? ` ${[r.size, r.color].filter(Boolean).join(" ")}` : ""}`,
+            branch: r.branch_city,
+            stock: r.quantity,
+            reserved: r.reserved,
+            min: r.min_stock,
+            category: r.category ?? "",
+            brand: r.brand ?? "",
+            cost: r.cost,
+            price: r.price,
+            estado: r.estado,
+          })),
+        },
+      ]);
+      downloadBlob(blob, "inventario-world-medics.xlsx");
+    } catch (e) {
+      toast.error("No se pudo exportar.");
+      console.error(e);
+    }
   }
 
   return (
@@ -162,6 +190,14 @@ export function InventarioView({
         <div className="flex items-center gap-2.5">
           {canEdit && (
             <button
+              onClick={downloadTemplate}
+              className="iconbtn flex h-[38px] items-center gap-2 rounded-[10px] border border-border bg-card px-[13px] text-[13px] font-medium text-foreground"
+            >
+              <Download className="size-4 text-text-3" /> Plantilla
+            </button>
+          )}
+          {canEdit && (
+            <button
               onClick={() => setImportOpen(true)}
               className="iconbtn flex h-[38px] items-center gap-2 rounded-[10px] border border-border bg-card px-[13px] text-[13px] font-medium text-foreground"
             >
@@ -169,10 +205,10 @@ export function InventarioView({
             </button>
           )}
           <button
-            onClick={exportCsv}
+            onClick={exportXlsx}
             className="iconbtn flex h-[38px] items-center gap-2 rounded-[10px] border border-border bg-card px-[13px] text-[13px] font-medium text-foreground"
           >
-            <Download className="size-4 text-text-3" /> Exportar
+            <FileSpreadsheet className="size-4 text-text-3" /> Exportar
           </button>
           {canEdit && (
             <Link
@@ -226,7 +262,7 @@ export function InventarioView({
 
         <div className="overflow-x-auto">
           <div className="min-w-[980px]">
-            <div className="grid grid-cols-[2fr_1fr_1fr_0.6fr_0.9fr_1.2fr_0.8fr_0.8fr_1fr_0.9fr_auto] border-b border-border px-[22px] py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
+            <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.6fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto] border-b border-border px-[22px] py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
               <span>Producto</span>
               <span>Categoría</span>
               <span>Marca</span>
@@ -245,7 +281,7 @@ export function InventarioView({
               return (
                 <div
                   key={r.id}
-                  className="tr-row grid grid-cols-[2fr_1fr_1fr_0.6fr_0.9fr_1.2fr_0.8fr_0.8fr_1fr_0.9fr_auto] items-center border-b border-border px-[22px] py-3"
+                  className="tr-row grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.6fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto] items-center border-b border-border px-[22px] py-3"
                 >
                   <div className="flex min-w-0 items-center gap-2.5">
                     <span className="flex size-8 flex-none items-center justify-center rounded-lg bg-surface-2 text-[10.5px] font-bold text-text-2">
@@ -258,18 +294,18 @@ export function InventarioView({
                       <div className="font-mono text-[11px] text-text-3">{r.sku}</div>
                     </div>
                   </div>
-                  <span className="text-[12px] text-text-2">{r.category ?? "—"}</span>
-                  <span className="text-[12px] text-text-2">{r.brand ?? "—"}</span>
-                  <span className="text-[12px] text-text-2">{r.size ?? "—"}</span>
-                  <span className="flex items-center gap-1.5 text-[12px] text-text-2">
+                  <span className="truncate text-[12px] text-text-2">{r.category ?? "—"}</span>
+                  <span className="truncate text-[12px] text-text-2">{r.brand ?? "—"}</span>
+                  <span className="truncate text-[12px] text-text-2">{r.size ?? "—"}</span>
+                  <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-text-2">
                     <span
-                      className="size-2.5 rounded-full border border-border"
+                      className="size-2.5 flex-none rounded-full border border-border"
                       style={{ background: r.color_hex ?? "var(--surface-2)" }}
                     />
-                    {r.color ?? "—"}
+                    <span className="truncate">{r.color ?? "—"}</span>
                   </span>
-                  <div>
-                    <div className="text-[12.5px]">
+                  <div className="min-w-0">
+                    <div className="truncate text-[12.5px]">
                       <span className="font-semibold text-foreground">{r.quantity}</span>
                       <span className="text-text-3"> / {r.min_stock} mín · {r.reserved} res</span>
                     </div>
@@ -288,11 +324,11 @@ export function InventarioView({
                       />
                     </div>
                   </div>
-                  <span className="text-right text-[12px] text-text-2">{fmtUSD(r.cost)}</span>
-                  <span className="text-right text-[12.5px] font-medium text-foreground">
+                  <span className="truncate text-right text-[12px] text-text-2">{fmtUSD(r.cost)}</span>
+                  <span className="truncate text-right text-[12.5px] font-medium text-foreground">
                     {fmtUSD(r.price)}
                   </span>
-                  <span className="text-[12px] text-text-2">{r.branch_city}</span>
+                  <span className="truncate text-[12px] text-text-2">{r.branch_city}</span>
                   <span className="text-right">
                     <span
                       className="inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold"
@@ -337,6 +373,11 @@ export function InventarioView({
   );
 }
 
+/** Extrae el SKU de un valor que puede venir como "SKU — Producto Talla". */
+function cleanSku(v: string): string {
+  return String(v ?? "").split("—")[0].trim();
+}
+
 function parseInventoryCsv(text: string): ImportRow[] {
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
   if (!lines.length) return [];
@@ -344,28 +385,31 @@ function parseInventoryCsv(text: string): ImportRow[] {
     l.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
   const header = split(lines[0]).map((h) => h.toLowerCase());
   const find = (names: string[]) => header.findIndex((h) => names.includes(h));
-  const iSku = find(["sku", "código", "codigo"]);
+  const iSku = find(["sku", "código", "codigo", "producto (sku)"]);
   const iBranch = find(["sucursal", "branch", "tienda", "ciudad"]);
   const iQty = find(["stock", "cantidad", "quantity", "existencia", "qty"]);
+  const iRes = find(["reservado", "reserved", "reserva"]);
   const iMin = find(["minimo", "mínimo", "min", "min_stock"]);
 
-  // Headerless fallback: assume order sku, sucursal, stock, minimo.
+  // Headerless fallback: assume order sku, sucursal, stock, reservado, minimo.
   const hasHeader = iSku >= 0 && iBranch >= 0;
   const dataLines = hasHeader ? lines.slice(1) : lines;
   const cols = hasHeader
-    ? { sku: iSku, branch: iBranch, qty: iQty, min: iMin }
-    : { sku: 0, branch: 1, qty: 2, min: 3 };
+    ? { sku: iSku, branch: iBranch, qty: iQty, res: iRes, min: iMin }
+    : { sku: 0, branch: 1, qty: 2, res: 3, min: 4 };
+
+  const optNum = (c: string[], i: number) =>
+    i >= 0 && c[i] !== "" && c[i] != null ? Number(c[i]) : null;
 
   return dataLines
     .map((l) => split(l))
     .filter((c) => c[cols.sku] && c[cols.branch])
     .map((c) => ({
-      sku: c[cols.sku],
+      sku: cleanSku(c[cols.sku]),
       branch: c[cols.branch],
       quantity: Number(c[cols.qty] ?? 0),
-      min_stock: cols.min >= 0 && c[cols.min] !== "" && c[cols.min] != null
-        ? Number(c[cols.min])
-        : null,
+      reserved: optNum(c, cols.res),
+      min_stock: optNum(c, cols.min),
     }));
 }
 
@@ -377,11 +421,40 @@ function ImportDialog({
   onOpenChange: (v: boolean) => void;
 }) {
   const [text, setText] = useState("");
+  const [xlsxRows, setXlsxRows] = useState<ImportRow[] | null>(null);
+  const [xlsxName, setXlsxName] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  async function onFile(f: File) {
+    if (f.name.toLowerCase().endsWith(".xlsx")) {
+      try {
+        const raw = await parseSheet(f, INVENTORY_SHEET);
+        const rows: ImportRow[] = raw.map((r) => ({
+          sku: cleanSku(r[INV_COLS.sku] ?? r["SKU"] ?? ""),
+          branch: r[INV_COLS.branch] ?? "",
+          quantity: Number(r[INV_COLS.stock] ?? 0),
+          reserved: r[INV_COLS.reserved] !== "" && r[INV_COLS.reserved] != null ? Number(r[INV_COLS.reserved]) : null,
+          min_stock: r[INV_COLS.min] !== "" && r[INV_COLS.min] != null ? Number(r[INV_COLS.min]) : null,
+        }));
+        setXlsxRows(rows);
+        setXlsxName(f.name);
+        setText("");
+      } catch (e) {
+        toast.error("No se pudo leer el .xlsx. ¿Es la plantilla de inventario?");
+        console.error(e);
+      }
+    } else {
+      // CSV / texto
+      const t = await f.text();
+      setText(t);
+      setXlsxRows(null);
+      setXlsxName("");
+    }
+  }
+
   async function run() {
-    const rows = parseInventoryCsv(text);
+    const rows = xlsxRows ?? parseInventoryCsv(text);
     if (!rows.length) {
       toast.error("No se detectaron filas válidas. Revisa el formato.");
       return;
@@ -397,6 +470,8 @@ function ImportDialog({
       `${res.imported} fila(s) importada(s)${res.skipped ? `, ${res.skipped} omitida(s)` : ""}.`,
     );
     setText("");
+    setXlsxRows(null);
+    setXlsxName("");
     onOpenChange(false);
   }
 
@@ -408,17 +483,20 @@ function ImportDialog({
         </DialogHeader>
         <div className="flex flex-col gap-3">
           <p className="text-[12.5px] text-text-3">
-            Columnas: <code className="text-text-2">sku, sucursal, stock, minimo</code>.
-            Sucursal puede ser la ciudad o el código (CCS, VLN…). El mínimo es opcional.
+            Descarga la <strong>Plantilla</strong> (.xlsx con listas de SKU y sucursal) o
+            usa un CSV con columnas{" "}
+            <code className="text-text-2">sku, sucursal, stock, reservado, minimo</code>. La
+            sucursal puede ser la ciudad o el código (CCS, VLN…); reservado y mínimo son
+            opcionales.
           </p>
           <input
             ref={fileRef}
             type="file"
-            accept=".csv,text/csv"
+            accept=".xlsx,.csv,text/csv"
             hidden
             onChange={(e) => {
               const f = e.target.files?.[0];
-              if (f) f.text().then(setText);
+              if (f) onFile(f);
               e.target.value = "";
             }}
           />
@@ -428,21 +506,32 @@ function ImportDialog({
             onClick={() => fileRef.current?.click()}
             className="w-max"
           >
-            <Upload className="size-4" /> Cargar archivo .csv
+            <Upload className="size-4" /> Cargar archivo (.xlsx o .csv)
           </Button>
-          <Textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            rows={7}
-            placeholder={"sku,sucursal,stock,minimo\nSCB-AZ-M,Caracas,40,12\nBAT-BL-M,VLN,25,20"}
-            className="font-mono text-[12px]"
-          />
+          {xlsxRows ? (
+            <div className="rounded-lg bg-success-soft px-3 py-2 text-[12.5px] text-success">
+              {xlsxName}: {xlsxRows.length} fila(s) listas para importar.
+            </div>
+          ) : (
+            <Textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={7}
+              placeholder={"sku,sucursal,stock,reservado,minimo\nSCB-AZ-M,Caracas,40,5,12\nBAT-BL-M,VLN,25,0,20"}
+              className="font-mono text-[12px]"
+            />
+          )}
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button type="button" onClick={run} disabled={busy || !text.trim()} className="font-semibold">
+          <Button
+            type="button"
+            onClick={run}
+            disabled={busy || (!xlsxRows && !text.trim())}
+            className="font-semibold"
+          >
             {busy && <Loader2 className="size-4 animate-spin" />}
             Importar
           </Button>

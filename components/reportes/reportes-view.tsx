@@ -1,36 +1,67 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   FileText,
   FileSpreadsheet,
   FileDown,
-  SlidersHorizontal,
-  Calendar,
   Store,
   TrendingUp,
   Wallet,
   Percent,
   Receipt,
+  Loader2,
+  X,
 } from "lucide-react";
-import { fmtUSD, fmtUSDShort } from "@/lib/format";
+import { toast } from "sonner";
+import { fmtUSD, fmtUSDShort, fmtVES, fmtDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { ReportData } from "@/lib/queries/reports";
+import type { ReportData, SaleDetail } from "@/lib/queries/reports";
+import { loadSaleDetail } from "@/app/(app)/reportes/actions";
+import { downloadReportPdf } from "@/components/reportes/report-pdf";
+import {
+  InvoiceDocument,
+  printNode,
+  type InvoiceData,
+  type InvoiceCompany,
+} from "@/components/factura/invoice-template";
 
 const TABS = ["Resumen", "Por categoría", "Por método de pago"] as const;
 
 export function ReportesView({
   data,
   branchLabel,
+  company,
 }: {
   data: ReportData;
   branchLabel: string;
+  company: InvoiceCompany;
 }) {
+  const router = useRouter();
   const [tab, setTab] = useState<(typeof TABS)[number]>("Resumen");
-  const { kpis, monthly, trend } = data;
+  const [from, setFrom] = useState(data.range.from);
+  const [to, setTo] = useState(data.range.to);
+  const [applying, startApply] = useTransition();
+  const [detail, setDetail] = useState<SaleDetail | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+
+  const { kpis, monthly, trend, rate, sales } = data;
   const trendMax = Math.max(1, ...trend.map((t) => t.value));
-  const breakdown = tab === "Por método de pago" ? data.byPayment : data.byCategory;
+
+  const breakdown =
+    tab === "Por método de pago"
+      ? data.byPayment.map((p) => ({ name: p.name, value: p.usd, color: p.color }))
+      : data.byCategory;
   const breakTotal = breakdown.reduce((a, b) => a + b.value, 0);
+
+  function applyRange() {
+    startApply(() => {
+      router.push(`/reportes?from=${from}&to=${to}`);
+    });
+  }
 
   function exportCsv() {
     const head = ["Mes", "Ingresos", "Costo", "Ganancia", "Margen", "Transacciones"];
@@ -43,36 +74,88 @@ export function ReportesView({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "reporte-world-medics.csv";
+    a.download = `reporte-world-medics-${from}_${to}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function exportPdf() {
+    setPdfBusy(true);
+    try {
+      await downloadReportPdf(data, company, branchLabel);
+    } catch (e) {
+      toast.error("No se pudo generar el PDF.");
+      console.error(e);
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
+  async function openDetail(id: string) {
+    setLoadingId(id);
+    const d = await loadSaleDetail(id);
+    setLoadingId(null);
+    if (!d) {
+      toast.error("No se pudo cargar la venta.");
+      return;
+    }
+    setDetail(d);
+    setDetailOpen(true);
   }
 
   return (
     <div className="mx-auto max-w-[1560px] px-[30px] pt-[26px] pb-12">
       <div className="fadeup mb-[18px] flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[25px] font-bold tracking-tight text-foreground">
-            Reportes
-          </h1>
+          <h1 className="text-[25px] font-bold tracking-tight text-foreground">Reportes</h1>
           <p className="mt-1 text-[13.5px] text-text-2">
-            Centro de inteligencia de negocio · análisis y exportación
+            Centro de inteligencia de negocio · tasa BCV {fmtVES(rate)}/USD
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <ExportBtn icon={FileText} label="PDF" onClick={() => window.print()} />
+          <ExportBtn
+            icon={pdfBusy ? Loader2 : FileText}
+            label="PDF"
+            onClick={exportPdf}
+            spin={pdfBusy}
+          />
           <ExportBtn icon={FileSpreadsheet} label="Excel" onClick={exportCsv} />
           <ExportBtn icon={FileDown} label="CSV" onClick={exportCsv} />
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="fadeup mb-[18px] flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card p-3 shadow-card-sm">
-        <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-text-2">
-          <SlidersHorizontal className="size-4" /> Filtros
+      {/* Filtros: rango de fechas + sucursal */}
+      <div className="fadeup mb-[18px] flex flex-wrap items-center gap-2.5 rounded-2xl border border-border bg-card p-3 shadow-card-sm">
+        <div className="flex items-center gap-1.5 text-[12.5px] text-text-2">
+          <span className="font-semibold">Desde</span>
+          <input
+            type="date"
+            value={from}
+            max={to}
+            onChange={(e) => setFrom(e.target.value)}
+            className="h-9 rounded-[10px] border border-border bg-surface-2 px-2.5 text-[12.5px] text-foreground outline-none"
+          />
+        </div>
+        <div className="flex items-center gap-1.5 text-[12.5px] text-text-2">
+          <span className="font-semibold">Hasta</span>
+          <input
+            type="date"
+            value={to}
+            min={from}
+            onChange={(e) => setTo(e.target.value)}
+            className="h-9 rounded-[10px] border border-border bg-surface-2 px-2.5 text-[12.5px] text-foreground outline-none"
+          />
+        </div>
+        <button
+          onClick={applyRange}
+          disabled={applying}
+          className="hoverlift flex h-9 items-center gap-2 rounded-[10px] bg-brand px-4 text-[12.5px] font-semibold text-white"
+        >
+          {applying && <Loader2 className="size-4 animate-spin" />} Aplicar
+        </button>
+        <span className="flex h-9 items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 text-[12px] font-medium text-text-2">
+          <Store className="size-3.5 text-text-3" /> Sucursal: {branchLabel}
         </span>
-        <Chip icon={Calendar} label={`01 ene – hoy ${new Date().getFullYear()}`} />
-        <Chip icon={Store} label={`Sucursal: ${branchLabel}`} />
       </div>
 
       {/* Report type cards */}
@@ -94,8 +177,18 @@ export function ReportesView({
 
       {/* KPIs */}
       <div className="fadeup mb-[18px] grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Kpi icon={TrendingUp} label="Ingresos" value={fmtUSDShort(kpis.ingresos)} />
-        <Kpi icon={Wallet} label="Ganancia" value={fmtUSDShort(kpis.ganancia)} />
+        <Kpi
+          icon={TrendingUp}
+          label="Ingresos"
+          value={fmtUSDShort(kpis.ingresos)}
+          sub={fmtVES(kpis.ingresos * rate)}
+        />
+        <Kpi
+          icon={Wallet}
+          label="Ganancia"
+          value={fmtUSDShort(kpis.ganancia)}
+          sub={fmtVES(kpis.ganancia * rate)}
+        />
         <Kpi icon={Percent} label="Margen" value={`${kpis.margen.toFixed(1)}%`} />
         <Kpi icon={Receipt} label="Transacciones" value={String(kpis.transacciones)} />
       </div>
@@ -123,6 +216,9 @@ export function ReportesView({
                 <span className="text-[10.5px] text-text-3">{t.label}</span>
               </div>
             ))}
+            {trend.length === 0 && (
+              <span className="text-[12px] text-text-3">Sin datos en el período.</span>
+            )}
           </div>
         </div>
 
@@ -139,13 +235,17 @@ export function ReportesView({
                     {b.name}
                   </span>
                   <span className="font-semibold text-foreground">
+                    {fmtUSD(b.value)} ·{" "}
                     {breakTotal ? Math.round((b.value / breakTotal) * 100) : 0}%
                   </span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-surface-2">
                   <div
                     className="h-full rounded-full"
-                    style={{ width: `${breakTotal ? (b.value / breakTotal) * 100 : 0}%`, background: b.color }}
+                    style={{
+                      width: `${breakTotal ? (b.value / breakTotal) * 100 : 0}%`,
+                      background: b.color,
+                    }}
                   />
                 </div>
               </div>
@@ -157,7 +257,99 @@ export function ReportesView({
         </div>
       </div>
 
-      {/* Detail table */}
+      {/* Desglose por método de pago (moneda nativa + USD + tasa) */}
+      <div className="fadeup mb-[18px] overflow-hidden rounded-2xl border border-border bg-card shadow-card-sm">
+        <div className="px-5 pt-[18px] pb-3.5">
+          <div className="text-[15px] font-bold tracking-tight text-foreground">
+            Facturado por método de pago
+          </div>
+          <div className="text-[12.5px] text-text-3">
+            Montos en su moneda nativa con su equivalente · tasa {fmtVES(rate)}/USD
+          </div>
+        </div>
+        <div className="grid grid-cols-[1.4fr_0.8fr_1fr_1fr] border-y border-border px-5 py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
+          <span>Método</span>
+          <span>Moneda</span>
+          <span className="text-right">Monto nativo</span>
+          <span className="text-right">Equivalente USD</span>
+        </div>
+        {data.byPayment.map((p) => (
+          <div
+            key={p.name}
+            className="grid grid-cols-[1.4fr_0.8fr_1fr_1fr] items-center border-b border-border px-5 py-2.5 text-[12.5px]"
+          >
+            <span className="flex items-center gap-1.5 font-medium text-foreground">
+              <span className="size-2.5 rounded-[3px]" style={{ background: p.color }} />
+              {p.name}
+            </span>
+            <span className="text-text-2">{p.currency}</span>
+            <span className="text-right text-foreground">
+              {p.currency === "VES" ? fmtVES(p.native) : fmtUSD(p.native)}
+            </span>
+            <span className="text-right font-semibold text-foreground">{fmtUSD(p.usd)}</span>
+          </div>
+        ))}
+        {data.byPayment.length === 0 && (
+          <div className="px-5 py-8 text-center text-[13px] text-text-3">
+            Sin pagos en el período.
+          </div>
+        )}
+      </div>
+
+      {/* Ventas del período */}
+      <div className="fadeup mb-[18px] overflow-hidden rounded-2xl border border-border bg-card shadow-card-sm">
+        <div className="px-5 pt-[18px] pb-3.5">
+          <div className="text-[15px] font-bold tracking-tight text-foreground">
+            Ventas del período ({sales.length})
+          </div>
+          <div className="text-[12.5px] text-text-3">
+            Toca una venta para ver el detalle y descargar la factura
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <div className="min-w-[760px]">
+            <div className="grid grid-cols-[0.9fr_1.1fr_1.6fr_1.1fr_1fr_0.9fr_auto] border-y border-border px-5 py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
+              <span>Factura</span>
+              <span>Fecha</span>
+              <span>Cliente</span>
+              <span>Método</span>
+              <span className="text-right">Total</span>
+              <span className="text-right">Bs.</span>
+              <span />
+            </div>
+            {sales.map((v) => (
+              <button
+                key={v.id}
+                onClick={() => openDetail(v.id)}
+                className="tr-row grid w-full grid-cols-[0.9fr_1.1fr_1.6fr_1.1fr_1fr_0.9fr_auto] items-center border-b border-border px-5 py-2.5 text-left text-[12.5px]"
+              >
+                <span className="truncate font-medium text-foreground">{v.invoice_number}</span>
+                <span className="truncate text-text-2">{fmtDate(v.created_at)}</span>
+                <span className="truncate text-text-2">{v.customer ?? "Cliente general"}</span>
+                <span className="truncate text-text-2">{v.payment_method ?? "—"}</span>
+                <span className="text-right font-semibold text-foreground">{fmtUSD(v.total)}</span>
+                <span className="text-right text-text-3">
+                  {fmtVES(v.total_ves ?? v.total * rate)}
+                </span>
+                <span className="flex justify-end">
+                  {loadingId === v.id ? (
+                    <Loader2 className="size-4 animate-spin text-text-3" />
+                  ) : (
+                    <FileText className="size-4 text-text-3" />
+                  )}
+                </span>
+              </button>
+            ))}
+            {sales.length === 0 && (
+              <div className="px-5 py-10 text-center text-[13px] text-text-3">
+                Sin ventas registradas en el período.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Detalle mensual */}
       <div className="fadeup overflow-hidden rounded-2xl border border-border bg-card shadow-card-sm">
         <div className="flex items-center justify-between px-5 pt-[18px] pb-3.5">
           <div>
@@ -200,6 +392,110 @@ export function ReportesView({
           </div>
         )}
       </div>
+
+      <SaleDetailModal
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        detail={detail}
+        company={company}
+        fallbackRate={rate}
+      />
+    </div>
+  );
+}
+
+function detailToInvoice(
+  d: SaleDetail,
+  company: InvoiceCompany,
+  fallbackRate: number,
+): InvoiceData {
+  const rate = d.sale.exchange_rate ?? fallbackRate;
+  return {
+    company,
+    invoiceNumber: d.sale.invoice_number,
+    date: d.sale.created_at,
+    status: d.sale.status,
+    branchName: d.branchName,
+    cashier: d.cashier,
+    customer: d.customer
+      ? {
+          name: d.customer.name,
+          document: d.customer.document,
+          phone: d.customer.phone,
+          email: d.customer.email,
+        }
+      : null,
+    items: d.items.map((it) => ({
+      description: it.description ?? "—",
+      quantity: it.quantity,
+      unit_price: it.unit_price,
+      line_total: it.line_total,
+    })),
+    subtotal: d.sale.subtotal,
+    discount: d.sale.discount,
+    discount_pct: d.sale.discount_pct,
+    tax: d.sale.tax,
+    total: d.sale.total,
+    rate,
+    total_ves: d.sale.total_ves,
+    payments: d.payments.map((p) => ({
+      method: p.method,
+      currency: (p.currency ?? "VES") as "USD" | "VES",
+      amount: p.amount,
+      amount_usd: p.amount_usd,
+      reference: p.reference,
+    })),
+  };
+}
+
+function SaleDetailModal({
+  open,
+  onOpenChange,
+  detail,
+  company,
+  fallbackRate,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  detail: SaleDetail | null;
+  company: InvoiceCompany;
+  fallbackRate: number;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  if (!open || !detail) return null;
+  const inv = detailToInvoice(detail, company, fallbackRate);
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4"
+      onClick={() => onOpenChange(false)}
+    >
+      <div
+        className="my-6 w-full max-w-[800px] rounded-2xl bg-card shadow-card-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-border px-5 py-3">
+          <div className="text-[15px] font-bold text-foreground">
+            Venta {inv.invoiceNumber}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => printNode(ref.current, `Factura ${inv.invoiceNumber}`)}
+              className="hoverlift flex h-9 items-center gap-2 rounded-[10px] bg-brand px-3 text-[12.5px] font-semibold text-white"
+            >
+              <FileText className="size-4" /> Descargar factura
+            </button>
+            <button
+              onClick={() => onOpenChange(false)}
+              className="iconbtn flex size-8 items-center justify-center rounded-md text-text-3"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        </div>
+        <div className="bg-surface-2 p-4">
+          <InvoiceDocument ref={ref} data={inv} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -208,32 +504,20 @@ function ExportBtn({
   icon: Icon,
   label,
   onClick,
+  spin,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   onClick: () => void;
+  spin?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
       className="iconbtn flex h-[38px] items-center gap-2 rounded-[10px] border border-border bg-card px-[13px] text-[13px] font-medium text-foreground"
     >
-      <Icon className="size-4 text-text-3" /> {label}
+      <Icon className={cn("size-4 text-text-3", spin && "animate-spin")} /> {label}
     </button>
-  );
-}
-
-function Chip({
-  icon: Icon,
-  label,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-}) {
-  return (
-    <span className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 text-[12px] font-medium text-text-2">
-      <Icon className="size-3.5 text-text-3" /> {label}
-    </span>
   );
 }
 
@@ -241,10 +525,12 @@ function Kpi({
   icon: Icon,
   label,
   value,
+  sub,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
+  sub?: string;
 }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-4 shadow-card-sm">
@@ -252,9 +538,8 @@ function Kpi({
         <span className="text-[12.5px] text-text-2">{label}</span>
         <Icon className="size-4 text-text-3" />
       </div>
-      <div className="mt-2 text-[22px] font-bold tracking-tight text-foreground">
-        {value}
-      </div>
+      <div className="mt-2 text-[22px] font-bold tracking-tight text-foreground">{value}</div>
+      {sub && <div className="mt-0.5 text-[11.5px] text-text-3">{sub}</div>}
     </div>
   );
 }

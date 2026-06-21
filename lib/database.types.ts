@@ -244,6 +244,19 @@ export type PaymentMethod = {
   name: string;
   enabled: boolean;
   sort_order: number;
+  currency: "USD" | "VES";
+  requires_reference: boolean;
+}
+
+export type SalePayment = {
+  id: string;
+  sale_id: string;
+  method: string;
+  currency: "USD" | "VES";
+  amount: number; // monto en la moneda nativa del método
+  amount_usd: number; // normalizado a USD para agregaciones
+  reference: string | null;
+  created_at: string;
 }
 
 export type ExchangeRate = {
@@ -403,6 +416,7 @@ export type Database = {
       customer_events: Tbl<CustomerEvent>;
       sales: Tbl<Sale>;
       sale_items: Tbl<SaleItem>;
+      sale_payments: Tbl<SalePayment>;
       purchase_orders: Tbl<PurchaseOrder>;
       purchase_order_items: Tbl<PurchaseOrderItem>;
       roles: Tbl<RoleRow>;
@@ -430,7 +444,7 @@ export type Database = {
         Args: {
           p_branch_id: string;
           p_customer_id: string | null;
-          p_payment_method: string;
+          p_payments: unknown; // SalePaymentInput[]
           p_discount_pct: number;
           p_rate: number;
           p_items: unknown;

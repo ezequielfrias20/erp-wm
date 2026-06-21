@@ -20,13 +20,22 @@ export async function listProducts(): Promise<VProductSummary[]> {
 export async function getCatalogRefs(): Promise<{
   categories: Pick<Category, "id" | "name" | "color">[];
   brands: Pick<Brand, "id" | "name">[];
+  sizes: { id: string; label: string }[];
+  colors: { id: string; name: string; hex: string | null }[];
 }> {
   const supabase = await createClient();
-  const [c, b] = await Promise.all([
+  const [c, b, s, col] = await Promise.all([
     supabase.from("categories").select("id, name, color").order("sort_order"),
     supabase.from("brands").select("id, name").order("name"),
+    supabase.from("sizes").select("id, label").order("sort_order"),
+    supabase.from("colors").select("id, name, hex").order("sort_order"),
   ]);
-  return { categories: c.data ?? [], brands: b.data ?? [] };
+  return {
+    categories: c.data ?? [],
+    brands: b.data ?? [],
+    sizes: s.data ?? [],
+    colors: col.data ?? [],
+  };
 }
 
 export type VariantWithStock = ProductVariant & { stock: number };

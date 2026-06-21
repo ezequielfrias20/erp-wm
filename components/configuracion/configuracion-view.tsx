@@ -45,6 +45,7 @@ import { fmtVES, fmtDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type {
   AuditLog,
+  Brand,
   Category,
   ColorRow,
   PaymentMethod,
@@ -72,6 +73,7 @@ type Data = {
   settings: Settings;
   paymentMethods: PaymentMethod[];
   categories: Category[];
+  brands: Brand[];
   sizes: Size[];
   colors: ColorRow[];
   audit: (AuditLog & { branch?: string })[];
@@ -430,10 +432,11 @@ function VentasSection({ settings, paymentMethods, rate, canEdit }: Data) {
   );
 }
 
-function InventarioSection({ categories, sizes, colors, canEdit }: Data) {
+function InventarioSection({ categories, brands, sizes, colors, canEdit }: Data) {
   return (
     <>
       <MasterCard title="Categorías" table="categories" items={categories.map((c) => ({ id: c.id, label: c.name, hex: c.color }))} canEdit={canEdit} />
+      <MasterCard title="Marcas" table="brands" items={brands.map((b) => ({ id: b.id, label: b.name }))} canEdit={canEdit} />
       <MasterCard title="Tallas" table="sizes" items={sizes.map((s) => ({ id: s.id, label: s.label }))} canEdit={canEdit} />
       <MasterCard title="Colores" table="colors" items={colors.map((c) => ({ id: c.id, label: c.name, hex: c.hex }))} canEdit={canEdit} />
     </>
@@ -447,7 +450,7 @@ function MasterCard({
   canEdit,
 }: {
   title: string;
-  table: "categories" | "sizes" | "colors";
+  table: "categories" | "sizes" | "colors" | "brands";
   items: { id: string; label: string; hex?: string | null }[];
   canEdit: boolean;
 }) {
