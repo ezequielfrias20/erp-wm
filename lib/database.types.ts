@@ -466,6 +466,16 @@ export type Database = {
       my_profile_id: { Args: Record<string, never>; Returns: string };
       has_module: { Args: { p_module: string; p_min?: number }; Returns: boolean };
       claim_profile: { Args: Record<string, never>; Returns: Profile };
+      branding: {
+        Args: Record<string, never>;
+        Returns: {
+          company_name: string | null;
+          logo_url: string | null;
+          favicon_url: string | null;
+          primary_color: string | null;
+          accent_color: string | null;
+        }[];
+      };
       create_sale: {
         Args: {
           p_branch_id: string;

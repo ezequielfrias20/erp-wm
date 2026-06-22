@@ -534,6 +534,28 @@ end$$;
 
 grant execute on function wm.claim_profile() to authenticated;
 
+-- ===== 6b. branding (campos de marca, seguro para login no autenticado) ======
+-- Devuelve SOLO los campos de marca, evitando exponer datos fiscales de wm.settings.
+create or replace function wm.branding()
+returns table (
+  company_name text,
+  logo_url text,
+  favicon_url text,
+  primary_color text,
+  accent_color text
+)
+language sql
+security definer
+set search_path = wm, public
+stable
+as $$
+  select s.company_name, s.logo_url, s.favicon_url, s.primary_color, s.accent_color
+  from wm.settings s
+  where s.id = 1;
+$$;
+
+grant execute on function wm.branding() to anon, authenticated;
+
 -- ===== 7. Trigger: anular cuenta Cashea si la venta se reembolsa/anula =======
 create or replace function wm.cashea_sync_void()
 returns trigger
