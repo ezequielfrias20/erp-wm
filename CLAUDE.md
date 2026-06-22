@@ -40,6 +40,10 @@ handoff de diseño `World Medics ERP.dc.html` (claude.ai/design) **tal cual**.
 13. `wm_cashea_void_on_sale_status` — trigger en `wm.sales` que pone `cashea_orders.status='anulada'` si la venta pasa a Reembolso/Anulada.
 14. `wm_cashea_orders_channel` — añade `channel` (`tienda|online`, default `tienda`) a `cashea_orders` para distinguir ventas en sucursal del marketplace (comisiones distintas) + índice.
 15. `wm_create_sale_v4` — `create_sale` persiste el `channel` Cashea desde `p_cashea`.
+16. `wm_branding_fn` — función `wm.branding()` (`SECURITY DEFINER`, search_path fijo, `stable`) que
+    expone **solo** los campos de marca de `settings` (company_name, logo_url, favicon_url,
+    primary_color, accent_color) al login no autenticado; `grant execute` a `anon`/`authenticated`
+    (+ `usage` del esquema `wm` a `anon`). Evita exponer datos fiscales del resto de `settings`.
 Bootstrap del admin (login) se hizo con `execute_sql` (crea `auth.users` + `auth.identities`).
 
 ### Modelo RLS
@@ -147,6 +151,21 @@ Bucket público **`wm-public`** (avatares en `avatars/`, marca en `brand/`). Lec
 pública, escritura solo autenticados. Subidas desde Configuración (perfil/marca) vía
 `components/configuracion/image-upload.tsx`; URLs en `profiles.avatar_url` /
 `settings.logo_url` / `settings.favicon_url`.
+
+## Branding dinámico
+La marca subida en **Configuración → Marca** se consume en todo el sistema (render en servidor,
+sin parpadeo) vía `getBranding()` (`lib/queries/branding.ts`, cacheado por request → RPC
+`wm.branding()`, seguro para el login no autenticado):
+- **Logo** (`settings.logo_url`): se muestra en el **login** (`app/(auth)/layout.tsx`) y en el
+  **header del sidebar** (`components/shell/sidebar.tsx`) vía `components/shell/brand-mark.tsx`.
+  Si hay logo, se muestra solo la imagen; si no, cae al glifo `<Logo/>` + nombre/subtítulo.
+- **Favicon** (`favicon_url`): se inyecta en `generateMetadata` del root layout (`app/layout.tsx`)
+  con `sizes:"any"` para ganarle al `app/favicon.ico` estático.
+- **Color primario** (`primary_color`): se aplica con un `<style>` server-rendered en el root
+  layout (`lib/brand-css.ts` → `buildBrandStyle`), sobrescribiendo `--brand`, `--brand-2`,
+  `--brand-soft`, `--primary`, `--primary-foreground`, `--ring`, `--sidebar-primary`,
+  `--sidebar-primary-foreground`, `--sidebar-ring`, `--chart-1`. Mismo color en claro/oscuro;
+  el texto contrastante (negro/blanco) se elige por luminancia. `accent_color` no se cablea.
 
 ## Pendientes / notas
 - Supabase (panel, no código): ver `docs/PRIMER-INGRESO.md §5` — confirmación de correo

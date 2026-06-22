@@ -72,6 +72,21 @@ Migraciones: `wm_payment_methods_is_financed`, `wm_cashea_orders`, `wm_cashea_or
   el módulo `/cashea` filtra por canal, muestra badge y tarjetas comparativas **Tienda vs Online**
   (ventas, por cobrar, cobrado, comisión); Reportes (vista + PDF) desglosan Cashea por canal.
 
+## Fase 15 — Branding dinámico (logo, favicon, color)
+
+Migración: `wm_branding_fn`. Plan/spec en `docs/superpowers/`.
+
+- El **logo**, **favicon** y **color primario** subidos en Configuración → Marca ya se consumen
+  en el sistema (render en servidor, sin parpadeo) vía `getBranding()` → RPC `wm.branding()`
+  (`SECURITY DEFINER`, expone solo la marca; segura para el login no autenticado).
+- **Logo**: en login y header del sidebar (`components/shell/brand-mark.tsx`); si no hay logo,
+  cae al glifo + nombre actual.
+- **Favicon**: inyectado en `generateMetadata` del root layout (`sizes:"any"` para ganar al
+  `app/favicon.ico` estático).
+- **Color primario**: `<style>` server-rendered (`lib/brand-css.ts`) que sobrescribe los tokens
+  de marca (`--brand`, `--primary`, `--ring`, `--sidebar-*`, `--chart-1`), igual en claro/oscuro;
+  helpers de color con pruebas unitarias (vitest, nuevo runner).
+
 ## Cómo reanudar
 1. Leer `CLAUDE.md` (stack, Supabase, RLS, credenciales, convenciones).
 2. Revisar la última fila ✅/🚧 de esta tabla y continuar por la siguiente ⬜.
