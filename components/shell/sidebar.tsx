@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { RefreshCw } from "lucide-react";
-import { Logo } from "@/components/shell/logo";
+import { BrandMark } from "@/components/shell/brand-mark";
 import { NAV_SECTIONS } from "@/components/shell/nav-items";
 import { useCan } from "@/context/session";
 import { fmtVES } from "@/lib/format";
@@ -13,10 +13,14 @@ export function Sidebar({
   collapsed,
   badges,
   bcv,
+  logoUrl,
+  companyName,
 }: {
   collapsed: boolean;
   badges: { lowStock?: number };
   bcv: BcvRate;
+  logoUrl: string | null;
+  companyName: string | null;
 }) {
   const pathname = usePathname();
   const { view } = useCan();
@@ -28,18 +32,13 @@ export function Sidebar({
       className="relative flex flex-none flex-col border-r border-border bg-sidebar transition-[width] duration-200"
       style={{ width: collapsed ? 76 : 262 }}
     >
-      <div className="flex h-16 flex-none items-center gap-[11px] border-b border-border px-4">
-        <Logo size={36} />
-        {expanded && (
-          <div className="flex flex-col overflow-hidden whitespace-nowrap leading-[1.15]">
-            <span className="text-[15px] font-bold tracking-tight text-foreground">
-              World Medics
-            </span>
-            <span className="text-[11px] font-medium text-text-3">
-              ERP · uniformes médicos
-            </span>
-          </div>
-        )}
+      <div className="flex h-16 flex-none items-center border-b border-border px-4">
+        <BrandMark
+          variant="sidebar"
+          collapsed={collapsed}
+          logoUrl={logoUrl}
+          companyName={companyName}
+        />
       </div>
 
       <nav className="flex-1 overflow-x-hidden overflow-y-auto py-[14px]">

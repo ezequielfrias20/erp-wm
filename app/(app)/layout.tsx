@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/queries/session";
 import { getShellData } from "@/lib/queries/shell";
+import { getBranding } from "@/lib/queries/branding";
 import { getActiveBranchId } from "@/lib/branch";
 import { createClient } from "@/lib/supabase/server";
 import { fetchBcvRate, BCV_FALLBACK, type BcvRate } from "@/lib/bcv";
@@ -36,6 +37,7 @@ export default async function AppLayout({
 
   const branches = (branchesRes.data ?? []) as BranchOption[];
   const shell = await getShellData(bcv, activeId);
+  const branding = await getBranding();
 
   return (
     <SessionProvider value={session}>
@@ -44,6 +46,8 @@ export default async function AppLayout({
           bcv={bcv}
           badges={{ lowStock: shell.lowStock }}
           notifications={shell.notifications}
+          logoUrl={branding.logoUrl}
+          companyName={branding.companyName}
         >
           {children}
         </AppShell>

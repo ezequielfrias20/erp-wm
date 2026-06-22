@@ -1,10 +1,12 @@
-import { Logo } from "@/components/shell/logo";
+import { BrandMark } from "@/components/shell/brand-mark";
+import { getBranding } from "@/lib/queries/branding";
 
-export default function AuthLayout({
+export default async function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { logoUrl, companyName } = await getBranding();
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
       <div
@@ -16,11 +18,7 @@ export default function AuthLayout({
       />
       <div className="w-full max-w-[400px] fadeup">
         <div className="mb-6 flex flex-col items-center text-center">
-          <Logo size={48} />
-          <h1 className="mt-4 text-[19px] font-bold tracking-tight text-foreground">
-            World Medics
-          </h1>
-          <p className="text-[12.5px] text-text-3">ERP · uniformes médicos</p>
+          <BrandMark variant="login" logoUrl={logoUrl} companyName={companyName} />
         </div>
         {children}
       </div>

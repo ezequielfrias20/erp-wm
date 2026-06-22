@@ -9,18 +9,28 @@ export function AppShell({
   bcv,
   badges,
   notifications,
+  logoUrl,
+  companyName,
   children,
 }: {
   bcv: BcvRate;
   badges: { lowStock?: number };
   notifications: ShellNotification[];
+  logoUrl: string | null;
+  companyName: string | null;
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-      <Sidebar collapsed={collapsed} badges={badges} bcv={bcv} />
+      <Sidebar
+        collapsed={collapsed}
+        badges={badges}
+        bcv={bcv}
+        logoUrl={logoUrl}
+        companyName={companyName}
+      />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header
           onToggleSidebar={() => setCollapsed((c) => !c)}
