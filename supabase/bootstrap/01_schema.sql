@@ -353,6 +353,7 @@ create table wm.settings (
   currency text not null default 'USD',
   auto_update_rate boolean not null default true,
   logo_url text,
+  logo_dark_url text,
   favicon_url text,
   primary_color text default '#0EA5E9',
   accent_color text default '#0EA5E9',
@@ -540,6 +541,7 @@ create or replace function wm.branding()
 returns table (
   company_name text,
   logo_url text,
+  logo_dark_url text,
   favicon_url text,
   primary_color text,
   accent_color text
@@ -549,7 +551,7 @@ security definer
 set search_path = wm, public
 stable
 as $$
-  select s.company_name, s.logo_url, s.favicon_url, s.primary_color, s.accent_color
+  select s.company_name, s.logo_url, s.logo_dark_url, s.favicon_url, s.primary_color, s.accent_color
   from wm.settings s
   where s.id = 1;
 $$;

@@ -315,6 +315,7 @@ export type Settings = {
   currency: string;
   auto_update_rate: boolean;
   logo_url: string | null;
+  logo_dark_url: string | null;
   favicon_url: string | null;
   primary_color: string | null;
   accent_color: string | null;
@@ -471,6 +472,7 @@ export type Database = {
         Returns: {
           company_name: string | null;
           logo_url: string | null;
+          logo_dark_url: string | null;
           favicon_url: string | null;
           primary_color: string | null;
           accent_color: string | null;
