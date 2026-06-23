@@ -29,6 +29,7 @@ import {
   updateColors,
   updateAvatar,
   updateBrandAsset,
+  removeBrandAsset,
   updateNotifications,
   togglePaymentMethod,
   addMaster,
@@ -241,11 +242,85 @@ function EmpresaSection({ settings, canEdit }: Data) {
   );
 }
 
+function BrandAssetSlot({
+  label,
+  kind,
+  initial,
+  placeholder,
+  previewClass,
+  boxClass,
+  canEdit,
+}: {
+  label: string;
+  kind: "logo" | "logo_dark" | "favicon";
+  initial: string | null;
+  placeholder: string;
+  previewClass: string;
+  boxClass?: string;
+  canEdit: boolean;
+}) {
+  const [url, setUrl] = useState(initial);
+  const [removing, startRemove] = useTransition();
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label>{label}</Label>
+      <div
+        className={cn(
+          "flex h-24 items-center justify-center overflow-hidden rounded-xl border border-dashed border-border p-2 text-[12px] text-text-3",
+          boxClass,
+        )}
+      >
+        {url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt={label} className={previewClass} />
+        ) : (
+          placeholder
+        )}
+      </div>
+      {canEdit && (
+        <div className="flex items-center gap-2">
+          <ImageUpload
+            folder="brand"
+            label={url ? "Reemplazar" : "Subir"}
+            onUploaded={async (u) => {
+              setUrl(u);
+              const r = await updateBrandAsset(kind, u);
+              if (r?.error) toast.error(r.error);
+            }}
+          />
+          {url && (
+            <button
+              type="button"
+              disabled={removing}
+              onClick={() =>
+                startRemove(async () => {
+                  const r = await removeBrandAsset(kind);
+                  if (r?.error) toast.error(r.error);
+                  else {
+                    setUrl(null);
+                    toast.success("Eliminado");
+                  }
+                })
+              }
+              className="iconbtn inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-2 text-[12.5px] font-medium text-danger disabled:opacity-60"
+            >
+              {removing ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Trash2 className="size-4" />
+              )}
+              Eliminar
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ColorsSection({ settings, canEdit }: Data & { which: "primary" }) {
   const [primary, setPrimary] = useState(settings.primary_color ?? "#0EA5E9");
   const [accent] = useState(settings.accent_color ?? "#0EA5E9");
-  const [logo, setLogo] = useState(settings.logo_url);
-  const [favicon, setFavicon] = useState(settings.favicon_url);
   const [, start] = useTransition();
   function save(p: string, a: string) {
     start(async () => {
@@ -257,50 +332,31 @@ function ColorsSection({ settings, canEdit }: Data & { which: "primary" }) {
   return (
     <Card title="Logotipo y marca">
       <div className="grid grid-cols-2 gap-3">
-        <div className="flex flex-col gap-1.5">
-          <Label>Logotipo</Label>
-          <div className="flex h-24 items-center justify-center overflow-hidden rounded-xl border border-dashed border-border p-2 text-[12px] text-text-3">
-            {logo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logo} alt="logo" className="max-h-full max-w-full object-contain" />
-            ) : (
-              "Sube tu logotipo"
-            )}
-          </div>
-          {canEdit && (
-            <ImageUpload
-              folder="brand"
-              label="Subir logotipo"
-              onUploaded={async (url) => {
-                setLogo(url);
-                const r = await updateBrandAsset("logo", url);
-                if (r?.error) toast.error(r.error);
-              }}
-            />
-          )}
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label>Favicon</Label>
-          <div className="flex h-24 items-center justify-center overflow-hidden rounded-xl border border-dashed border-border p-2 text-[12px] text-text-3">
-            {favicon ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={favicon} alt="favicon" className="size-12 object-contain" />
-            ) : (
-              "PNG 64×64 px"
-            )}
-          </div>
-          {canEdit && (
-            <ImageUpload
-              folder="brand"
-              label="Subir favicon"
-              onUploaded={async (url) => {
-                setFavicon(url);
-                const r = await updateBrandAsset("favicon", url);
-                if (r?.error) toast.error(r.error);
-              }}
-            />
-          )}
-        </div>
+        <BrandAssetSlot
+          label="Logotipo (claro)"
+          kind="logo"
+          initial={settings.logo_url}
+          placeholder="Sube tu logotipo"
+          previewClass="max-h-full max-w-full object-contain"
+          canEdit={canEdit}
+        />
+        <BrandAssetSlot
+          label="Logotipo (oscuro)"
+          kind="logo_dark"
+          initial={settings.logo_dark_url}
+          placeholder="Logo para modo oscuro"
+          previewClass="max-h-full max-w-full object-contain"
+          boxClass="bg-[#0B0F19]"
+          canEdit={canEdit}
+        />
+        <BrandAssetSlot
+          label="Favicon"
+          kind="favicon"
+          initial={settings.favicon_url}
+          placeholder="PNG 64×64 px"
+          previewClass="size-12 object-contain"
+          canEdit={canEdit}
+        />
       </div>
       <div className="mt-4 text-[12.5px] font-semibold text-foreground">
         Color primario de marca
