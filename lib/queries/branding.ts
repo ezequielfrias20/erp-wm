@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 export type Branding = {
   companyName: string | null;
   logoUrl: string | null;
+  logoDarkUrl: string | null;
   faviconUrl: string | null;
   primaryColor: string | null;
   accentColor: string | null;
@@ -13,6 +14,7 @@ export type Branding = {
 const EMPTY: Branding = {
   companyName: null,
   logoUrl: null,
+  logoDarkUrl: null,
   faviconUrl: null,
   primaryColor: null,
   accentColor: null,
@@ -27,6 +29,7 @@ export const getBranding = cache(async (): Promise<Branding> => {
     return {
       companyName: data.company_name,
       logoUrl: data.logo_url,
+      logoDarkUrl: data.logo_dark_url,
       faviconUrl: data.favicon_url,
       primaryColor: data.primary_color,
       accentColor: data.accent_color,
