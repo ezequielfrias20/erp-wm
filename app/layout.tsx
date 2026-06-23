@@ -17,9 +17,9 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "World Medics ERP",
     description: "ERP de uniformes médicos · World Medics",
-    // `sizes: "any"` marks the uploaded icon as scalable so browsers prefer it
-    // over the fixed-size static app/favicon.ico (which Next always emits too).
-    icons: faviconUrl ? { icon: [{ url: faviconUrl, sizes: "any" }] } : undefined,
+    // Un único origen de favicon: el subido si existe, si no el default de /public.
+    // (Ya no existe app/favicon.ico, así que nada compite por la ruta /favicon.ico.)
+    icons: { icon: [{ url: faviconUrl ?? "/favicon-default.ico" }] },
   };
 }
 
