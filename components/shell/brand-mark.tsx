@@ -5,28 +5,51 @@ import { Logo } from "@/components/shell/logo";
  *  `login` = centered block; `sidebar` = horizontal row (logo-only when collapsed). */
 export function BrandMark({
   logoUrl,
+  logoDarkUrl = null,
   companyName,
   variant,
   collapsed = false,
 }: {
   logoUrl: string | null;
+  logoDarkUrl?: string | null;
   companyName: string | null;
   variant: "login" | "sidebar";
   collapsed?: boolean;
 }) {
   const name = companyName?.trim() || "World Medics";
 
-  if (logoUrl) {
+  const lightSrc = logoUrl ?? logoDarkUrl;
+  const darkSrc = logoDarkUrl ?? logoUrl;
+
+  if (lightSrc && darkSrc) {
+    const frameClass =
+      variant === "login"
+        ? "mx-auto flex h-24 w-full max-w-[280px] items-center justify-center"
+        : collapsed
+          ? "flex size-11 items-center justify-center"
+          : "flex h-12 w-full max-w-[190px] items-center justify-start";
+    const imageClass =
+      variant === "login"
+        ? "scale-[1.18]"
+        : collapsed
+          ? "scale-[1.12]"
+          : "scale-[1.22]";
+
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={logoUrl}
-        alt={name}
-        className={cn(
-          "object-contain",
-          variant === "login" ? "mx-auto max-h-16 w-auto" : "max-h-9 w-auto",
-        )}
-      />
+      <span className={cn("overflow-visible", frameClass)}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={lightSrc}
+          alt={name}
+          className={cn("h-full w-full object-contain", imageClass, "block dark:hidden")}
+        />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={darkSrc}
+          alt={name}
+          className={cn("h-full w-full object-contain", imageClass, "hidden dark:block")}
+        />
+      </span>
     );
   }
 
