@@ -44,6 +44,10 @@ handoff de diseño `World Medics ERP.dc.html` (claude.ai/design) **tal cual**.
     expone **solo** los campos de marca de `settings` (company_name, logo_url, favicon_url,
     primary_color, accent_color) al login no autenticado; `grant execute` a `anon`/`authenticated`
     (+ `usage` del esquema `wm` a `anon`). Evita exponer datos fiscales del resto de `settings`.
+17. `wm_settings_logo_dark` — añade `settings.logo_dark_url` (logo para tema oscuro) y recrea
+    `wm.branding()` para devolverlo (anon-safe).
+18. `wm_storage_brand_delete` — policy `DELETE` en `storage.objects` para el bucket `wm-public`
+    (permite borrar logo/favicon al eliminarlos; el borrado real se gatea por permisos de módulo).
 Bootstrap del admin (login) se hizo con `execute_sql` (crea `auth.users` + `auth.identities`).
 
 ### Modelo RLS
@@ -148,19 +152,27 @@ Acceso gateado por `wm.profiles` (no por estar en `auth.users`).
 
 ## Storage
 Bucket público **`wm-public`** (avatares en `avatars/`, marca en `brand/`). Lectura
-pública, escritura solo autenticados. Subidas desde Configuración (perfil/marca) vía
-`components/configuracion/image-upload.tsx`; URLs en `profiles.avatar_url` /
-`settings.logo_url` / `settings.favicon_url`.
+pública, escritura solo autenticados, eliminación solo autenticados. Subidas desde
+Configuración (perfil/marca) vía `components/configuracion/image-upload.tsx`; URLs en
+`profiles.avatar_url` / `settings.logo_url` / `settings.logo_dark_url` / `settings.favicon_url`.
+Cada asset de marca (logo, logo oscuro, favicon) se puede eliminar desde Configuración.
 
 ## Branding dinámico
 La marca subida en **Configuración → Marca** se consume en todo el sistema (render en servidor,
 sin parpadeo) vía `getBranding()` (`lib/queries/branding.ts`, cacheado por request → RPC
 `wm.branding()`, seguro para el login no autenticado):
-- **Logo** (`settings.logo_url`): se muestra en el **login** (`app/(auth)/layout.tsx`) y en el
-  **header del sidebar** (`components/shell/sidebar.tsx`) vía `components/shell/brand-mark.tsx`.
-  Si hay logo, se muestra solo la imagen; si no, cae al glifo `<Logo/>` + nombre/subtítulo.
+- **Logos** (`settings.logo_url` + `settings.logo_dark_url`): se muestran en el **login**
+  (`app/(auth)/layout.tsx`) y en el **header del sidebar** (`components/shell/sidebar.tsx`)
+  vía `components/shell/brand-mark.tsx`. El componente renderiza ambas imágenes y alterna
+  por la clase `dark` del `<html>`; si no hay logo oscuro, el tema oscuro usa el logo claro.
+  Si no hay logo, cae al glifo `<Logo/>` + nombre/subtítulo. Cada asset se puede **eliminar**
+  desde Configuración → Marca: `removeBrandAsset` pone la columna en `null` y borra el archivo
+  del bucket `wm-public` (best-effort).
 - **Favicon** (`favicon_url`): se inyecta en `generateMetadata` del root layout (`app/layout.tsx`)
-  con `sizes:"any"` para ganarle al `app/favicon.ico` estático.
+  con un único icon link `faviconUrl ?? "/favicon-default.ico"`. El archivo estático se movió
+  a `public/favicon-default.ico` (fue `app/favicon.ico`). Las acciones de marca
+  (`app/(app)/configuracion/actions.ts`) revalidan el root layout (`revalidatePath("/", "layout")`)
+  para que el favicon/logo no queden cacheados. El favicon también se puede eliminar.
 - **Color primario** (`primary_color`): se aplica con un `<style>` server-rendered en el root
   layout (`lib/brand-css.ts` → `buildBrandStyle`), sobrescribiendo `--brand`, `--brand-2`,
   `--brand-soft`, `--primary`, `--primary-foreground`, `--ring`, `--sidebar-primary`,

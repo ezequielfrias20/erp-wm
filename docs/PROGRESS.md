@@ -74,15 +74,20 @@ Migraciones: `wm_payment_methods_is_financed`, `wm_cashea_orders`, `wm_cashea_or
 
 ## Fase 15 — Branding dinámico (logo, favicon, color)
 
-Migración: `wm_branding_fn`. Plan/spec en `docs/superpowers/`.
+Migraciones: `wm_branding_fn`, `wm_settings_logo_dark`, `wm_storage_brand_delete`. Plan/spec en `docs/superpowers/`.
 
 - El **logo**, **favicon** y **color primario** subidos en Configuración → Marca ya se consumen
   en el sistema (render en servidor, sin parpadeo) vía `getBranding()` → RPC `wm.branding()`
   (`SECURITY DEFINER`, expone solo la marca; segura para el login no autenticado).
-- **Logo**: en login y header del sidebar (`components/shell/brand-mark.tsx`); si no hay logo,
-  cae al glifo + nombre actual.
-- **Favicon**: inyectado en `generateMetadata` del root layout (`sizes:"any"` para ganar al
-  `app/favicon.ico` estático).
+- **Logos por tema**: `settings.logo_url` (claro/base) + `settings.logo_dark_url` (oscuro, opcional).
+  `BrandMark` (`components/shell/brand-mark.tsx`) renderiza ambas y alterna por la clase `dark`
+  del `<html>`; si no hay logo oscuro, el tema oscuro usa el logo claro. Sin logo, cae al glifo + nombre.
+- **Favicon**: `public/favicon-default.ico` (fue `app/favicon.ico`); `generateMetadata` emite un único
+  icon link `faviconUrl ?? "/favicon-default.ico"`. Las acciones de marca revalidan el root layout
+  para que no quede cacheado.
+- **Eliminación de marca**: cada asset (logo, logo oscuro, favicon) se puede eliminar desde
+  Configuración → Marca: `removeBrandAsset` pone la columna en `null` y borra el archivo del
+  bucket `wm-public` (best-effort); policy `DELETE` en storage gatea la eliminación.
 - **Color primario**: `<style>` server-rendered (`lib/brand-css.ts`) que sobrescribe los tokens
   de marca (`--brand`, `--primary`, `--ring`, `--sidebar-*`, `--chart-1`), igual en claro/oscuro;
   helpers de color con pruebas unitarias (vitest, nuevo runner).
