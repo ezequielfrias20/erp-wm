@@ -74,7 +74,7 @@ Migraciones: `wm_payment_methods_is_financed`, `wm_cashea_orders`, `wm_cashea_or
 
 ## Fase 15 — Branding dinámico (logo, favicon, color)
 
-Migraciones: `wm_branding_fn`, `wm_settings_logo_dark`, `wm_storage_brand_delete`. Plan/spec en `docs/superpowers/`.
+Migraciones: `wm_branding_fn`, `wm_settings_logo_dark`. Plan/spec en `docs/superpowers/`.
 
 - El **logo**, **favicon** y **color primario** subidos en Configuración → Marca ya se consumen
   en el sistema (render en servidor, sin parpadeo) vía `getBranding()` → RPC `wm.branding()`
@@ -87,7 +87,8 @@ Migraciones: `wm_branding_fn`, `wm_settings_logo_dark`, `wm_storage_brand_delete
   para que no quede cacheado.
 - **Eliminación de marca**: cada asset (logo, logo oscuro, favicon) se puede eliminar desde
   Configuración → Marca: `removeBrandAsset` pone la columna en `null` y borra el archivo del
-  bucket `wm-public` (best-effort); policy `DELETE` en storage gatea la eliminación.
+  bucket `wm-public` (best-effort); usa la policy `DELETE` ya existente del bootstrap
+  (`wm_authenticated_delete`).
 - **Color primario**: `<style>` server-rendered (`lib/brand-css.ts`) que sobrescribe los tokens
   de marca (`--brand`, `--primary`, `--ring`, `--sidebar-*`, `--chart-1`), igual en claro/oscuro;
   helpers de color con pruebas unitarias (vitest, nuevo runner).

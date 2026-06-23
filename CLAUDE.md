@@ -46,8 +46,11 @@ handoff de diseño `World Medics ERP.dc.html` (claude.ai/design) **tal cual**.
     (+ `usage` del esquema `wm` a `anon`). Evita exponer datos fiscales del resto de `settings`.
 17. `wm_settings_logo_dark` — añade `settings.logo_dark_url` (logo para tema oscuro) y recrea
     `wm.branding()` para devolverlo (anon-safe).
-18. `wm_storage_brand_delete` — policy `DELETE` en `storage.objects` para el bucket `wm-public`
-    (permite borrar logo/favicon al eliminarlos; el borrado real se gatea por permisos de módulo).
+18. `wm_storage_brand_delete` → revertida por `wm_drop_redundant_brand_delete_policy`: resultó
+    redundante. El borrado de objetos en `wm-public` por `authenticated` ya existía (policy
+    `wm_authenticated_delete` del bootstrap, ya en `01_schema.sql`), que es lo que usa
+    `removeBrandAsset` para borrar logo/favicon. El borrado real se gatea en la app por permisos
+    de módulo. No cambia el snapshot.
 Bootstrap del admin (login) se hizo con `execute_sql` (crea `auth.users` + `auth.identities`).
 
 ### Modelo RLS

@@ -43,7 +43,7 @@ export async function updateAvatar(url: string): Promise<FormState> {
   return { ok: true };
 }
 
-type BrandKind = "logo" | "logo_dark" | "favicon";
+export type BrandKind = "logo" | "logo_dark" | "favicon";
 
 const BRAND_COLUMN: Record<BrandKind, "logo_url" | "logo_dark_url" | "favicon_url"> = {
   logo: "logo_url",

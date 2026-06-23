@@ -35,6 +35,7 @@ import {
   addMaster,
   deleteMaster,
   type FormState,
+  type BrandKind,
 } from "@/app/(app)/configuracion/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -252,7 +253,7 @@ function BrandAssetSlot({
   canEdit,
 }: {
   label: string;
-  kind: "logo" | "logo_dark" | "favicon";
+  kind: BrandKind;
   initial: string | null;
   placeholder: string;
   previewClass: string;
@@ -331,7 +332,7 @@ function ColorsSection({ settings, canEdit }: Data & { which: "primary" }) {
   }
   return (
     <Card title="Logotipo y marca">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <BrandAssetSlot
           label="Logotipo (claro)"
           kind="logo"
