@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { audit } from "@/lib/audit";
+import { storagePathFromPublicUrl } from "@/lib/storage-path";
 
 export type FormState = { error?: string; ok?: boolean } | null;
 
@@ -42,16 +43,66 @@ export async function updateAvatar(url: string): Promise<FormState> {
   return { ok: true };
 }
 
-export async function updateBrandAsset(
-  kind: "logo" | "favicon",
-  url: string,
-): Promise<FormState> {
+type BrandKind = "logo" | "logo_dark" | "favicon";
+
+const BRAND_COLUMN: Record<BrandKind, "logo_url" | "logo_dark_url" | "favicon_url"> = {
+  logo: "logo_url",
+  logo_dark: "logo_dark_url",
+  favicon: "favicon_url",
+};
+
+function brandLabel(kind: BrandKind): string {
+  return kind === "logo"
+    ? "el logotipo"
+    : kind === "logo_dark"
+      ? "el logotipo oscuro"
+      : "el favicon";
+}
+
+export async function updateBrandAsset(kind: BrandKind, url: string): Promise<FormState> {
   const supabase = await createClient();
-  const field = kind === "logo" ? { logo_url: url } : { favicon_url: url };
-  const { error } = await supabase.from("settings").update(field).eq("id", 1);
+  const { error } = await supabase
+    .from("settings")
+    .update({ [BRAND_COLUMN[kind]]: url } as never)
+    .eq("id", 1);
   if (error) return { error: error.message };
-  await audit(`Actualizó ${kind === "logo" ? "el logotipo" : "el favicon"}`, "Configuración");
+  await audit(`Actualizó ${brandLabel(kind)}`, "Configuración");
   revalidatePath("/configuracion");
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function removeBrandAsset(kind: BrandKind): Promise<FormState> {
+  const supabase = await createClient();
+  const column = BRAND_COLUMN[kind];
+
+  // URL actual, para borrar el archivo del bucket (best-effort).
+  const { data: current } = await supabase
+    .from("settings")
+    .select("logo_url, logo_dark_url, favicon_url")
+    .eq("id", 1)
+    .maybeSingle();
+
+  const { error } = await supabase
+    .from("settings")
+    .update({ [column]: null } as never)
+    .eq("id", 1);
+  if (error) return { error: error.message };
+
+  const url = current?.[column] ?? null;
+  if (url) {
+    // Best-effort: si la URL es rara o RLS rechaza el borrado, la columna ya quedó limpia.
+    try {
+      const path = storagePathFromPublicUrl(url, "wm-public");
+      if (path) await supabase.storage.from("wm-public").remove([path]);
+    } catch {
+      // ignore
+    }
+  }
+
+  await audit(`Eliminó ${brandLabel(kind)}`, "Configuración");
+  revalidatePath("/configuracion");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
