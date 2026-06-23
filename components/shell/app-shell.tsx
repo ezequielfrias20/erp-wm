@@ -10,6 +10,7 @@ export function AppShell({
   badges,
   notifications,
   logoUrl,
+  logoDarkUrl,
   companyName,
   children,
 }: {
@@ -17,6 +18,7 @@ export function AppShell({
   badges: { lowStock?: number };
   notifications: ShellNotification[];
   logoUrl: string | null;
+  logoDarkUrl: string | null;
   companyName: string | null;
   children: React.ReactNode;
 }) {
@@ -29,6 +31,7 @@ export function AppShell({
         badges={badges}
         bcv={bcv}
         logoUrl={logoUrl}
+        logoDarkUrl={logoDarkUrl}
         companyName={companyName}
       />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">

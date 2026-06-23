@@ -14,12 +14,14 @@ export function Sidebar({
   badges,
   bcv,
   logoUrl,
+  logoDarkUrl,
   companyName,
 }: {
   collapsed: boolean;
   badges: { lowStock?: number };
   bcv: BcvRate;
   logoUrl: string | null;
+  logoDarkUrl: string | null;
   companyName: string | null;
 }) {
   const pathname = usePathname();
@@ -37,6 +39,7 @@ export function Sidebar({
           variant="sidebar"
           collapsed={collapsed}
           logoUrl={logoUrl}
+          logoDarkUrl={logoDarkUrl}
           companyName={companyName}
         />
       </div>

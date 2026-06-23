@@ -47,6 +47,7 @@ export default async function AppLayout({
           badges={{ lowStock: shell.lowStock }}
           notifications={shell.notifications}
           logoUrl={branding.logoUrl}
+          logoDarkUrl={branding.logoDarkUrl}
           companyName={branding.companyName}
         >
           {children}

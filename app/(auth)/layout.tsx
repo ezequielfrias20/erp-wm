@@ -6,7 +6,7 @@ export default async function AuthLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { logoUrl, companyName } = await getBranding();
+  const { logoUrl, logoDarkUrl, companyName } = await getBranding();
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
       <div
@@ -18,7 +18,12 @@ export default async function AuthLayout({
       />
       <div className="w-full max-w-[400px] fadeup">
         <div className="mb-6 flex flex-col items-center text-center">
-          <BrandMark variant="login" logoUrl={logoUrl} companyName={companyName} />
+          <BrandMark
+            variant="login"
+            logoUrl={logoUrl}
+            logoDarkUrl={logoDarkUrl}
+            companyName={companyName}
+          />
         </div>
         {children}
       </div>
