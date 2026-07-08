@@ -8,67 +8,78 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <claude-mem-context>
 # Memory Context
 
-# [erp] recent context, 2026-06-20 6:57pm GMT-4
+# [erp] recent context, 2026-07-08 7:28am GMT-4
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision 🚨security_alert 🔐security_note
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (27,894t read) | 811,760t work | 97% savings
+Stats: 50 obs (16,782t read) | 548,994t work | 97% savings
 
-### Jun 19, 2026
-1018 2:46p 🔵 CRM SaaS — Live BCV rate is Bs. 607.39/USD, not the Bs. 113.00 hardcoded in design mock data
-1019 2:53p ⚖️ CRM SaaS — World Medics ERP full implementation plan written and locked
-1020 2:58p ⚖️ CRM SaaS — World Medics ERP implementation re-initiated via claude_design MCP
-1021 3:03p 🟣 CRM SaaS — World Medics ERP Next.js project scaffolded
-1022 " ✅ CRM SaaS — World Medics ERP runtime dependencies installed
-1023 3:04p 🔵 CRM SaaS — shadcn/ui latest CLI dropped -b slate flag; use -d --yes instead
-1024 " 🟣 CRM SaaS — shadcn/ui component library fully installed for World Medics ERP
-1025 3:06p 🟣 CRM SaaS — World Medics ERP design tokens fully ported to globals.css
-1026 3:07p ✅ CRM SaaS — World Medics ERP .env.local configured with Supabase + BCV API keys
-1027 " 🟣 CRM SaaS — Supabase client/server helpers created targeting wm schema
-1028 " 🟣 CRM SaaS — Auth middleware implemented with route gating and session refresh
-### Jun 20, 2026
-1029 5:33a 🔵 CRM SaaS — /invite user creation does not enable login
-1030 5:34a 🔵 CRM SaaS — Supabase invite flow does not create a usable password login
-1031 " 🔵 CRM SaaS — Supabase user invite flow does not set password; new users cannot log in via email/password
-1032 5:35a 🔵 CRM SaaS — wm.profiles record has null user_id, blocking login
-1033 5:36a 🔵 CRM SaaS — Supabase invite-based user creation cannot set password directly
-S675 CRM SaaS — Supabase invite-based user creation cannot set password directly (Jun 20 at 5:36 AM)
-1034 5:48a ⚖️ CRM SaaS — Ventas (POS) flow refinements planned: inline client creation, IVA toggle, reference number
-1036 " 🔵 CRM SaaS — POS module current architecture confirmed before sale flow refinements
-1037 5:49a 🔵 CRM SaaS — wm.sales schema and create_sale RPC fully mapped before refinements
-1039 11:40a ⚖️ CRM SaaS — Comprehensive Feature Plan: Productos, Ventas, and Reportes Modules
-1041 " 🔵 CRM SaaS — Productos & Inventario Module Architecture Fully Mapped
-1042 " 🔵 CRM SaaS — Reportes Module Architecture Fully Mapped: PDF is window.print(), No Invoice Template Exists
-1043 11:41a 🔵 CRM SaaS — Ventas POS Module Fully Mapped: Payment, Draft, Customer, and Invoice Gaps Confirmed
-1045 11:50a ⚖️ CRM SaaS — Comprehensive Feature Plan Requested Across Productos, Ventas, and Reportes
-1046 " ⚖️ CRM SaaS — Comprehensive Multi-Module Feature Plan Requested
-1047 11:51a ⚖️ CRM SaaS — Comprehensive Large-Scale Feature Plan Requested Across Productos, Ventas, and Reportes
-1048 11:53a ⚖️ CRM SaaS — Comprehensive large-scale feature plan requested across Productos, Ventas, and Reportes
-1049 " ⚖️ CRM SaaS — Large-scale feature plan requested across Productos, Ventas, and Reportes modules
-1050 11:54a ⚖️ CRM SaaS — Comprehensive multi-module feature plan requested and organized by priority
-1051 11:55a ⚖️ CRM SaaS — Comprehensive Large-Scale Feature Plan Requested Across Products, Sales, and Reports
-1052 " ⚖️ CRM SaaS — Comprehensive Large-Scale Feature Plan Requested Across Products, Sales, and Reports
-1053 11:56a ⚖️ CRM SaaS — Comprehensive multi-module feature plan requested and recorded
-1054 11:57a ⚖️ CRM SaaS — Comprehensive Feature Plan Requested Across Products, Sales, and Reports
-1055 11:58a ⚖️ CRM SaaS — Comprehensive feature roadmap specified for Products, Sales, and Reports modules with structured implementation phases
-1056 " ⚖️ CRM SaaS — Large-Scale Feature Implementation Plan Requested Across Products, Sales, and Reports
-1057 11:59a 🟣 CRM SaaS Configuración — Brands (Marcas) added to Inventario settings section
-1059 6:29p ⚖️ CRM SaaS — Ventas POS modal "falta" field planned to show amount in Bs
-1060 6:30p ⚖️ CRM SaaS — modal "falta" field planned to display amount in Bs
-1061 " ⚖️ CRM SaaS — Ventas modal "Falta" field planned to display amount in Bs
-1062 6:31p 🔵 CRM SaaS ERP — POS payment modal structure confirmed for "Falta" Bs display task
-1063 " 🟣 CRM SaaS — POS mixed payment modal "Falta" now shows Bs equivalent amount
-1064 " 🔵 CRM SaaS ERP — ESLint reveals 4 pre-existing errors in clientes, shell, sucursales, and usuarios components
-1065 " 🟣 CRM SaaS ERP — POS view fully rewritten with mixed payments, drafts, customer lookup, and printable invoice
-1066 6:34p 🟣 CRM SaaS — POS payment modal "Falta" field now displays Bs (Bolivianos) amount
-1067 6:35p 🔵 CRM SaaS — MixedPaymentForm Bs display: confirmed exact implementation in pos-view.tsx
-1068 6:37p 🔵 CRM SaaS — POS payment modal horizontal scroll and decimal precision bugs reported
-1069 6:38p 🔴 CRM SaaS — POS mixed payment modal horizontal scroll and decimal precision bugs fixed
-1070 " 🟣 CRM SaaS — POS mixed payment row shows inline validation error for invalid decimal amounts
-1071 6:50p ⚖️ CRM SaaS — Ventas POS flow: customer enforcement, sale animation, and invoice modal redesign planned
-1072 " 🔵 CRM SaaS — POS flow code structure mapped prior to three-feature implementation
+### Jun 21, 2026
+S708 CRM SaaS — White-label branding propagation fully specified (Jun 21 at 10:57 AM)
+S709 CRM SaaS — White-label branding system: design spec written for logo, favicon, and primary color propagation (Jun 21 at 7:27 PM)
+S715 CRM SaaS — Branding dinámico: spec approved, implementation plan written and committed (Jun 21 at 7:30 PM)
+S727 CRM SaaS — Logo display fix planned for login and sidebar (Jun 21 at 7:40 PM)
+1114 7:44p 🟣 CRM SaaS ERP — Vitest runner committed to main branch
+1115 " 🟣 CRM SaaS ERP — TDD tests written for lib/brand-css.ts colour helpers
+### Jun 22, 2026
+1144 8:41p ⚖️ CRM SaaS — Logo sizing fix planned for login and sidebar
+1145 " ⚖️ CRM SaaS — Logo display fix planned for login and sidebar
+1146 " ⚖️ CRM SaaS — Logo display fix planned for login and sidebar
+1147 8:42p ⚖️ CRM SaaS — Logo display fix planned for login and sidebar menu
+1148 " ⚖️ CRM SaaS — Logo display fix planned for login and sidebar
+1149 " ⚖️ CRM SaaS — Logo display fix planned for login and sidebar menu
+1150 " 🔵 CRM SaaS ERP — ESLint audit reveals 4 errors across 3 components
+1152 8:51p ⚖️ CRM SaaS — Logo display fix planned for login and sidebar
+S731 CRM SaaS — Delete logo/favicon: UI patterns and component conventions confirmed (Jun 22 at 8:51 PM)
+1153 8:52p ⚖️ CRM SaaS — Logo size increase requested within fixed container bounds
+1154 " ✅ CRM SaaS — Logo visually enlarged via CSS scale without changing container dimensions
+1155 " ✅ CRM SaaS — brand-mark.tsx logo scale fix confirmed clean and applied
+1156 9:25p ⚖️ CRM SaaS — Logo and favicon delete capability planned
+1157 9:26p 🔵 CRM SaaS — Branding asset deletion feature: existing code structure explored
+1158 " 🔵 CRM SaaS — Brand asset actions structure explored for delete logo/favicon feature
+1159 " 🔵 CRM SaaS — Delete logo/favicon: full codebase context mapped for implementation
+1160 9:27p 🔵 CRM SaaS — Delete logo/favicon: UI patterns and component conventions confirmed
+S735 CRM SaaS — Brand settings expansion: delete logo/favicon, dark/light logo variants, fix favicon in browser tab (Jun 22 at 9:27 PM)
+1161 9:29p ⚖️ CRM SaaS — Brand settings expanded: delete logo/favicon + dark/light theme logos + favicon tab fix
+1162 9:36p ⚖️ CRM SaaS — Brand settings expanded to support dark/light logo variants and favicon browser tab fix
+1164 " 🔵 CRM SaaS — Brand settings architecture fully mapped for logo/favicon/theme expansion
+1165 9:37p 🔵 CRM SaaS — Favicon bug root cause confirmed: no dynamic favicon in Next.js metadata, no favicon.ico in public/
+1166 " ⚖️ CRM SaaS — Brand settings expansion: delete logo/favicon, dark/light logo variants, fix favicon in browser tab
+1167 9:42p ⚖️ CRM SaaS — Brand settings expansion: delete logo/favicon, dark/light logo variants, fix favicon in browser tab
+S736 frontend-reimpet ERP — Feature branch feat/branding-logos-favicon created (Jun 22 at 9:42 PM)
+1168 9:45p 🟣 CRM SaaS — Dark/light logo columns added to settings table and branding query updated
+1169 9:46p ⚖️ frontend-reimpet ERP — Branding spec written: dark/light logos, delete assets, favicon fix
+1170 " ✅ frontend-reimpet ERP — Feature branch feat/branding-logos-favicon created
+S739 ERP branding overhaul — dark/light logos, delete assets, favicon fix: spec written and branch created (Jun 22 at 9:46 PM)
+S856 CRM SaaS ERP — User asked for step-by-step instructions to onboard a new client onto the ERP system (Jun 22 at 9:46 PM)
+### Jul 3, 2026
+1322 4:39p 🔵 CRM SaaS — proxy.ts matcher excludes favicon.ico but not favicon-default.ico, causing Supabase DNS calls for static asset requests
+1323 4:40p 🔵 CRM SaaS — Supabase DNS resolution failure in development environment
+1324 " 🔵 CRM SaaS — Supabase DNS resolution failure (ENOTFOUND) in local dev environment
+1325 4:44p 🔵 CRM SaaS ERP — Supabase project URL not resolvable via DNS
+### Jul 7, 2026
+1388 9:19p 🔵 CRM SaaS ERP — New Business Onboarding Process Documented
+1389 9:40p 🔵 CRM SaaS — /nuevo-negocio skill wizard full specification confirmed
+1390 " 🔵 CRM SaaS — Supabase organization ID for WM Plataforma confirmed
+1391 " 🟣 CRM SaaS — New Supabase project created for client "Reyes Magos"
+1392 " 🟣 CRM SaaS — wm-reyesmagos bootstrap scripts all ran successfully
+1393 " 🟣 CRM SaaS — wm-reyesmagos .env.local created with Supabase credentials
+S858 CRM SaaS — /nuevo-negocio skill wizard full specification confirmed (Jul 7 at 9:40 PM)
+1394 9:48p ⚖️ CRM SaaS — New client "Cubo Labs" onboarding initiated
+1397 9:59p 🔵 CRM SaaS — Cubo Labs Supabase project blocks direct psql TCP connections
+1398 10:00p 🔵 CRM SaaS — crm_cubo_labs Supabase project already bootstrapped for wrong client
+1399 10:01p 🔵 CRM SaaS — crm_cubo_labs project contains live World Medics production data
+1400 10:02p 🔵 CRM SaaS — Supabase project kvypcrwmesqrfmowghms is clean (no wm schema)
+1401 10:04p 🔵 CRM SaaS — Bootstrap SQL files confirmed at supabase/bootstrap/ with sizes
+1402 10:05p 🔵 CRM SaaS bootstrap — 01_schema.sql confirmed as pure SQL with no psql meta-commands
+1403 " 🔵 CRM SaaS — 01_schema.sql contains PostgREST reload, storage bucket, and role grants that may fail via MCP
+1404 " 🔵 CRM SaaS — New Supabase project creation confirmed at $0/month on free tier
+1405 10:08p 🔵 CRM SaaS — kvypcrwmesqrfmowghms pre-flight: owner email already exists in auth.users
+1406 10:11p 🔵 CRM SaaS — Supabase network connectivity: direct DB unreachable, pooler ports open
+1407 10:20p 🔵 CRM SaaS — Cubo Labs bootstrap credentials confirmed
+1408 10:21p 🔵 CRM SaaS — Supabase pooler connection fails for Cubo Labs project
 
-Access 812k tokens of past work via get_observations([IDs]) or mem-search skill.
+Access 549k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>

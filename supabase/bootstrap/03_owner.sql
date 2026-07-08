@@ -45,7 +45,13 @@ create extension if not exists pgcrypto with schema extensions;
 -- ----- 1. Usuario de Auth (solo si no existe ese email) ----------------------
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password,
-  email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+  email_confirmed_at, confirmed_at,
+  confirmation_token, recovery_token,
+  email_change_token_new, email_change_token_current,
+  email_change, email_change_confirm_status,
+  reauthentication_token, phone_change, phone_change_token,
+  is_sso_user, is_anonymous,
+  raw_app_meta_data, raw_user_meta_data,
   created_at, updated_at
 )
 select
@@ -56,6 +62,18 @@ select
   lower(:'owner_email'),
   extensions.crypt(:'owner_password', extensions.gen_salt('bf')),
   now(),
+  now(),
+  '',
+  '',
+  '',
+  '',
+  '',
+  0,
+  '',
+  '',
+  '',
+  false,
+  false,
   '{"provider":"email","providers":["email"]}'::jsonb,
   jsonb_build_object('full_name', :'owner_name'::text),
   now(),

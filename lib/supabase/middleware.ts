@@ -1,7 +1,21 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import type { User } from "@supabase/supabase-js";
 
 const PUBLIC_PATHS = ["/login", "/invite", "/api/bcv"];
+
+async function getCurrentUser(
+  supabase: ReturnType<typeof createServerClient>,
+): Promise<User | null> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    return user;
+  } catch {
+    return null;
+  }
+}
 
 /** Refreshes the Supabase session cookie and gates app routes behind auth. */
 export async function updateSession(request: NextRequest) {
@@ -29,9 +43,7 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser(supabase);
 
   const { pathname } = request.nextUrl;
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
