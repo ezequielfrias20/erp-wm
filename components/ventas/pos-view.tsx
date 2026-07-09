@@ -452,9 +452,9 @@ export function PosView({
   const mixedPaidUsd = (mixed ?? []).reduce((a, p) => a + p.amount_usd, 0);
 
   return (
-    <div className="grid h-full grid-cols-1 lg:grid-cols-[1fr_420px]">
+    <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[1fr_420px] lg:overflow-hidden">
       {/* Catálogo */}
-      <div className="flex flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-col overflow-hidden">
         <div className="px-[30px] pt-[22px]">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -506,7 +506,7 @@ export function PosView({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-[30px] py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-[30px] py-4">
           {filtered.length === 0 ? (
             <div className="py-16 text-center text-[13px] text-text-3">
               No hay productos con stock en esta sucursal.
@@ -584,7 +584,7 @@ export function PosView({
       </div>
 
       {/* Ticket */}
-      <div className="flex flex-col border-l border-border bg-card">
+      <div className="flex min-h-0 flex-col overflow-hidden border-l border-border bg-card">
         <div className="flex items-center justify-between border-b border-border px-4 py-3.5">
           <div className="flex items-center gap-2.5">
             <span className="flex size-9 items-center justify-center rounded-xl bg-brand-soft text-brand">
@@ -620,7 +620,7 @@ export function PosView({
           <span className="text-[12px] font-medium text-brand">Cambiar</span>
         </button>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {lines.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-2 px-6 py-12 text-center">
               <ShoppingCart className="size-8 text-text-3" />
@@ -691,7 +691,7 @@ export function PosView({
           )}
         </div>
 
-        <div className="border-t border-border p-4">
+        <div className="flex-none border-t border-border p-4">
           <div className="flex flex-col gap-1.5 text-[12.5px]">
             <Row label="Subtotal" value={fmtUSD(subtotal)} />
             <div className="flex items-center justify-between">
