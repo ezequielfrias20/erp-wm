@@ -73,7 +73,9 @@ export type PosProduct = {
   category: string | null;
   price: number;
   cost: number;
+  color: string | null;
   color_hex: string | null;
+  size: string | null;
   stock: number;
 };
 export type PosCustomer = {
@@ -122,6 +124,18 @@ function viewportServerSnapshot() {
 function estimateInvoiceHeight(data: InvoiceData | null) {
   if (!data) return 720;
   return Math.max(620, 500 + data.items.length * 31 + data.payments.length * 32);
+}
+
+function variantAttributes(p: Pick<PosProduct, "color" | "size">) {
+  return [
+    p.color ? `Color: ${p.color}` : null,
+    p.size ? `Talla: ${p.size}` : null,
+  ].filter(Boolean) as string[];
+}
+
+function variantDescription(p: Pick<PosProduct, "product_name" | "color" | "size">) {
+  const attrs = variantAttributes(p);
+  return attrs.length ? `${p.product_name} (${attrs.join(", ")})` : p.product_name;
 }
 
 export function PosView({
@@ -191,7 +205,9 @@ export function PosView({
       list = list.filter(
         (p) =>
           p.product_name.toLowerCase().includes(q) ||
-          p.sku.toLowerCase().includes(q),
+          p.sku.toLowerCase().includes(q) ||
+          (p.color?.toLowerCase().includes(q) ?? false) ||
+          (p.size?.toLowerCase().includes(q) ?? false),
       );
     return list;
   }, [products, cat, query]);
@@ -209,7 +225,7 @@ export function PosView({
       const existing = c[p.variant_id];
       const qty = (existing?.qty ?? 0) + 1;
       if (qty > p.stock) {
-        toast.warning(`Solo hay ${p.stock} en stock de ${p.product_name}`);
+        toast.warning(`Solo hay ${p.stock} en stock de ${variantDescription(p)}`);
         return c;
       }
       return { ...c, [p.variant_id]: { ...p, qty } };
@@ -297,7 +313,7 @@ export function PosView({
 
     const items: CheckoutItem[] = lines.map((l) => ({
       variant_id: l.variant_id,
-      description: l.product_name,
+      description: variantDescription(l),
       quantity: l.qty,
       unit_price: l.price,
       cost: l.cost,
@@ -307,7 +323,7 @@ export function PosView({
     const snapshot = {
       cust: selectedCustomer,
       lines: lines.map((l) => ({
-        description: l.product_name,
+        description: variantDescription(l),
         quantity: l.qty,
         unit_price: l.price,
         line_total: round2(l.qty * l.price),
@@ -410,7 +426,13 @@ export function PosView({
 
   function restoreDraft(d: PosDraft) {
     const newCart: Record<string, CartLine> = {};
-    for (const l of d.lines) newCart[l.variant_id] = { ...l };
+    for (const l of d.lines) {
+      newCart[l.variant_id] = {
+        ...l,
+        color: l.color ?? null,
+        size: l.size ?? null,
+      };
+    }
     setCart(newCart);
     setCustomer(d.customer);
     setDiscountPct(d.discountPct);
@@ -495,24 +517,52 @@ export function PosView({
                 <button
                   key={p.variant_id}
                   onClick={() => add(p)}
-                  className="hoverlift flex flex-col overflow-hidden rounded-2xl border border-border bg-card text-left shadow-card-sm"
+                  title={variantDescription(p)}
+                  className="hoverlift flex min-h-[258px] flex-col overflow-hidden rounded-2xl border border-border bg-card text-left shadow-card-sm"
                 >
                   <div
-                    className="flex h-24 items-center justify-center text-[18px] font-bold text-white"
+                    className="flex h-20 items-center justify-center text-[18px] font-bold text-white"
                     style={{
                       background: `linear-gradient(140deg, ${p.color_hex ?? "#0EA5E9"}, color-mix(in srgb, ${p.color_hex ?? "#0EA5E9"} 70%, #000))`,
                     }}
                   >
                     {initials(p.product_name)}
                   </div>
-                  <div className="flex flex-1 flex-col p-3">
-                    <div className="text-[10.5px] font-medium tracking-wide text-text-3 uppercase">
-                      {p.category}
+                  <div className="flex flex-1 flex-col gap-2.5 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 text-[10.5px] font-medium tracking-wide text-text-3 uppercase">
+                        {p.category ?? "Sin categoría"}
+                      </div>
+                      <div className="flex-none text-[10.5px] font-medium text-text-3">
+                        {p.stock} disp.
+                      </div>
                     </div>
-                    <div className="line-clamp-2 text-[12.5px] font-semibold text-foreground">
+                    <div className="line-clamp-3 text-[13px] leading-snug font-semibold text-foreground">
                       {p.product_name}
                     </div>
-                    <div className="mt-auto flex items-end justify-between pt-2">
+                    {(p.color || p.size) && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {p.color && (
+                          <span className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-surface-2 px-2 py-1 text-[11px] font-medium text-text-2">
+                            <span
+                              className="size-2.5 flex-none rounded-full border border-black/10"
+                              style={{ backgroundColor: p.color_hex ?? "#CBD5E1" }}
+                              aria-hidden="true"
+                            />
+                            <span className="truncate">{p.color}</span>
+                          </span>
+                        )}
+                        {p.size && (
+                          <span className="inline-flex rounded-md border border-border bg-surface-2 px-2 py-1 text-[11px] font-semibold text-text-2">
+                            Talla {p.size}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <div className="mt-auto text-[10.5px] font-medium text-text-3">
+                      SKU {p.sku}
+                    </div>
+                    <div className="flex items-end justify-between">
                       <div>
                         <div className="text-[13px] font-bold text-foreground">
                           {fmtUSD(p.price)}
@@ -593,7 +643,28 @@ export function PosView({
                   <div className="truncate text-[12.5px] font-medium text-foreground">
                     {l.product_name}
                   </div>
-                  <div className="text-[11px] text-text-3">{fmtUSD(l.price)} c/u</div>
+                  {(l.color || l.size) && (
+                    <div className="mt-0.5 flex flex-wrap gap-1">
+                      {l.color && (
+                        <span className="inline-flex max-w-[120px] items-center gap-1 rounded-md bg-surface-2 px-1.5 py-0.5 text-[10.5px] font-medium text-text-2">
+                          <span
+                            className="size-2 flex-none rounded-full border border-black/10"
+                            style={{ backgroundColor: l.color_hex ?? "#CBD5E1" }}
+                            aria-hidden="true"
+                          />
+                          <span className="truncate">{l.color}</span>
+                        </span>
+                      )}
+                      {l.size && (
+                        <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[10.5px] font-semibold text-text-2">
+                          Talla {l.size}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  <div className="mt-0.5 text-[11px] text-text-3">
+                    {fmtUSD(l.price)} c/u
+                  </div>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button

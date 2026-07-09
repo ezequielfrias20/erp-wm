@@ -17,7 +17,9 @@ export type PosDraftLine = {
   category: string | null;
   price: number;
   cost: number;
+  color?: string | null;
   color_hex: string | null;
+  size?: string | null;
   stock: number;
   qty: number;
 };

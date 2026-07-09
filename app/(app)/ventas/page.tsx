@@ -37,7 +37,7 @@ export default async function VentasPage() {
       ? supabase
           .from("v_inventory")
           .select(
-            "variant_id, sku, product_name, category, price, cost, color_hex, quantity",
+            "variant_id, sku, product_name, category, price, cost, color, color_hex, size, quantity",
           )
           .eq("branch_id", branchId)
           .gt("quantity", 0)
@@ -71,7 +71,9 @@ export default async function VentasPage() {
     category: r.category,
     price: r.price,
     cost: r.cost,
+    color: r.color,
     color_hex: r.color_hex,
+    size: r.size,
     stock: r.quantity,
   }));
 
