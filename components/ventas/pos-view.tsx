@@ -640,7 +640,7 @@ export function PosView({
                   {initials(l.product_name)}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[12.5px] font-medium text-foreground">
+                  <div className="whitespace-normal break-words text-[12.5px] leading-snug font-medium text-foreground">
                     {l.product_name}
                   </div>
                   {(l.color || l.size) && (
