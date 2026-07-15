@@ -52,6 +52,7 @@ import { fmtUSD, fmtVES, fmtByCurrency, initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   InvoiceDocument,
+  ThermalInvoiceDocument,
   printNode,
   type InvoiceData,
   type InvoiceCompany,
@@ -1823,6 +1824,7 @@ function InvoiceModal({
   data: InvoiceData | null;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const thermalRef = useRef<HTMLDivElement>(null);
   const viewport = useSyncExternalStore(
     subscribeViewport,
     viewportSnapshot,
@@ -1856,6 +1858,16 @@ function InvoiceModal({
             >
               <FileText className="size-4" /> Imprimir factura
             </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                printNode(thermalRef.current, `Ticket ${data?.invoiceNumber ?? ""}`)
+              }
+            >
+              <FileText className="size-4" /> Ticket 80 mm
+            </Button>
             <button
               type="button"
               onClick={() => onOpenChange(false)}
@@ -1865,25 +1877,39 @@ function InvoiceModal({
             </button>
           </div>
         </DialogHeader>
-        <div className="flex min-h-0 items-center justify-center overflow-hidden bg-surface-2 p-3">
+        <div className="flex min-h-0 items-start justify-center overflow-auto bg-surface-2 p-3">
           {data && (
-            <div
-              className="relative"
-              style={{
-                width: invoicePreviewWidth * previewScale,
-                height: estimatedHeight * previewScale,
-              }}
-            >
+            <>
               <div
+                className="relative"
                 style={{
-                  width: invoicePreviewWidth,
-                  transform: `scale(${previewScale})`,
-                  transformOrigin: "top left",
+                  width: invoicePreviewWidth * previewScale,
+                  height: estimatedHeight * previewScale,
                 }}
               >
-                <InvoiceDocument ref={ref} data={data} />
+                <div
+                  style={{
+                    width: invoicePreviewWidth,
+                    transform: `scale(${previewScale})`,
+                    transformOrigin: "top left",
+                  }}
+                >
+                  <InvoiceDocument ref={ref} data={data} />
+                </div>
               </div>
-            </div>
+              <div
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  left: -10000,
+                  top: 0,
+                  width: 302,
+                  overflow: "hidden",
+                }}
+              >
+                <ThermalInvoiceDocument ref={thermalRef} data={data} />
+              </div>
+            </>
           )}
         </div>
       </DialogContent>

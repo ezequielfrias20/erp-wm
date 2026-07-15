@@ -22,6 +22,7 @@ import { loadSaleDetail } from "@/app/(app)/reportes/actions";
 import { downloadReportPdf } from "@/components/reportes/report-pdf";
 import {
   InvoiceDocument,
+  ThermalInvoiceDocument,
   printNode,
   type InvoiceData,
   type InvoiceCompany,
@@ -519,6 +520,7 @@ function SaleDetailModal({
   fallbackRate: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const thermalRef = useRef<HTMLDivElement>(null);
   if (!open || !detail) return null;
   const inv = detailToInvoice(detail, company, fallbackRate);
   return (
@@ -539,7 +541,13 @@ function SaleDetailModal({
               onClick={() => printNode(ref.current, `Factura ${inv.invoiceNumber}`)}
               className="hoverlift flex h-9 items-center gap-2 rounded-[10px] bg-brand px-3 text-[12.5px] font-semibold text-white"
             >
-              <FileText className="size-4" /> Descargar factura
+              <FileText className="size-4" /> Imprimir factura
+            </button>
+            <button
+              onClick={() => printNode(thermalRef.current, `Ticket ${inv.invoiceNumber}`)}
+              className="iconbtn flex h-9 items-center gap-2 rounded-[10px] border border-border bg-card px-3 text-[12.5px] font-semibold text-foreground"
+            >
+              <Receipt className="size-4" /> Ticket 80 mm
             </button>
             <button
               onClick={() => onOpenChange(false)}
@@ -549,8 +557,15 @@ function SaleDetailModal({
             </button>
           </div>
         </div>
-        <div className="bg-surface-2 p-4">
+        <div className="relative bg-surface-2 p-4">
           <InvoiceDocument ref={ref} data={inv} />
+          <div
+            aria-hidden="true"
+            className="absolute top-0 left-[-10000px] overflow-hidden"
+            style={{ width: 302 }}
+          >
+            <ThermalInvoiceDocument ref={thermalRef} data={inv} />
+          </div>
         </div>
       </div>
     </div>
