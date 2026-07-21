@@ -344,7 +344,6 @@ export const ThermalInvoiceDocument = forwardRef<HTMLDivElement, { data: Invoice
         }}
       >
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 8 }}>SENIAT</div>
           {c.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -395,9 +394,9 @@ export const ThermalInvoiceDocument = forwardRef<HTMLDivElement, { data: Invoice
             <span>CAJERO: {data.cashier.toUpperCase()}</span>
           </ReceiptLine>
         ) : null}
-        <div style={{ textAlign: "center", fontWeight: 700 }}>FACTURA</div>
+        <div style={{ textAlign: "center", fontWeight: 700 }}>ORDEN DE COMPRA</div>
         <ReceiptLine>
-          <span>FACTURA:</span>
+          <span>ORDEN DE COMPRA:</span>
           <span>{data.invoiceNumber}</span>
         </ReceiptLine>
         <ReceiptLine>
@@ -636,7 +635,7 @@ export function printNode(node: HTMLElement | null, title = "Factura"): void {
   if (!node) return;
   const isThermal = node.dataset.invoiceSize === "thermal-80mm";
   const pageRule = isThermal
-    ? `@page{size:80mm ${measureThermalHeightMm(node)}mm;margin:0}`
+    ? "@page{margin:0}"
     : "@page{margin:12mm}";
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
@@ -662,7 +661,11 @@ export function printNode(node: HTMLElement | null, title = "Factura"): void {
       `html,body{margin:0;padding:0;background:#fff;` +
       `font-family:${isThermal ? '"Courier New","Lucida Console",monospace' : "Inter,system-ui,-apple-system,sans-serif"};` +
       `-webkit-print-color-adjust:exact;print-color-adjust:exact}` +
-      `${isThermal ? "body{width:80mm;min-height:0} img{break-inside:avoid}" : ""}</style>` +
+      `${
+        isThermal
+          ? "html,body{width:80mm;height:auto;overflow:visible} body{margin:0} [data-invoice-size='thermal-80mm']{margin:0!important;width:80mm!important;max-width:80mm!important} img{break-inside:avoid}"
+          : ""
+      }</style>` +
       `</head><body>${node.outerHTML}</body></html>`,
   );
   doc.close();
@@ -696,14 +699,4 @@ export function printNode(node: HTMLElement | null, title = "Factura"): void {
   });
   // Respaldo por si alguna imagen nunca dispara onload.
   setTimeout(launch, 1500);
-}
-
-function measureThermalHeightMm(node: HTMLElement): number {
-  const pxPerMm = 96 / 25.4;
-  const contentHeightPx = Math.max(
-    node.scrollHeight,
-    node.offsetHeight,
-    node.getBoundingClientRect().height,
-  );
-  return Math.max(80, Math.ceil(contentHeightPx / pxPerMm) + 4);
 }
