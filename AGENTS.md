@@ -8,13 +8,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <claude-mem-context>
 # Memory Context
 
-# [erp] recent context, 2026-07-15 4:34pm GMT-4
+# [erp] recent context, 2026-08-05 6:12pm GMT-4
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision 🚨security_alert 🔐security_note
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (18,411t read) | 416,177t work | 96% savings
+Stats: 50 obs (18,136t read) | 360,825t work | 95% savings
 
 ### Jun 22, 2026
 S735 CRM SaaS — Brand settings expansion: delete logo/favicon, dark/light logo variants, fix favicon in browser tab (Jun 22 at 9:27 PM)
@@ -26,15 +26,9 @@ S858 CRM SaaS — /nuevo-negocio skill wizard full specification confirmed (Jul 
 S911 CRM SaaS (WM ERP) — connect to Supabase DB using .env.local credentials and verify which project/data is present (Jul 7 at 9:40 PM)
 ### Jul 9, 2026
 S912 CRM SaaS (WM ERP / FR Medic Group) — dev database fully wiped and invoice sequence reset to FAC-000001 (Jul 9 at 3:10 PM)
-1490 3:13p ✅ CRM SaaS (WM ERP / FR Medic Group) — dev database fully wiped and invoice sequence reset to FAC-000001
 S913 CRM SaaS (WM ERP / FR Medic Group) — connect to Supabase DB via .env.local and wipe all transactional seed data for fresh start (Jul 9 at 3:13 PM)
 S945 CRM SaaS — .env.local points to deleted/invalid Supabase project yxwedegszxtujplffaac (Jul 9 at 3:14 PM)
-1491 3:48p ⚖️ CRM SaaS (WM ERP) — bulk product and inventory import from Excel planned for both branches
-1492 3:49p ⚖️ CRM SaaS (WM ERP) — Bulk product + inventory import from Excel into Supabase planned
-1493 3:50p ⚖️ CRM SaaS (WM ERP) — Bulk product and inventory import from Excel into Supabase planned
-1494 " ⚖️ CRM SaaS (WM ERP) — Bulk product + inventory seeding from Excel requested for two branches
-1495 3:51p ⚖️ CRM SaaS (WM ERP) — Product and inventory bulk import from Excel planned
-1496 " ⚖️ WM ERP — bulk product and inventory seeding from Excel files planned
+1496 3:51p ⚖️ WM ERP — bulk product and inventory seeding from Excel files planned
 1497 3:52p ⚖️ CRM SaaS (WM ERP) — Bulk product/inventory import from Excel into Supabase planned
 1498 3:53p ⚖️ WM ERP — Bulk product and inventory import from Excel planned for two branches
 1528 4:40p 🟣 CRM SaaS Ventas — product cards must show color, size, and full name
@@ -82,6 +76,12 @@ S947 CRM SaaS — DNS ENOTFOUND for yxwedegszxtujplffaac.supabase.co, diagnosing
 1636 4:17p 🟣 POS InvoiceModal Gains Dual-Format Print: A4 Preview + Hidden Thermal for "Ticket 80 mm" Button
 1637 " 🟣 Reportes SaleDetailModal Also Gets Dual-Format Print: A4 Preview + "Ticket 80 mm" Button
 1638 " 🟣 Dual-Format Invoice Print Committed — Final Architecture Verified on main
+1639 4:34p 🔴 Invoice Height Fixed to Dynamic Instead of Static
+1640 " 🔵 Invoice Template Print Mechanism Uses iframe Isolation
+1641 4:35p 🔵 Invoice Preview Uses estimatedHeight for Scaling Container
+1642 " 🔴 Thermal Invoice Print Height Now Dynamic via DOM Measurement
+1643 " 🔴 Removed estimateThermalInvoiceHeight Heuristic from POS View
+1644 4:36p 🟣 ThermalInvoiceDocument Component Added to invoice-template.tsx
 
-Access 416k tokens of past work via get_observations([IDs]) or mem-search skill.
+Access 361k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>

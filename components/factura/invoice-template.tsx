@@ -62,9 +62,9 @@ const ink = "#0B0F19";
 const muted = "#64748B";
 const line = "#E2E8F0";
 const brand = "#0EA5E9";
-const receiptInk = "#111111";
-const receiptMuted = "#4B5563";
-const receiptRule = "#111111";
+const receiptInk = "#000000";
+const receiptMuted = "#111111";
+const receiptRule = "#000000";
 
 const th: React.CSSProperties = {
   textAlign: "left",
@@ -335,11 +335,11 @@ export const ThermalInvoiceDocument = forwardRef<HTMLDivElement, { data: Invoice
           padding: "4mm 3.5mm 5mm",
           background: "#fff",
           color: receiptInk,
-          fontFamily:
-            '"Courier New", "Lucida Console", "Liberation Mono", ui-monospace, monospace',
-          fontSize: "10.5px",
-          lineHeight: 1.22,
-          letterSpacing: "-0.01em",
+          fontFamily: "Arial, Helvetica, sans-serif",
+          fontSize: "11px",
+          fontWeight: 600,
+          lineHeight: 1.25,
+          letterSpacing: 0,
           boxSizing: "border-box",
         }}
       >
@@ -356,7 +356,7 @@ export const ThermalInvoiceDocument = forwardRef<HTMLDivElement, { data: Invoice
                 maxHeight: "24mm",
                 objectFit: "contain",
                 margin: "0 auto 9px",
-                filter: "grayscale(1) contrast(1.18)",
+                filter: "grayscale(1) contrast(1.8) brightness(0.72)",
               }}
             />
           ) : (
@@ -394,7 +394,7 @@ export const ThermalInvoiceDocument = forwardRef<HTMLDivElement, { data: Invoice
             <span>CAJERO: {data.cashier.toUpperCase()}</span>
           </ReceiptLine>
         ) : null}
-        <div style={{ textAlign: "center", fontWeight: 700 }}>ORDEN DE COMPRA</div>
+        <div style={{ textAlign: "center", fontWeight: 800 }}>ORDEN DE COMPRA</div>
         <ReceiptLine>
           <span>ORDEN DE COMPRA:</span>
           <span>{data.invoiceNumber}</span>
@@ -558,8 +558,9 @@ function ReceiptLine({
         gridTemplateColumns: "minmax(0, 1fr) max-content",
         gap: 8,
         alignItems: alignStart ? "start" : "baseline",
-        fontWeight: strong ? 700 : 400,
-        fontSize: total ? 12 : undefined,
+        color: receiptInk,
+        fontWeight: strong ? 800 : 600,
+        fontSize: total ? 13 : undefined,
         marginTop: total ? 8 : undefined,
       }}
     >
@@ -574,7 +575,7 @@ function ReceiptDash() {
       aria-hidden="true"
       style={{
         margin: "7px 0",
-        borderTop: `1px dashed ${receiptRule}`,
+        borderTop: `1.5px dashed ${receiptRule}`,
         height: 0,
       }}
     />
@@ -659,11 +660,11 @@ export function printNode(node: HTMLElement | null, title = "Factura"): void {
     `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>` +
       `<style>${pageRule} ` +
       `html,body{margin:0;padding:0;background:#fff;` +
-      `font-family:${isThermal ? '"Courier New","Lucida Console",monospace' : "Inter,system-ui,-apple-system,sans-serif"};` +
+      `font-family:${isThermal ? "Arial,Helvetica,sans-serif" : "Inter,system-ui,-apple-system,sans-serif"};` +
       `-webkit-print-color-adjust:exact;print-color-adjust:exact}` +
       `${
         isThermal
-          ? "html,body{width:80mm;height:auto;overflow:visible} body{margin:0} [data-invoice-size='thermal-80mm']{margin:0!important;width:80mm!important;max-width:80mm!important} img{break-inside:avoid}"
+          ? "html,body{width:80mm;height:auto;overflow:visible} body{margin:0;color:#000;font-weight:600} [data-invoice-size='thermal-80mm']{margin:0!important;width:80mm!important;max-width:80mm!important;color:#000!important} img{break-inside:avoid}"
           : ""
       }</style>` +
       `</head><body>${node.outerHTML}</body></html>`,
