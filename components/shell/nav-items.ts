@@ -4,6 +4,7 @@ import {
   Boxes,
   Shirt,
   Users,
+  FolderKanban,
   Store,
   Shield,
   BarChart3,
@@ -32,6 +33,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/inventario", label: "Inventario", icon: Boxes, module: "Inventario", badgeKey: "lowStock" },
       { href: "/productos", label: "Productos", icon: Shirt, module: "Productos" },
       { href: "/clientes", label: "Clientes", icon: Users, module: "Clientes" },
+      { href: "/proyectos", label: "Proyectos", icon: FolderKanban, module: "Proyectos" },
     ],
   },
   {

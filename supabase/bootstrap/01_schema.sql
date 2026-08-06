@@ -204,6 +204,80 @@ create table wm.customer_events (
   occurred_at timestamptz not null default now()
 );
 
+-- Proyectos puntuales: conferencias, eventos y convocatorias no recurrentes.
+create table wm.projects (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  description text,
+  event_date date,
+  location text,
+  logo_url text,
+  ticket_title text,
+  ticket_subtitle text,
+  ticket_details text,
+  ticket_instructions text,
+  ticket_footer text,
+  ticket_accent_color text default '#0ea5e9',
+  organizer_name text,
+  organizer_email text,
+  organizer_phone text,
+  status text not null default 'Abierto'
+    check (status in ('Borrador','Abierto','Cerrado','Cancelado')),
+  goal int,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint projects_ticket_accent_color_chk
+    check (
+      ticket_accent_color is null
+      or ticket_accent_color ~ '^#[0-9A-Fa-f]{6}$'
+    )
+);
+
+create table wm.project_registrations (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references wm.projects(id) on delete cascade,
+  first_name text not null,
+  last_name text not null,
+  document text not null,
+  email text not null,
+  phone text not null,
+  payment_method text not null
+    check (payment_method in ('Pago móvil','Efectivo USD','Zelle/Zinli','Binance','Cashea')),
+  currency text not null default 'USD' check (currency in ('USD','VES')),
+  amount numeric(14,2),
+  amount_usd numeric(12,2),
+  exchange_rate numeric(12,4),
+  paid_at date not null default current_date,
+  payment_reference text,
+  receipt_url text,
+  status text not null default 'Por validar'
+    check (status in ('Por validar','Confirmado','Cancelado')),
+  ticket_hash text,
+  ticket_payload text,
+  ticket_qr_url text,
+  ticket_status text not null default 'No emitido'
+    check (ticket_status in ('No emitido','Disponible','Usado','Anulado')),
+  ticket_issued_at timestamptz,
+  ticket_email_sent_at timestamptz,
+  ticket_email_id text,
+  ticket_used_at timestamptz,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint project_registrations_reference_chk
+    check (payment_method = 'Efectivo USD' or nullif(payment_reference, '') is not null),
+  constraint project_registrations_receipt_chk
+    check (payment_method = 'Efectivo USD' or nullif(receipt_url, '') is not null),
+  constraint project_registrations_currency_chk
+    check (
+      (payment_method = 'Pago móvil' and currency = 'VES') or
+      (payment_method <> 'Pago móvil' and currency = 'USD')
+    ),
+  constraint project_registrations_rate_chk
+    check (currency = 'USD' or exchange_rate is not null)
+);
+
 -- Ventas
 create table wm.sales (
   id uuid primary key default gen_random_uuid(),
@@ -367,6 +441,20 @@ create index on wm.inventory(branch_id);
 create index on wm.inventory(variant_id);
 create index on wm.customers(branch_id);
 create index on wm.customer_events(customer_id);
+create index on wm.projects(status);
+create index on wm.projects(event_date);
+create index on wm.project_registrations(project_id);
+create index on wm.project_registrations(status);
+create index on wm.project_registrations(payment_method);
+create index on wm.project_registrations(document);
+create unique index project_registrations_reference_uidx
+  on wm.project_registrations(lower(payment_reference))
+  where payment_reference is not null and btrim(payment_reference) <> '';
+create unique index project_registrations_ticket_hash_uidx
+  on wm.project_registrations(ticket_hash)
+  where ticket_hash is not null;
+create unique index project_registrations_project_document_uidx
+  on wm.project_registrations(project_id, lower(document));
 create index on wm.sales(branch_id);
 create index on wm.sales(customer_id);
 create index on wm.sales(created_at);
@@ -390,7 +478,7 @@ declare t text;
 begin
   foreach t in array array[
     'branches','categories','brands','suppliers','products','product_variants',
-    'profiles','customers','sales','purchase_orders','settings'
+    'profiles','customers','projects','project_registrations','sales','purchase_orders','settings'
   ] loop
     execute format(
       'create trigger %I_set_updated_at before update on wm.%I for each row execute function wm.set_updated_at();',
@@ -461,6 +549,8 @@ declare
     "inventory":"Inventario",
     "customers":"Clientes",
     "customer_events":"Clientes",
+    "projects":"Proyectos",
+    "project_registrations":"Proyectos",
     "sales":"Ventas",
     "sale_items":"Ventas",
     "purchase_orders":"Inventario",

@@ -22,6 +22,22 @@ export type PurchaseStatus =
 export type UserStatus = "Activo" | "Inactivo";
 export type AuditSeverity = "ok" | "edit" | "sys" | "warn";
 export type EventType = "compra" | "pago" | "nota" | "registro";
+export type ProjectStatus = "Borrador" | "Abierto" | "Cerrado" | "Cancelado";
+export type ProjectPaymentMethod =
+  | "Pago móvil"
+  | "Efectivo USD"
+  | "Zelle/Zinli"
+  | "Binance"
+  | "Cashea";
+export type ProjectRegistrationStatus =
+  | "Por validar"
+  | "Confirmado"
+  | "Cancelado";
+export type ProjectTicketStatus =
+  | "No emitido"
+  | "Disponible"
+  | "Usado"
+  | "Anulado";
 
 export const MODULES = [
   "Dashboard",
@@ -29,6 +45,7 @@ export const MODULES = [
   "Inventario",
   "Productos",
   "Clientes",
+  "Proyectos",
   "Sucursales",
   "Usuarios",
   "Reportes",
@@ -173,6 +190,59 @@ export type CustomerEvent = {
   detail: string | null;
   amount: number | null;
   occurred_at: string;
+}
+
+export type Project = {
+  id: string;
+  name: string;
+  description: string | null;
+  event_date: string | null;
+  location: string | null;
+  logo_url: string | null;
+  ticket_title: string | null;
+  ticket_subtitle: string | null;
+  ticket_details: string | null;
+  ticket_instructions: string | null;
+  ticket_footer: string | null;
+  ticket_accent_color: string | null;
+  organizer_name: string | null;
+  organizer_email: string | null;
+  organizer_phone: string | null;
+  status: ProjectStatus;
+  goal: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ProjectRegistration = {
+  id: string;
+  project_id: string;
+  first_name: string;
+  last_name: string;
+  document: string;
+  email: string;
+  phone: string;
+  payment_method: ProjectPaymentMethod;
+  currency: "USD" | "VES";
+  amount: number | null;
+  amount_usd: number | null;
+  exchange_rate: number | null;
+  paid_at: string;
+  payment_reference: string | null;
+  receipt_url: string | null;
+  status: ProjectRegistrationStatus;
+  ticket_hash: string | null;
+  ticket_payload: string | null;
+  ticket_qr_url: string | null;
+  ticket_status: ProjectTicketStatus;
+  ticket_issued_at: string | null;
+  ticket_email_sent_at: string | null;
+  ticket_email_id: string | null;
+  ticket_used_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export type Sale = {
@@ -440,6 +510,8 @@ export type Database = {
       profiles: Tbl<Profile>;
       customers: Tbl<Customer>;
       customer_events: Tbl<CustomerEvent>;
+      projects: Tbl<Project>;
+      project_registrations: Tbl<ProjectRegistration>;
       sales: Tbl<Sale>;
       sale_items: Tbl<SaleItem>;
       sale_payments: Tbl<SalePayment>;

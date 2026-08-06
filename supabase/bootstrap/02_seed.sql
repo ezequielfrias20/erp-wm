@@ -26,32 +26,32 @@ on conflict (name) do update set sort_order = excluded.sort_order;
 
 -- ===== Matriz de permisos (rol × módulo) ====================================
 -- level: 0 sin acceso · 1 ver · 2 total
--- módulos: Dashboard, Ventas, Inventario, Productos, Clientes, Sucursales,
+-- módulos: Dashboard, Ventas, Inventario, Productos, Clientes, Proyectos, Sucursales,
 --          Usuarios, Reportes, Configuración
 insert into wm.role_permissions (role, module, level) values
   -- Super Admin: acceso total
   ('Super Admin','Dashboard',2),('Super Admin','Ventas',2),('Super Admin','Inventario',2),
-  ('Super Admin','Productos',2),('Super Admin','Clientes',2),('Super Admin','Sucursales',2),
+  ('Super Admin','Productos',2),('Super Admin','Clientes',2),('Super Admin','Proyectos',2),('Super Admin','Sucursales',2),
   ('Super Admin','Usuarios',2),('Super Admin','Reportes',2),('Super Admin','Configuración',2),
   -- Administrador: total salvo Configuración (solo ver)
   ('Administrador','Dashboard',2),('Administrador','Ventas',2),('Administrador','Inventario',2),
-  ('Administrador','Productos',2),('Administrador','Clientes',2),('Administrador','Sucursales',2),
+  ('Administrador','Productos',2),('Administrador','Clientes',2),('Administrador','Proyectos',2),('Administrador','Sucursales',2),
   ('Administrador','Usuarios',2),('Administrador','Reportes',2),('Administrador','Configuración',1),
   -- Gerente
   ('Gerente','Dashboard',2),('Gerente','Ventas',2),('Gerente','Inventario',2),
-  ('Gerente','Productos',2),('Gerente','Clientes',2),('Gerente','Sucursales',1),
+  ('Gerente','Productos',2),('Gerente','Clientes',2),('Gerente','Proyectos',2),('Gerente','Sucursales',1),
   ('Gerente','Usuarios',1),('Gerente','Reportes',2),('Gerente','Configuración',0),
   -- Vendedor
   ('Vendedor','Dashboard',1),('Vendedor','Ventas',2),('Vendedor','Inventario',1),
-  ('Vendedor','Productos',1),('Vendedor','Clientes',2),('Vendedor','Sucursales',0),
+  ('Vendedor','Productos',1),('Vendedor','Clientes',2),('Vendedor','Proyectos',1),('Vendedor','Sucursales',0),
   ('Vendedor','Usuarios',0),('Vendedor','Reportes',0),('Vendedor','Configuración',0),
   -- Inventario
   ('Inventario','Dashboard',1),('Inventario','Ventas',1),('Inventario','Inventario',2),
-  ('Inventario','Productos',2),('Inventario','Clientes',1),('Inventario','Sucursales',0),
+  ('Inventario','Productos',2),('Inventario','Clientes',1),('Inventario','Proyectos',0),('Inventario','Sucursales',0),
   ('Inventario','Usuarios',0),('Inventario','Reportes',1),('Inventario','Configuración',0),
   -- Cajero
   ('Cajero','Dashboard',1),('Cajero','Ventas',2),('Cajero','Inventario',0),
-  ('Cajero','Productos',0),('Cajero','Clientes',1),('Cajero','Sucursales',0),
+  ('Cajero','Productos',0),('Cajero','Clientes',1),('Cajero','Proyectos',1),('Cajero','Sucursales',0),
   ('Cajero','Usuarios',0),('Cajero','Reportes',0),('Cajero','Configuración',0)
 on conflict (role, module) do update set level = excluded.level;
 

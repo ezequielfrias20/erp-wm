@@ -8,13 +8,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <claude-mem-context>
 # Memory Context
 
-# [erp] recent context, 2026-08-05 6:12pm GMT-4
+# [erp] recent context, 2026-08-05 8:39pm GMT-4
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision 🚨security_alert 🔐security_note
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (18,136t read) | 360,825t work | 95% savings
+Stats: 50 obs (19,075t read) | 670,854t work | 97% savings
 
 ### Jun 22, 2026
 S735 CRM SaaS — Brand settings expansion: delete logo/favicon, dark/light logo variants, fix favicon in browser tab (Jun 22 at 9:27 PM)
@@ -28,43 +28,10 @@ S911 CRM SaaS (WM ERP) — connect to Supabase DB using .env.local credentials a
 S912 CRM SaaS (WM ERP / FR Medic Group) — dev database fully wiped and invoice sequence reset to FAC-000001 (Jul 9 at 3:10 PM)
 S913 CRM SaaS (WM ERP / FR Medic Group) — connect to Supabase DB via .env.local and wipe all transactional seed data for fresh start (Jul 9 at 3:13 PM)
 S945 CRM SaaS — .env.local points to deleted/invalid Supabase project yxwedegszxtujplffaac (Jul 9 at 3:14 PM)
-1496 3:51p ⚖️ WM ERP — bulk product and inventory seeding from Excel files planned
-1497 3:52p ⚖️ CRM SaaS (WM ERP) — Bulk product/inventory import from Excel into Supabase planned
-1498 3:53p ⚖️ WM ERP — Bulk product and inventory import from Excel planned for two branches
-1528 4:40p 🟣 CRM SaaS Ventas — product cards must show color, size, and full name
 ### Jul 12, 2026
-1518 3:36p ⚖️ CRM SaaS — Cubo Labs new project bootstrap initiated from .env.local context
-1519 3:37p 🔴 CRM SaaS bootstrap — 03_owner.sql auth.users INSERT patched with missing required columns
-1529 3:45p 🔴 CRM SaaS Ventas POS — product name no longer truncates on sale cards
-1535 3:48p 🔵 CRM SaaS — .env.local points to deleted/invalid Supabase project yxwedegszxtujplffaac
 S947 CRM SaaS — DNS ENOTFOUND for yxwedegszxtujplffaac.supabase.co, diagnosing stale .env.local Supabase credentials (Jul 12 at 3:48 PM)
-### Jul 14, 2026
-1601 9:54a 🔵 CRM SaaS — new Supabase database bootstrap initiated
-1602 " 🔵 frontend-reimpet ERP — bootstrap SQL system structure confirmed
-1603 9:55a 🔵 frontend-reimpet ERP — new Supabase project bootstrap via MCP forced by missing DB URL
-1604 " 🔵 frontend-reimpet ERP — .env.local bootstrap template vars commented out, awaiting new project credentials
-1605 9:58a ⚖️ New Supabase project bootstrap — MCP execute_sql path confirmed for crm_cubo_labs
-1606 10:00a 🔵 backend-reimpet bootstrap — 04_demo_data.sql structure mapped: 3 sucursales, 5 staff, 7 facturas, Cashea records
-1607 10:01a 🔄 04_demo_data.sql — hardcoded branch UUIDs replaced with dynamic subqueries
-1608 10:02a ⚖️ crm_cubo_labs bootstrap — MCP-only migration + seed data + Super Admin requested
-1609 " ⚖️ New Supabase project bootstrap — MCP-only path for crm_cubo_labs
-1610 10:03a 🔵 crm_cubo_labs bootstrap — .env.local confirmed dual-project structure with active Cubo Labs credentials
-1611 " 🟣 crm_cubo_labs bootstrap — 04_demo_data.sql created and validated as MCP-safe
 ### Jul 15, 2026
-1614 4:10p 🟣 80mm Thermal Receipt Invoice Print Format Requested
-1615 " 🔵 ERP Project Structure: Next.js POS System with Supabase Backend
-1616 " 🔵 Existing Invoice Template: Wide-Format HTML (720px) with Inline Styles
-1617 " 🔵 Invoice Print Flow: InvoiceDocument Used in POS and Reportes via printNode iframe
-1618 4:11p 🔵 InvoiceModal Scaling Logic and SaleCompleted Flow in POS
-1619 4:12p 🟣 ThermalInvoiceDocument Component Added for 80mm Thermal Printer
-1620 " 🟣 POS InvoiceModal Switched to ThermalInvoiceDocument at 302px Preview Width
-1621 " 🔄 Unused InvoiceDocument Import Removed from pos-view.tsx
-1622 4:13p 🟣 Reportes SaleDetailModal Also Switched to ThermalInvoiceDocument
-1623 " 🔵 Pre-existing Lint Errors in ERP Codebase (Unrelated to Thermal Invoice)
-1624 " 🔵 Thermal Invoice Files Pass TypeScript and ESLint Checks Clean
-1625 4:14p 🟣 80mm Thermal Receipt Feature Complete — Full Changeset Confirmed
-1626 " 🔴 Thermal Print Page Size Fixed: auto → 1000mm Height to Prevent Page Breaks
-1627 " 🟣 80mm Thermal Receipt Feature Finalized, Validated, and Staged for Commit
+1627 4:14p 🟣 80mm Thermal Receipt Feature Finalized, Validated, and Staged for Commit
 1628 " 🟣 Thermal Receipt Feature Committed to main — 331 Lines, 3 Files
 1629 4:15p 🔵 Dev Server Fails on Port 3000 — EPERM: Operation Not Permitted
 1630 " 🔵 Dev Server Already Running on Port 3000 (PID 71396) — App Live at localhost:3000
@@ -82,6 +49,39 @@ S947 CRM SaaS — DNS ENOTFOUND for yxwedegszxtujplffaac.supabase.co, diagnosing
 1642 " 🔴 Thermal Invoice Print Height Now Dynamic via DOM Measurement
 1643 " 🔴 Removed estimateThermalInvoiceHeight Heuristic from POS View
 1644 4:36p 🟣 ThermalInvoiceDocument Component Added to invoice-template.tsx
+### Aug 5, 2026
+1915 6:11p 🟣 frontend-reimpet + backend-reimpet Proyectos — full-stack Projects module implemented and deployed to Supabase
+1917 6:56p 🟣 frontend-reimpet + backend-reimpet Proyectos — project_registrations schema extended with multi-currency payment fields
+1918 6:57p ✅ backend-reimpet Proyectos — idempotent currency migration file created for live Supabase alter
+1919 " 🟣 frontend-reimpet Proyectos — actions.ts and page.tsx updated with full currency/rate payment logic
+1920 " 🟣 frontend-reimpet Proyectos — ProyectosView updated with currency-aware payment display and exchange rate/date form fields
+1921 " 🔴 frontend-reimpet Proyectos — apply_patch for proyectos-view.tsx failed; write_file succeeded but patch verification failed
+1922 6:58p 🔴 frontend-reimpet Proyectos — proyectos-view.tsx currency UI patches applied successfully via split patches
+1923 " 🟣 frontend-reimpet Proyectos — RegistrationForm fully wired with currency fields; table grid widened for amount column
+1924 " ✅ frontend-reimpet Proyectos — TypeScript and ESLint pass clean; Proyectos module changes ready to commit
+1925 6:59p 🔴 backend-reimpet Proyectos — migration project_payments_currency_rate failed: rate_chk violated by existing VES rows with null exchange_rate
+1927 " 🔵 backend-reimpet Proyectos — confirmed currency/amount columns do NOT yet exist on live wm.project_registrations
+1928 " 🔵 backend-reimpet Proyectos — live DB has 2 test registrations; BCV rate is 755.1552 on 2026-08-05
+1929 7:00p 🔴 backend-reimpet Proyectos — migration fixed with defensive VES backfill for exchange_rate and amount before adding rate_chk constraint
+1930 " 🟣 backend-reimpet Proyectos — migration project_payments_currency_rate applied successfully to Supabase
+1931 " 🔵 backend-reimpet Proyectos — live data verified: Pago móvil row correctly backfilled, Binance USD row has null exchange_rate (expected)
+1932 " ✅ frontend-reimpet + backend-reimpet Proyectos — all changes staged for commit; TypeScript and ESLint clean
+1933 7:22p ⚖️ frontend-reimpet + backend-reimpet Proyectos — QR ticket + Resend email architecture planned
+1935 7:24p ✅ frontend-reimpet Proyectos — qrcode npm package installed for QR ticket generation
+1937 " 🔵 frontend-reimpet Proyectos — actions.ts current structure before QR/Resend implementation
+1938 7:25p 🟣 frontend-reimpet Proyectos — ticket fields and ProjectTicketStatus type added to database.types.ts
+1940 " 🟣 backend-reimpet Proyectos — ticket columns and unique reference index added to 01_schema.sql
+1941 " 🟣 backend-reimpet Proyectos — projects_module.sql live migration updated with ticket columns, constraints, and indexes
+1942 7:26p 🟣 backend-reimpet Proyectos — standalone migration file projects_tickets_resend.sql created for live Supabase apply
+1943 " 🔵 backend-reimpet Proyectos — live DB has zero duplicate payment_reference values, safe to add unique index
+1944 " 🟣 backend-reimpet Proyectos — project_tickets_resend migration successfully deployed to live Supabase
+1945 7:27p 🟣 frontend-reimpet Proyectos — QR ticket generation and Resend email logic implemented in actions.ts
+1946 " 🟣 frontend-reimpet Proyectos — saveRegistration wired with reference deduplication and ticket issuance on status change
+1947 " 🟣 frontend-reimpet Proyectos — ticket status column and QR link added to registration table UI
+1948 7:28p ✅ backend-reimpet Proyectos — ticket_hash column-level UNIQUE constraint removed in favor of partial index only
+1949 " 🔵 frontend-reimpet Proyectos — TypeScript compilation passes clean after QR ticket feature implementation
+1950 " 🔵 backend-reimpet Proyectos — live Supabase DB verified: all 8 ticket columns and both unique indexes confirmed present
+1951 7:29p 🔵 frontend-reimpet + backend-reimpet Proyectos — full uncommitted git state captured before commit
 
-Access 361k tokens of past work via get_observations([IDs]) or mem-search skill.
+Access 671k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>
