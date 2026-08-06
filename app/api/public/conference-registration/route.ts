@@ -157,8 +157,6 @@ export async function POST(request: Request) {
       notes: [
         `Landing CIM10`,
         `Orden ${orderCode}`,
-        attendee.profile ? `Perfil: ${attendee.profile}` : null,
-        attendee.institution ? `Institución: ${attendee.institution}` : null,
       ].filter(Boolean).join(" · "),
     }));
 

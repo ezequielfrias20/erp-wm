@@ -18,8 +18,6 @@ export type ConferenceAttendeeInput = {
   documento?: unknown;
   email?: unknown;
   telefono?: unknown;
-  institucion?: unknown;
-  perfil?: unknown;
 };
 
 export type ConferenceRegistrationInput = {
@@ -35,8 +33,6 @@ export type CleanConferenceAttendee = {
   document: string;
   email: string;
   phone: string;
-  institution: string | null;
-  profile: string;
 };
 
 export type CleanConferenceRegistration = {
@@ -145,11 +141,9 @@ export function validateConferenceAttendee(
     document: text(attendee.documento, 40),
     email: text(attendee.email, 160).toLowerCase(),
     phone: text(attendee.telefono, 40),
-    institution: text(attendee.institucion, 120) || null,
-    profile: text(attendee.perfil, 80),
   };
 
-  if (!clean.firstName || !clean.lastName || !clean.document || !clean.phone || !clean.profile) {
+  if (!clean.firstName || !clean.lastName || !clean.document || !clean.phone) {
     throw new Error("Completa todos los datos obligatorios del asistente.");
   }
   if (!EMAIL.test(clean.email)) throw new Error("Introduce un correo válido.");

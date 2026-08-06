@@ -8,13 +8,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <claude-mem-context>
 # Memory Context
 
-# [erp] recent context, 2026-08-06 9:31am GMT-4
+# [erp] recent context, 2026-08-06 7:15pm GMT-4
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision 🚨security_alert 🔐security_note
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (19,075t read) | 670,854t work | 97% savings
+Stats: 50 obs (20,127t read) | 849,731t work | 98% savings
 
 ### Jun 22, 2026
 S735 CRM SaaS — Brand settings expansion: delete logo/favicon, dark/light logo variants, fix favicon in browser tab (Jun 22 at 9:27 PM)
@@ -31,22 +31,7 @@ S945 CRM SaaS — .env.local points to deleted/invalid Supabase project yxwedegs
 ### Jul 12, 2026
 S947 CRM SaaS — DNS ENOTFOUND for yxwedegszxtujplffaac.supabase.co, diagnosing stale .env.local Supabase credentials (Jul 12 at 3:48 PM)
 ### Jul 15, 2026
-1627 4:14p 🟣 80mm Thermal Receipt Feature Finalized, Validated, and Staged for Commit
-1628 " 🟣 Thermal Receipt Feature Committed to main — 331 Lines, 3 Files
-1629 4:15p 🔵 Dev Server Fails on Port 3000 — EPERM: Operation Not Permitted
-1630 " 🔵 Dev Server Already Running on Port 3000 (PID 71396) — App Live at localhost:3000
-1631 " 🟣 Thermal 80mm Invoice Template Added to ERP POS and Reports
-1632 " 🔵 Dev Server Hot-Reloaded Thermal Invoice Changes; Pre-existing Hydration Error on /dashboard
-1633 " 🔴 InvoiceModal Preview Container Fixed: items-center/overflow-hidden → items-start/overflow-auto
-1634 4:16p 🟣 80mm Thermal Receipt Implementation — Final State Verified Across All Files
-1635 " ✅ PROGRESS.md Updated with Thermal Receipt Feature Documentation
-1636 4:17p 🟣 POS InvoiceModal Gains Dual-Format Print: A4 Preview + Hidden Thermal for "Ticket 80 mm" Button
-1637 " 🟣 Reportes SaleDetailModal Also Gets Dual-Format Print: A4 Preview + "Ticket 80 mm" Button
-1638 " 🟣 Dual-Format Invoice Print Committed — Final Architecture Verified on main
-1639 4:34p 🔴 Invoice Height Fixed to Dynamic Instead of Static
-1640 " 🔵 Invoice Template Print Mechanism Uses iframe Isolation
-1641 4:35p 🔵 Invoice Preview Uses estimatedHeight for Scaling Container
-1642 " 🔴 Thermal Invoice Print Height Now Dynamic via DOM Measurement
+1642 4:35p 🔴 Thermal Invoice Print Height Now Dynamic via DOM Measurement
 1643 " 🔴 Removed estimateThermalInvoiceHeight Heuristic from POS View
 1644 4:36p 🟣 ThermalInvoiceDocument Component Added to invoice-template.tsx
 ### Aug 5, 2026
@@ -82,6 +67,22 @@ S947 CRM SaaS — DNS ENOTFOUND for yxwedegszxtujplffaac.supabase.co, diagnosing
 1949 " 🔵 frontend-reimpet Proyectos — TypeScript compilation passes clean after QR ticket feature implementation
 1950 " 🔵 backend-reimpet Proyectos — live Supabase DB verified: all 8 ticket columns and both unique indexes confirmed present
 1951 7:29p 🔵 frontend-reimpet + backend-reimpet Proyectos — full uncommitted git state captured before commit
+### Aug 6, 2026
+1953 10:17a ⚖️ frontend-reimpet Proyectos — checkout form fields Universidad/Institución and Perfil to be removed
+1954 " 🔵 conferences checkout — "Universidad o institución" and "Perfil" fields located across three files
+1955 " 🔵 conferences checkout — complete field-removal scope confirmed across 6 files
+1956 10:18a 🔵 backend-reimpet conferences — full perfil/institucion removal scope includes ERP lib and route
+1957 " ⚖️ frontend-reimpet Proyectos — Remove Universidad/Institución and Perfil fields from conference checkout
+1958 10:19a ⚖️ frontend-reimpet Proyectos — Remove Universidad/Institución and Perfil fields from conference checkout form
+1959 " ⚖️ frontend-reimpet Proyectos — Remove Universidad/Institución and Perfil fields from conference checkout form
+1960 10:35a 🔵 conferences + erp — Field removal scope clarified by reading current file state
+1961 " 🔵 conferences + erp — Full integration architecture mapped for conference registration
+1962 10:41a 🔵 backend-reimpet Proyectos — CONFERENCES_PROJECT_ID retrieval via Supabase REST API failed locally
+1963 10:42a 🔵 backend-reimpet Proyectos — CONFERENCES_PROJECT_ID retrieval method: psql via SUPABASE_DB_URL
+1964 " 🔵 backend-reimpet Proyectos — SUPABASE_DB_URL password has unencoded special chars, breaking psql URI parsing
+1965 " 🔵 backend-reimpet Proyectos — CONFERENCES_PROJECT_ID not stored in codebase; must be fetched from Supabase dashboard
+1966 " 🔵 frontend-reimpet + backend-reimpet Proyectos — conferences project is "10.ª CIM" with CIM10 order code prefix, no UUID in frontend repo
+1967 10:48a 🔵 backend-reimpet Proyectos — CONFERENCES_PROJECT_ID retrieved: 7ef7b37a-760a-4a5c-86d7-0d28dd32d77c
 
-Access 671k tokens of past work via get_observations([IDs]) or mem-search skill.
+Access 850k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>

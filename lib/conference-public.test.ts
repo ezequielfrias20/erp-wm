@@ -13,8 +13,6 @@ const attendee = {
   documento: "V-123",
   email: "ANA@EXAMPLE.COM",
   telefono: "0412",
-  perfil: "Estudiante de medicina",
-  institucion: "UCV",
 };
 
 describe("conference public registration helpers", () => {
