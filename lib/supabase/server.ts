@@ -5,10 +5,18 @@ import type { Database } from "@/lib/database.types";
 /** Server Supabase client (RSC / Server Actions / Route Handlers). Targets `wm` schema. */
 export async function createClient() {
   const cookieStore = await cookies();
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error("Faltan variables públicas de Supabase.");
+  }
 
   return createServerClient<Database, "wm">(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseKey,
     {
       db: { schema: "wm" },
       cookies: {
