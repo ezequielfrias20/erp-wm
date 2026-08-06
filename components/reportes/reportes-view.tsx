@@ -105,15 +105,15 @@ export function ReportesView({
   }
 
   return (
-    <div className="mx-auto max-w-[1560px] px-[30px] pt-[26px] pb-12">
-      <div className="fadeup mb-[18px] flex flex-wrap items-end justify-between gap-4">
+    <div className="mx-auto max-w-[1560px] px-4 pt-4 pb-8 sm:px-5 sm:pt-5 lg:px-[30px] lg:pt-[26px] lg:pb-12">
+      <div className="fadeup mb-[18px] flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:flex-wrap sm:items-end">
         <div>
           <h1 className="text-[25px] font-bold tracking-tight text-foreground">Reportes</h1>
           <p className="mt-1 text-[13.5px] text-text-2">
             Centro de inteligencia de negocio · tasa BCV {fmtVES(rate)}/USD
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <ExportBtn
             icon={pdfBusy ? Loader2 : FileText}
             label="PDF"
@@ -126,31 +126,31 @@ export function ReportesView({
       </div>
 
       {/* Filtros: rango de fechas + sucursal */}
-      <div className="fadeup mb-[18px] flex flex-wrap items-center gap-2.5 rounded-2xl border border-border bg-card p-3 shadow-card-sm">
-        <div className="flex items-center gap-1.5 text-[12.5px] text-text-2">
+      <div className="fadeup mb-[18px] flex flex-col gap-2.5 rounded-2xl border border-border bg-card p-3 shadow-card-sm sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="flex flex-col gap-1.5 text-[12.5px] text-text-2 sm:flex-row sm:items-center">
           <span className="font-semibold">Desde</span>
           <input
             type="date"
             value={from}
             max={to}
             onChange={(e) => setFrom(e.target.value)}
-            className="h-9 rounded-[10px] border border-border bg-surface-2 px-2.5 text-[12.5px] text-foreground outline-none"
+            className="h-11 rounded-[10px] border border-border bg-surface-2 px-2.5 text-[16px] text-foreground outline-none sm:h-9 sm:text-[12.5px]"
           />
         </div>
-        <div className="flex items-center gap-1.5 text-[12.5px] text-text-2">
+        <div className="flex flex-col gap-1.5 text-[12.5px] text-text-2 sm:flex-row sm:items-center">
           <span className="font-semibold">Hasta</span>
           <input
             type="date"
             value={to}
             min={from}
             onChange={(e) => setTo(e.target.value)}
-            className="h-9 rounded-[10px] border border-border bg-surface-2 px-2.5 text-[12.5px] text-foreground outline-none"
+            className="h-11 rounded-[10px] border border-border bg-surface-2 px-2.5 text-[16px] text-foreground outline-none sm:h-9 sm:text-[12.5px]"
           />
         </div>
         <button
           onClick={applyRange}
           disabled={applying}
-          className="hoverlift flex h-9 items-center gap-2 rounded-[10px] bg-brand px-4 text-[12.5px] font-semibold text-white"
+          className="hoverlift flex h-11 items-center justify-center gap-2 rounded-[10px] bg-brand px-4 text-[12.5px] font-semibold text-white sm:h-9"
         >
           {applying && <Loader2 className="size-4 animate-spin" />} Aplicar
         </button>
@@ -259,7 +259,7 @@ export function ReportesView({
       </div>
 
       {/* Desglose por método de pago (moneda nativa + USD + tasa) */}
-      <div className="fadeup mb-[18px] overflow-hidden rounded-2xl border border-border bg-card shadow-card-sm">
+      <div className="fadeup mb-[18px] overflow-x-auto rounded-2xl border border-border bg-card shadow-card-sm">
         <div className="px-5 pt-[18px] pb-3.5">
           <div className="text-[15px] font-bold tracking-tight text-foreground">
             Facturado por método de pago
@@ -268,7 +268,7 @@ export function ReportesView({
             Montos en su moneda nativa con su equivalente · tasa {fmtVES(rate)}/USD
           </div>
         </div>
-        <div className="grid grid-cols-[1.4fr_0.8fr_1fr_1fr] border-y border-border px-5 py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
+        <div className="grid min-w-[620px] grid-cols-[1.4fr_0.8fr_1fr_1fr] border-y border-border px-5 py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
           <span>Método</span>
           <span>Moneda</span>
           <span className="text-right">Monto nativo</span>
@@ -277,7 +277,7 @@ export function ReportesView({
         {data.byPayment.map((p) => (
           <div
             key={p.name}
-            className="grid grid-cols-[1.4fr_0.8fr_1fr_1fr] items-center border-b border-border px-5 py-2.5 text-[12.5px]"
+            className="grid min-w-[620px] grid-cols-[1.4fr_0.8fr_1fr_1fr] items-center border-b border-border px-5 py-2.5 text-[12.5px]"
           >
             <span className="flex items-center gap-1.5 font-medium text-foreground">
               <span className="size-2.5 rounded-[3px]" style={{ background: p.color }} />
@@ -304,7 +304,7 @@ export function ReportesView({
 
       {/* Cashea · conciliación */}
       {data.cashea.ventasCashea > 0 && (
-        <div className="fadeup mb-[18px] overflow-hidden rounded-2xl border border-border bg-card shadow-card-sm">
+        <div className="fadeup mb-[18px] overflow-x-auto rounded-2xl border border-border bg-card shadow-card-sm">
           <div className="px-5 pt-[18px] pb-3.5">
             <div className="text-[15px] font-bold tracking-tight text-foreground">
               Cashea · conciliación
@@ -328,7 +328,7 @@ export function ReportesView({
             />
             <CasheaStat label="Comisión" value={fmtUSD(data.cashea.comisionTotal)} />
           </div>
-          <div className="grid grid-cols-[1.2fr_1fr_1fr_1fr] border-t border-border px-5 py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
+          <div className="grid min-w-[580px] grid-cols-[1.2fr_1fr_1fr_1fr] border-t border-border px-5 py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
             <span>Canal</span>
             <span className="text-right">Ventas</span>
             <span className="text-right">Por cobrar</span>
@@ -342,7 +342,7 @@ export function ReportesView({
           ).map((row) => (
             <div
               key={row.label}
-              className="grid grid-cols-[1.2fr_1fr_1fr_1fr] items-center border-b border-border px-5 py-2.5 text-[12.5px] last:border-b-0"
+              className="grid min-w-[580px] grid-cols-[1.2fr_1fr_1fr_1fr] items-center border-b border-border px-5 py-2.5 text-[12.5px] last:border-b-0"
             >
               <span className="font-medium text-foreground">{row.label}</span>
               <span className="text-right text-foreground">{fmtUSD(row.c.ventas)}</span>
@@ -407,7 +407,7 @@ export function ReportesView({
       </div>
 
       {/* Detalle mensual */}
-      <div className="fadeup overflow-hidden rounded-2xl border border-border bg-card shadow-card-sm">
+      <div className="fadeup overflow-x-auto rounded-2xl border border-border bg-card shadow-card-sm">
         <div className="flex items-center justify-between px-5 pt-[18px] pb-3.5">
           <div>
             <div className="text-[15px] font-bold tracking-tight text-foreground">
@@ -422,7 +422,7 @@ export function ReportesView({
             <FileDown className="size-3.5 text-text-3" /> Exportar tabla
           </button>
         </div>
-        <div className="grid grid-cols-[1fr_1fr_1fr_1fr_0.8fr_0.8fr] border-y border-border px-5 py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
+        <div className="grid min-w-[700px] grid-cols-[1fr_1fr_1fr_1fr_0.8fr_0.8fr] border-y border-border px-5 py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
           <span>Mes</span>
           <span className="text-right">Ingresos</span>
           <span className="text-right">Costo</span>
@@ -433,7 +433,7 @@ export function ReportesView({
         {monthly.map((m) => (
           <div
             key={m.mes}
-            className="tr-row grid grid-cols-[1fr_1fr_1fr_1fr_0.8fr_0.8fr] items-center border-b border-border px-5 py-2.5 text-[12.5px]"
+            className="tr-row grid min-w-[700px] grid-cols-[1fr_1fr_1fr_1fr_0.8fr_0.8fr] items-center border-b border-border px-5 py-2.5 text-[12.5px]"
           >
             <span className="font-medium text-foreground">{m.mes}</span>
             <span className="text-right text-foreground">{fmtUSD(m.ingresos)}</span>
@@ -586,7 +586,7 @@ function ExportBtn({
   return (
     <button
       onClick={onClick}
-      className="iconbtn flex h-[38px] items-center gap-2 rounded-[10px] border border-border bg-card px-[13px] text-[13px] font-medium text-foreground"
+      className="iconbtn flex h-11 flex-1 items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-[13px] text-[13px] font-medium text-foreground sm:h-[38px] sm:flex-none"
     >
       <Icon className={cn("size-4 text-text-3", spin && "animate-spin")} /> {label}
     </button>

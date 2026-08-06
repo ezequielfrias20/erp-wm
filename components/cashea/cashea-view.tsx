@@ -86,7 +86,7 @@ export function CasheaView({
   }
 
   return (
-    <div className="mx-auto max-w-[1560px] px-[30px] pt-[26px] pb-12">
+    <div className="mx-auto max-w-[1560px] px-4 pt-4 pb-8 sm:px-5 sm:pt-5 lg:px-[30px] lg:pt-[26px] lg:pb-12">
       <div className="fadeup mb-[18px]">
         <h1 className="text-[25px] font-bold tracking-tight text-foreground">Cashea</h1>
         <p className="mt-1 text-[13.5px] text-text-2">
@@ -95,7 +95,7 @@ export function CasheaView({
       </div>
 
       {/* Filtros: estado + rango de fechas */}
-      <div className="fadeup mb-[18px] flex flex-wrap items-center gap-2.5 rounded-2xl border border-border bg-card p-3 shadow-card-sm">
+      <div className="fadeup mb-[18px] flex flex-col gap-2.5 rounded-2xl border border-border bg-card p-3 shadow-card-sm sm:flex-row sm:flex-wrap sm:items-center">
         <div className="flex flex-wrap items-center gap-1.5">
           {STATUS_FILTERS.map((f) => (
             <button
@@ -119,31 +119,31 @@ export function CasheaView({
             </button>
           ))}
         </div>
-        <div className="ml-auto flex flex-wrap items-center gap-2.5">
-          <div className="flex items-center gap-1.5 text-[12.5px] text-text-2">
+        <div className="flex flex-col gap-2.5 sm:ml-auto sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="flex flex-col gap-1.5 text-[12.5px] text-text-2 sm:flex-row sm:items-center">
             <span className="font-semibold">Desde</span>
             <input
               type="date"
               value={from}
               max={to}
               onChange={(e) => setFrom(e.target.value)}
-              className="h-9 rounded-[10px] border border-border bg-surface-2 px-2.5 text-[12.5px] text-foreground outline-none"
+              className="h-11 rounded-[10px] border border-border bg-surface-2 px-2.5 text-[16px] text-foreground outline-none sm:h-9 sm:text-[12.5px]"
             />
           </div>
-          <div className="flex items-center gap-1.5 text-[12.5px] text-text-2">
+          <div className="flex flex-col gap-1.5 text-[12.5px] text-text-2 sm:flex-row sm:items-center">
             <span className="font-semibold">Hasta</span>
             <input
               type="date"
               value={to}
               min={from}
               onChange={(e) => setTo(e.target.value)}
-              className="h-9 rounded-[10px] border border-border bg-surface-2 px-2.5 text-[12.5px] text-foreground outline-none"
+              className="h-11 rounded-[10px] border border-border bg-surface-2 px-2.5 text-[16px] text-foreground outline-none sm:h-9 sm:text-[12.5px]"
             />
           </div>
           <button
             onClick={() => pushFilters({ from, to })}
             disabled={applying}
-            className="hoverlift flex h-9 items-center gap-2 rounded-[10px] bg-brand px-4 text-[12.5px] font-semibold text-white"
+            className="hoverlift flex h-11 items-center justify-center gap-2 rounded-[10px] bg-brand px-4 text-[12.5px] font-semibold text-white sm:h-9"
           >
             {applying && <Loader2 className="size-4 animate-spin" />} Aplicar
           </button>
@@ -151,7 +151,7 @@ export function CasheaView({
       </div>
 
       {/* KPIs */}
-      <div className="fadeup mb-[18px] grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="fadeup mb-[18px] grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
         <Kpi
           icon={ShoppingBag}
           label="Ventas Cashea"

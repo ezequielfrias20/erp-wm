@@ -51,11 +51,12 @@ export function BranchForm({
     saveBranch,
     null,
   );
-  const [color, setColor] = useState(branch?.color ?? SWATCHES[0]);
-
-  useEffect(() => {
-    setColor(branch?.color ?? SWATCHES[0]);
-  }, [branch]);
+  const [colorState, setColorState] = useState({
+    source: branch,
+    value: branch?.color ?? SWATCHES[0],
+  });
+  const color =
+    colorState.source === branch ? colorState.value : branch?.color ?? SWATCHES[0];
 
   useEffect(() => {
     if (state?.ok) onOpenChange(false);
@@ -108,7 +109,7 @@ export function BranchForm({
                 <button
                   key={c}
                   type="button"
-                  onClick={() => setColor(c)}
+                  onClick={() => setColorState({ source: branch, value: c })}
                   className={cn(
                     "size-7 rounded-full border-2 transition",
                     color === c ? "border-foreground" : "border-transparent",

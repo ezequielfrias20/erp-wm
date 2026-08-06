@@ -83,8 +83,8 @@ export function DashboardView({
   const prodMax = Math.max(1, ...data.topProducts.map((p) => p.units));
 
   return (
-    <div className="mx-auto max-w-[1560px] px-[30px] pt-[26px] pb-12">
-      <div className="fadeup mb-[22px] flex flex-wrap items-end justify-between gap-4">
+    <div className="mx-auto max-w-[1560px] px-4 pt-4 pb-8 sm:px-5 sm:pt-5 lg:px-[30px] lg:pt-[26px] lg:pb-12">
+      <div className="fadeup mb-[22px] flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:flex-wrap sm:items-end">
         <div>
           <h1 className="text-[25px] font-bold tracking-tight text-foreground">
             {greeting}, {name}
@@ -93,14 +93,14 @@ export function DashboardView({
             Resumen de operaciones · {today}
           </p>
         </div>
-        <div className="flex items-center gap-2.5">
-          <button className="iconbtn flex h-[38px] items-center gap-2 rounded-[10px] border border-border bg-card px-[13px] text-[13px] font-medium text-foreground">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button className="iconbtn flex h-11 flex-1 items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-[13px] text-[13px] font-medium text-foreground sm:h-[38px] sm:flex-none">
             <Download className="size-4 text-text-3" /> Exportar
           </button>
           {canSell && (
             <Link
               href="/ventas"
-              className="hoverlift flex h-[38px] items-center gap-2 rounded-[10px] bg-brand px-[15px] text-[13px] font-semibold text-white"
+              className="hoverlift flex h-11 flex-1 items-center justify-center gap-2 rounded-[10px] bg-brand px-[15px] text-[13px] font-semibold text-white sm:h-[38px] sm:flex-none"
             >
               <Plus className="size-4" /> Nueva venta
             </Link>
@@ -109,7 +109,7 @@ export function DashboardView({
       </div>
 
       {/* KPIs */}
-      <div className="fadeup mb-[18px] grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="fadeup mb-[18px] grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:gap-4 lg:grid-cols-4">
         {kpiCards.map((k) => (
           <div
             key={k.label}
@@ -160,7 +160,7 @@ export function DashboardView({
             Métodos de pago
           </div>
           <div className="text-[12.5px] text-text-3">Distribución del mes</div>
-          <div className="mt-4 flex items-center gap-4">
+          <div className="mt-4 flex flex-col items-center gap-4 sm:flex-row">
             <Donut
               data={data.payments}
               centerValue={String(data.payments.length)}
@@ -275,44 +275,48 @@ export function DashboardView({
               Ver todas
             </Link>
           </div>
-          <div className="grid grid-cols-[1.2fr_1.4fr_1fr_1fr_0.9fr] border-y border-border px-5 py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
-            <span>Factura</span>
-            <span>Cliente</span>
-            <span>Método</span>
-            <span className="text-right">Total</span>
-            <span className="text-right">Estado</span>
-          </div>
-          {data.recentSales.map((r) => {
-            const st = STATUS_STYLE[r.status] ?? STATUS_STYLE.Pagada;
-            return (
-              <div
-                key={r.inv}
-                className="tr-row grid grid-cols-[1.2fr_1.4fr_1fr_1fr_0.9fr] items-center border-b border-border px-5 py-3"
-              >
-                <span className="text-[12.5px] font-semibold text-foreground">{r.inv}</span>
-                <div className="min-w-0">
-                  <div className="truncate text-[12.5px] text-foreground">{r.customer}</div>
-                  <div className="text-[11px] text-text-3">{r.branch}</div>
-                </div>
-                <span className="text-[12px] text-text-2">{r.method}</span>
-                <div className="text-right">
-                  <div className="text-[12.5px] font-semibold text-foreground">{fmtUSD(r.total)}</div>
-                  <div className="text-[11px] text-text-3">{fmtVES(r.ves)}</div>
-                </div>
-                <div className="text-right">
-                  <span
-                    className="inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
-                    style={{ background: st.bg, color: st.color }}
-                  >
-                    {r.status}
-                  </span>
-                </div>
+          <div className="overflow-x-auto">
+            <div className="min-w-[680px]">
+              <div className="grid grid-cols-[1.2fr_1.4fr_1fr_1fr_0.9fr] border-y border-border px-5 py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
+                <span>Factura</span>
+                <span>Cliente</span>
+                <span>Método</span>
+                <span className="text-right">Total</span>
+                <span className="text-right">Estado</span>
               </div>
-            );
-          })}
-          {data.recentSales.length === 0 && (
-            <div className="px-5 py-8 text-center text-[12.5px] text-text-3">Sin ventas.</div>
-          )}
+              {data.recentSales.map((r) => {
+                const st = STATUS_STYLE[r.status] ?? STATUS_STYLE.Pagada;
+                return (
+                  <div
+                    key={r.inv}
+                    className="tr-row grid grid-cols-[1.2fr_1.4fr_1fr_1fr_0.9fr] items-center border-b border-border px-5 py-3"
+                  >
+                    <span className="text-[12.5px] font-semibold text-foreground">{r.inv}</span>
+                    <div className="min-w-0">
+                      <div className="truncate text-[12.5px] text-foreground">{r.customer}</div>
+                      <div className="text-[11px] text-text-3">{r.branch}</div>
+                    </div>
+                    <span className="text-[12px] text-text-2">{r.method}</span>
+                    <div className="text-right">
+                      <div className="text-[12.5px] font-semibold text-foreground">{fmtUSD(r.total)}</div>
+                      <div className="text-[11px] text-text-3">{fmtVES(r.ves)}</div>
+                    </div>
+                    <div className="text-right">
+                      <span
+                        className="inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+                        style={{ background: st.bg, color: st.color }}
+                      >
+                        {r.status}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+              {data.recentSales.length === 0 && (
+                <div className="px-5 py-8 text-center text-[12.5px] text-text-3">Sin ventas.</div>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="fadeup overflow-hidden rounded-2xl border border-border bg-card shadow-card-sm lg:col-span-4">

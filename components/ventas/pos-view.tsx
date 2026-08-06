@@ -453,11 +453,11 @@ export function PosView({
   const mixedPaidUsd = (mixed ?? []).reduce((a, p) => a + p.amount_usd, 0);
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[1fr_420px] lg:overflow-hidden">
+    <div className="flex min-h-full flex-col lg:grid lg:h-full lg:min-h-0 lg:grid-cols-[1fr_420px] lg:overflow-hidden">
       {/* Catálogo */}
-      <div className="flex min-h-0 flex-col overflow-hidden">
-        <div className="px-[30px] pt-[22px]">
-          <div className="flex items-center justify-between gap-3">
+      <div className="flex min-h-0 flex-col lg:overflow-hidden">
+        <div className="px-4 pt-4 sm:px-5 lg:px-[30px] lg:pt-[22px]">
+          <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
             <div>
               <h1 className="text-[22px] font-bold tracking-tight text-foreground">
                 Punto de venta
@@ -468,7 +468,7 @@ export function PosView({
             </div>
             <button
               onClick={() => setDraftsOpen(true)}
-              className="iconbtn relative flex h-[38px] items-center gap-2 rounded-[10px] border border-border bg-card px-3 text-[13px] font-medium text-foreground"
+              className="iconbtn relative flex h-11 items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-3 text-[13px] font-medium text-foreground sm:h-[38px]"
             >
               <Layers className="size-4 text-text-3" /> Borradores
               {drafts.length > 0 && (
@@ -485,17 +485,17 @@ export function PosView({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar producto por nombre o SKU…"
-              className="h-[42px] w-full rounded-[12px] border border-border bg-card pr-3 pl-[37px] text-[13px] text-foreground outline-none"
+              className="h-11 w-full rounded-[12px] border border-border bg-card pr-3 pl-[37px] text-[16px] text-foreground outline-none sm:h-[42px] sm:text-[13px]"
             />
           </div>
 
-          <div className="mt-3 flex flex-wrap gap-1.5">
+          <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
             {categories.map((c) => (
               <button
                 key={c}
                 onClick={() => setCat(c)}
                 className={cn(
-                  "rounded-full px-3.5 py-1.5 text-[12.5px] font-medium transition",
+                  "flex-none rounded-full px-3.5 py-2 text-[12.5px] font-medium transition sm:py-1.5",
                   cat === c
                     ? "bg-brand text-white"
                     : "border border-border bg-card text-text-2 hover:bg-[var(--hover)]",
@@ -507,19 +507,19 @@ export function PosView({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-[30px] py-4">
+        <div className="min-h-0 flex-1 px-4 py-4 sm:px-5 lg:overflow-y-auto lg:px-[30px]">
           {filtered.length === 0 ? (
             <div className="py-16 text-center text-[13px] text-text-3">
               No hay productos con stock en esta sucursal.
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:grid-cols-3 xl:grid-cols-4">
               {filtered.map((p) => (
                 <button
                   key={p.variant_id}
                   onClick={() => add(p)}
                   title={variantDescription(p)}
-                  className="hoverlift flex min-h-[258px] flex-col overflow-hidden rounded-2xl border border-border bg-card text-left shadow-card-sm"
+                  className="hoverlift flex min-h-[220px] flex-col overflow-hidden rounded-2xl border border-border bg-card text-left shadow-card-sm sm:min-h-[258px]"
                 >
                   <div
                     className="flex h-20 items-center justify-center text-[18px] font-bold text-white"
@@ -585,7 +585,7 @@ export function PosView({
       </div>
 
       {/* Ticket */}
-      <div className="flex min-h-0 flex-col overflow-hidden border-l border-border bg-card">
+      <div className="flex min-h-[560px] flex-col overflow-hidden border-t border-border bg-card lg:min-h-0 lg:border-t-0 lg:border-l">
         <div className="flex items-center justify-between border-b border-border px-4 py-3.5">
           <div className="flex items-center gap-2.5">
             <span className="flex size-9 items-center justify-center rounded-xl bg-brand-soft text-brand">
@@ -632,7 +632,7 @@ export function PosView({
             lines.map((l) => (
               <div
                 key={l.variant_id}
-                className="flex items-center gap-2.5 border-b border-border px-4 py-2.5"
+                className="flex flex-wrap items-center gap-2.5 border-b border-border px-4 py-2.5 min-[420px]:flex-nowrap"
               >
                 <span
                   className="flex size-8 flex-none items-center justify-center rounded-lg text-[10px] font-bold text-white"
@@ -670,7 +670,7 @@ export function PosView({
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => setQty(l.variant_id, l.qty - 1)}
-                    className="iconbtn flex size-6 items-center justify-center rounded-md border border-border text-text-2"
+                  className="iconbtn flex size-8 items-center justify-center rounded-md border border-border text-text-2 sm:size-6"
                   >
                     <Minus className="size-3" />
                   </button>
@@ -679,7 +679,7 @@ export function PosView({
                   </span>
                   <button
                     onClick={() => setQty(l.variant_id, l.qty + 1)}
-                    className="iconbtn flex size-6 items-center justify-center rounded-md border border-border text-text-2"
+                  className="iconbtn flex size-8 items-center justify-center rounded-md border border-border text-text-2 sm:size-6"
                   >
                     <Plus className="size-3" />
                   </button>

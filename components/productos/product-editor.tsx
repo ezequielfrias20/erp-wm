@@ -40,7 +40,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { fmtUSD, fmtNum } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import type { Product, ProductVariant } from "@/lib/database.types";
 
 type Ref = { id: string; name: string };
@@ -114,7 +113,7 @@ export function ProductEditor({
   return (
     <form
       action={formAction}
-      className="mx-auto max-w-[1560px] px-[30px] pt-[26px] pb-12"
+      className="mx-auto max-w-[1560px] px-4 pt-4 pb-8 sm:px-5 sm:pt-5 lg:px-[30px] lg:pt-[26px] lg:pb-12"
     >
       <input type="hidden" name="id" value={product.id} />
       <input type="hidden" name="is_active" value={active ? "true" : "false"} />
@@ -231,62 +230,66 @@ export function ProductEditor({
               ) : null
             }
           >
-            <div className="grid grid-cols-[1.4fr_1fr_0.8fr_0.8fr_0.6fr_auto] border-b border-border pb-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
-              <span>Variante</span>
-              <span>SKU</span>
-              <span className="text-right">Precio</span>
-              <span className="text-right">Costo</span>
-              <span className="text-right">Stock</span>
-              <span />
+            <div className="overflow-x-auto">
+              <div className="min-w-[720px]">
+                <div className="grid grid-cols-[1.4fr_1fr_0.8fr_0.8fr_0.6fr_auto] border-b border-border pb-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
+                  <span>Variante</span>
+                  <span>SKU</span>
+                  <span className="text-right">Precio</span>
+                  <span className="text-right">Costo</span>
+                  <span className="text-right">Stock</span>
+                  <span />
+                </div>
+                {variants.map((v) => (
+                  <div
+                    key={v.id}
+                    className="grid grid-cols-[1.4fr_1fr_0.8fr_0.8fr_0.6fr_auto] items-center border-b border-border py-2.5 text-[12.5px]"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="size-3.5 flex-none rounded-full border border-border"
+                        style={{ background: v.color_hex ?? "var(--surface-2)" }}
+                      />
+                      <span className="text-foreground">
+                        {[v.color, v.size].filter(Boolean).join(" / ") || "—"}
+                      </span>
+                    </div>
+                    <span className="font-mono text-text-2">{v.sku}</span>
+                    <span className="text-right text-foreground">{fmtUSD(v.price)}</span>
+                    <span className="text-right text-text-2">{fmtUSD(v.cost)}</span>
+                    <span className="text-right text-foreground">{v.stock}</span>
+                    <div className="flex justify-end gap-1">
+                      {canEdit && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingVariant(v);
+                              setVariantOpen(true);
+                            }}
+                            className="iconbtn flex size-7 items-center justify-center rounded-md text-text-3"
+                          >
+                            <Pencil className="size-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onDeleteVariant(v)}
+                            className="iconbtn flex size-7 items-center justify-center rounded-md text-text-3 hover:text-danger"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {variants.length === 0 && (
+                  <div className="py-6 text-center text-[12.5px] text-text-3">
+                    Sin variantes. Agrega la primera.
+                  </div>
+                )}
+              </div>
             </div>
-            {variants.map((v) => (
-              <div
-                key={v.id}
-                className="grid grid-cols-[1.4fr_1fr_0.8fr_0.8fr_0.6fr_auto] items-center border-b border-border py-2.5 text-[12.5px]"
-              >
-                <div className="flex items-center gap-2">
-                  <span
-                    className="size-3.5 flex-none rounded-full border border-border"
-                    style={{ background: v.color_hex ?? "var(--surface-2)" }}
-                  />
-                  <span className="text-foreground">
-                    {[v.color, v.size].filter(Boolean).join(" / ") || "—"}
-                  </span>
-                </div>
-                <span className="font-mono text-text-2">{v.sku}</span>
-                <span className="text-right text-foreground">{fmtUSD(v.price)}</span>
-                <span className="text-right text-text-2">{fmtUSD(v.cost)}</span>
-                <span className="text-right text-foreground">{v.stock}</span>
-                <div className="flex justify-end gap-1">
-                  {canEdit && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingVariant(v);
-                          setVariantOpen(true);
-                        }}
-                        className="iconbtn flex size-7 items-center justify-center rounded-md text-text-3"
-                      >
-                        <Pencil className="size-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDeleteVariant(v)}
-                        className="iconbtn flex size-7 items-center justify-center rounded-md text-text-3 hover:text-danger"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))}
-            {variants.length === 0 && (
-              <div className="py-6 text-center text-[12.5px] text-text-3">
-                Sin variantes. Agrega la primera.
-              </div>
-            )}
           </Card>
         </div>
 

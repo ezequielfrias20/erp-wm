@@ -69,23 +69,23 @@ export function Header({
   const { profile } = useSession();
 
   return (
-    <header className="bg-glass relative z-40 flex h-16 flex-none items-center gap-[14px] border-b border-border px-[22px] backdrop-blur-[14px]">
+    <header className="bg-glass relative z-40 flex min-h-16 flex-none flex-wrap items-center gap-2 border-b border-border px-3 py-2 backdrop-blur-[14px] sm:px-4 lg:h-16 lg:flex-nowrap lg:gap-[14px] lg:px-[22px] lg:py-0">
       <button
         type="button"
-        aria-label="Contraer menú"
+        aria-label="Abrir menú"
         onClick={onToggleSidebar}
-        className="iconbtn flex size-[38px] flex-none items-center justify-center rounded-[9px] text-text-2"
+        className="iconbtn flex size-11 flex-none items-center justify-center rounded-[9px] text-text-2 lg:size-[38px]"
       >
         <Menu className="size-5" />
       </button>
 
-      <div className="relative w-[340px] max-w-[32vw]">
+      <div className="relative order-last w-full sm:order-none sm:w-[260px] md:w-[340px] lg:max-w-[32vw]">
         <Search className="pointer-events-none absolute top-1/2 left-3 size-[17px] -translate-y-1/2 text-text-3" />
         <input
           placeholder="Buscar productos, clientes, facturas…"
-          className="h-[38px] w-full rounded-[10px] border border-border bg-surface-2 pr-11 pl-[37px] text-[13px] text-foreground outline-none"
+          className="h-11 w-full rounded-[10px] border border-border bg-surface-2 pr-3 pl-[37px] text-[16px] text-foreground outline-none sm:h-[38px] sm:pr-11 sm:text-[13px]"
         />
-        <span className="absolute top-1/2 right-[9px] -translate-y-1/2 rounded-md border border-border bg-card px-1.5 py-0.5 text-[10.5px] font-semibold text-text-3">
+        <span className="absolute top-1/2 right-[9px] hidden -translate-y-1/2 rounded-md border border-border bg-card px-1.5 py-0.5 text-[10.5px] font-semibold text-text-3 sm:block">
           ⌘K
         </span>
       </div>
@@ -95,9 +95,9 @@ export function Header({
       {/* Branch switcher */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="iconbtn flex h-[38px] items-center gap-2 rounded-[10px] border border-border bg-card px-[11px] text-[13px] font-medium text-foreground">
+          <button className="iconbtn flex h-11 min-w-0 items-center gap-2 rounded-[10px] border border-border bg-card px-3 text-[13px] font-medium text-foreground lg:h-[38px] lg:px-[11px]">
             <Store className="size-[17px] text-brand" />
-            <span className="max-w-[160px] truncate">{label}</span>
+            <span className="max-w-[96px] truncate sm:max-w-[160px]">{label}</span>
             <ChevronDown className="size-[15px] text-text-3" />
           </button>
         </DropdownMenuTrigger>
@@ -128,7 +128,7 @@ export function Header({
       </DropdownMenu>
 
       {/* BCV pill */}
-      <div className="flex h-[38px] items-center gap-[9px] rounded-[10px] border border-border bg-surface-2 px-3">
+      <div className="hidden h-[38px] items-center gap-[9px] rounded-[10px] border border-border bg-surface-2 px-3 sm:flex">
         <span className="text-[11px] font-bold tracking-wide text-brand">USD</span>
         <span className="h-4 w-px bg-border" />
         <div className="flex flex-col gap-px leading-[1.15]">
@@ -142,7 +142,7 @@ export function Header({
       {/* Notifications */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="iconbtn relative flex size-[38px] flex-none items-center justify-center rounded-[10px] border border-border bg-card text-text-2">
+          <button className="iconbtn relative flex size-11 flex-none items-center justify-center rounded-[10px] border border-border bg-card text-text-2 lg:size-[38px]">
             <Bell className="size-[18px]" />
             {notifications.length > 0 && (
               <span className="absolute top-[7px] right-2 size-[7px] rounded-full border-2 border-card bg-danger" />
@@ -193,9 +193,9 @@ export function Header({
       {/* Profile */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="iconbtn flex h-[38px] items-center gap-[9px] rounded-full border border-border bg-card py-[3px] pr-[9px] pl-1">
+          <button className="iconbtn flex h-11 items-center gap-[9px] rounded-full border border-border bg-card py-[3px] pr-2 pl-1 lg:h-[38px] lg:pr-[9px]">
             <AvatarBubble name={profile.full_name} url={profile.avatar_url} size={30} />
-            <div className="flex flex-col text-left leading-[1.15]">
+            <div className="hidden flex-col text-left leading-[1.15] xl:flex">
               <span className="text-[12.5px] font-semibold whitespace-nowrap text-foreground">
                 {profile.full_name}
               </span>

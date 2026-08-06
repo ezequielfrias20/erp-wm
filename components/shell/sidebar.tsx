@@ -7,6 +7,7 @@ import { BrandMark } from "@/components/shell/brand-mark";
 import { NAV_SECTIONS } from "@/components/shell/nav-items";
 import { useCan } from "@/context/session";
 import { fmtVES } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { BcvRate } from "@/lib/bcv";
 
 export function Sidebar({
@@ -16,6 +17,9 @@ export function Sidebar({
   logoUrl,
   logoDarkUrl,
   companyName,
+  onNavigate,
+  className,
+  width,
 }: {
   collapsed: boolean;
   badges: { lowStock?: number };
@@ -23,6 +27,9 @@ export function Sidebar({
   logoUrl: string | null;
   logoDarkUrl: string | null;
   companyName: string | null;
+  onNavigate?: () => void;
+  className?: string;
+  width?: number | string;
 }) {
   const pathname = usePathname();
   const { view } = useCan();
@@ -31,8 +38,11 @@ export function Sidebar({
   return (
     <aside
       data-collapsed={collapsed}
-      className="relative flex flex-none flex-col border-r border-border bg-sidebar transition-[width] duration-200"
-      style={{ width: collapsed ? 76 : 262 }}
+      className={cn(
+        "relative flex flex-none flex-col border-r border-border bg-sidebar transition-[width] duration-200",
+        className,
+      )}
+      style={{ width: width ?? (collapsed ? 76 : 262) }}
     >
       <div className="flex h-16 flex-none items-center border-b border-border px-4">
         <BrandMark
@@ -65,6 +75,7 @@ export function Sidebar({
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={onNavigate}
                     data-active={active}
                     title={collapsed ? item.label : undefined}
                     className="nav-item mx-3 my-0.5 flex items-center gap-3 rounded-[10px] px-[14px] py-[9px] text-[13.5px] font-medium whitespace-nowrap text-text-2"

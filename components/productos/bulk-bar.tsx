@@ -142,13 +142,13 @@ export function ProductsBulkBar({ lists }: { lists: Lists }) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
       <Button
         type="button"
         variant="outline"
         onClick={downloadTemplate}
         disabled={downloading}
-        className="h-[38px] gap-2 text-[13px]"
+        className="h-11 flex-1 gap-2 text-[13px] sm:h-[38px] sm:flex-none"
       >
         <Download className="size-4" /> Plantilla
       </Button>
@@ -160,7 +160,7 @@ export function ProductsBulkBar({ lists }: { lists: Lists }) {
           setFile(null);
           setOpen(true);
         }}
-        className="h-[38px] gap-2 text-[13px]"
+        className="h-11 flex-1 gap-2 text-[13px] sm:h-[38px] sm:flex-none"
       >
         <Upload className="size-4" /> Importar
       </Button>
@@ -169,13 +169,13 @@ export function ProductsBulkBar({ lists }: { lists: Lists }) {
         variant="outline"
         onClick={exportAll}
         disabled={downloading}
-        className="h-[38px] gap-2 text-[13px]"
+        className="h-11 flex-1 gap-2 text-[13px] sm:h-[38px] sm:flex-none"
       >
         <FileSpreadsheet className="size-4" /> Exportar
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-[520px]">
+        <DialogContent className="max-h-[90dvh] max-w-[520px] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Importar productos</DialogTitle>
           </DialogHeader>

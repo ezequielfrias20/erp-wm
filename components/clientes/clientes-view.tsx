@@ -93,6 +93,7 @@ export function ClientesView({
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<VCustomerStats | null>(null);
   const [note, setNote] = useState("");
+  const [renderedAt] = useState(() => Date.now());
   const [, startTransition] = useTransition();
 
   const filtered = useMemo(() => {
@@ -139,7 +140,7 @@ export function ClientesView({
   function freqOf(c: VCustomerStats) {
     const months = Math.max(
       1,
-      (Date.now() - +new Date(c.since)) / (1000 * 60 * 60 * 24 * 30),
+      (renderedAt - +new Date(c.since)) / (1000 * 60 * 60 * 24 * 30),
     );
     return (c.orders_count / months).toFixed(1).replace(".", ",") + " /mes";
   }
@@ -168,8 +169,8 @@ export function ClientesView({
   }
 
   return (
-    <div className="mx-auto max-w-[1560px] px-[30px] pt-[26px] pb-12">
-      <div className="fadeup mb-[18px] flex flex-wrap items-end justify-between gap-4">
+    <div className="mx-auto max-w-[1560px] px-4 pt-4 pb-8 sm:px-5 sm:pt-5 lg:px-[30px] lg:pt-[26px] lg:pb-12">
+      <div className="fadeup mb-[18px] flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:flex-wrap sm:items-end">
         <div>
           <h1 className="text-[25px] font-bold tracking-tight text-foreground">
             Clientes
@@ -184,14 +185,14 @@ export function ClientesView({
               setEditing(null);
               setFormOpen(true);
             }}
-            className="hoverlift flex h-[38px] items-center gap-2 rounded-[10px] bg-brand px-[15px] text-[13px] font-semibold text-white"
+            className="hoverlift flex h-11 items-center justify-center gap-2 rounded-[10px] bg-brand px-[15px] text-[13px] font-semibold text-white sm:h-[38px]"
           >
             <Plus className="size-4" /> Nuevo cliente
           </button>
         )}
       </div>
 
-      <div className="fadeup mb-[18px] grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="fadeup mb-[18px] grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:gap-4 lg:grid-cols-4">
         <Kpi icon={Users} label="Clientes activos" value={String(kpis.active)} />
         <Kpi icon={Wallet} label="LTV promedio" value={fmtUSD(kpis.ltv)} />
         <Kpi icon={Receipt} label="Ticket promedio" value={fmtUSD(kpis.ticket)} />
@@ -200,7 +201,7 @@ export function ClientesView({
 
       <div className="grid grid-cols-1 gap-[18px] lg:grid-cols-[340px_1fr]">
         {/* List */}
-        <div className="fadeup flex max-h-[760px] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-card-sm">
+        <div className="fadeup flex max-h-[420px] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-card-sm lg:max-h-[760px]">
           <div className="border-b border-border p-3">
             <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-[16px] -translate-y-1/2 text-text-3" />

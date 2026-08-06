@@ -60,8 +60,8 @@ export function ProductsView({
   }, [products, query]);
 
   return (
-    <div className="mx-auto max-w-[1560px] px-[30px] pt-[26px] pb-12">
-      <div className="fadeup mb-[22px] flex flex-wrap items-end justify-between gap-4">
+    <div className="mx-auto max-w-[1560px] px-4 pt-4 pb-8 sm:px-5 sm:pt-5 lg:px-[30px] lg:pt-[26px] lg:pb-12">
+      <div className="fadeup mb-[22px] flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:flex-wrap sm:items-end">
         <div>
           <h1 className="text-[25px] font-bold tracking-tight text-foreground">
             Productos
@@ -82,7 +82,7 @@ export function ProductsView({
             />
             <button
               onClick={() => setOpen(true)}
-              className="hoverlift flex h-[38px] items-center gap-2 rounded-[10px] bg-brand px-[15px] text-[13px] font-semibold text-white"
+              className="hoverlift flex h-11 flex-1 items-center justify-center gap-2 rounded-[10px] bg-brand px-[15px] text-[13px] font-semibold text-white sm:h-[38px] sm:flex-none"
             >
               <Plus className="size-4" /> Nuevo producto
             </button>
@@ -92,33 +92,35 @@ export function ProductsView({
 
       <div className="fadeup overflow-hidden rounded-2xl border border-border bg-card shadow-card-sm">
         <div className="border-b border-border p-3">
-          <div className="relative max-w-sm">
+          <div className="relative max-w-sm sm:max-w-sm">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-[17px] -translate-y-1/2 text-text-3" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar por nombre, marca o categoría…"
-              className="h-[38px] w-full rounded-[10px] border border-border bg-surface-2 pr-3 pl-[37px] text-[13px] text-foreground outline-none"
+              className="h-11 w-full rounded-[10px] border border-border bg-surface-2 pr-3 pl-[37px] text-[16px] text-foreground outline-none sm:h-[38px] sm:text-[13px]"
             />
           </div>
         </div>
 
-        <div className="grid grid-cols-[2fr_1fr_1fr_1fr_0.8fr_0.6fr_auto] border-b border-border px-[22px] py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
-          <span>Producto</span>
-          <span>Categoría</span>
-          <span>Marca</span>
-          <span className="text-right">Precio</span>
-          <span className="text-right">Stock</span>
-          <span className="text-right">Estado</span>
-          <span />
-        </div>
+        <div className="overflow-x-auto">
+          <div className="min-w-[760px]">
+            <div className="grid grid-cols-[2fr_1fr_1fr_1fr_0.8fr_0.6fr_auto] border-b border-border px-[22px] py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
+              <span>Producto</span>
+              <span>Categoría</span>
+              <span>Marca</span>
+              <span className="text-right">Precio</span>
+              <span className="text-right">Stock</span>
+              <span className="text-right">Estado</span>
+              <span />
+            </div>
 
-        {filtered.map((p) => (
-          <Link
-            key={p.id}
-            href={`/productos/${p.id}`}
-            className="tr-row grid grid-cols-[2fr_1fr_1fr_1fr_0.8fr_0.6fr_auto] items-center border-b border-border px-[22px] py-3"
-          >
+            {filtered.map((p) => (
+              <Link
+                key={p.id}
+                href={`/productos/${p.id}`}
+                className="tr-row grid grid-cols-[2fr_1fr_1fr_1fr_0.8fr_0.6fr_auto] items-center border-b border-border px-[22px] py-3"
+              >
             <div className="flex min-w-0 items-center gap-2.5">
               <span className="flex size-8 flex-none items-center justify-center rounded-lg bg-surface-2 text-[11px] font-bold text-text-2">
                 {initials(p.name)}
@@ -154,14 +156,16 @@ export function ProductsView({
                 {p.is_active ? "Activo" : "Inactivo"}
               </span>
             </span>
-            <ChevronRight className="size-4 text-text-3" />
-          </Link>
-        ))}
-        {filtered.length === 0 && (
-          <div className="px-[22px] py-10 text-center text-[13px] text-text-3">
-            No hay productos que coincidan.
+                <ChevronRight className="size-4 text-text-3" />
+              </Link>
+            ))}
+            {filtered.length === 0 && (
+              <div className="px-[22px] py-10 text-center text-[13px] text-text-3">
+                No hay productos que coincidan.
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       {canEdit && (
@@ -212,7 +216,7 @@ function CreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[520px]">
+      <DialogContent className="max-h-[90dvh] max-w-[520px] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nuevo producto</DialogTitle>
         </DialogHeader>
@@ -227,7 +231,7 @@ function CreateDialog({
             <Label htmlFor="description">Descripción</Label>
             <Textarea id="description" name="description" rows={3} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label>Categoría</Label>
               <Select name="category_id">

@@ -23,9 +23,35 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
+    <div className="flex h-dvh w-full overflow-hidden bg-background text-foreground">
+      {mobileOpen && (
+        <button
+          type="button"
+          aria-label="Cerrar menú"
+          onClick={() => setMobileOpen(false)}
+          className="fixed inset-0 z-50 bg-black/45 lg:hidden"
+        />
+      )}
+      <div
+        className={`fixed inset-y-0 left-0 z-50 w-[min(86vw,304px)] transform transition-transform duration-200 lg:hidden ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <Sidebar
+          collapsed={false}
+          badges={badges}
+          bcv={bcv}
+          logoUrl={logoUrl}
+          logoDarkUrl={logoDarkUrl}
+          companyName={companyName}
+          onNavigate={() => setMobileOpen(false)}
+          className="h-full w-full shadow-card-lg"
+          width="100%"
+        />
+      </div>
       <Sidebar
         collapsed={collapsed}
         badges={badges}
@@ -33,14 +59,23 @@ export function AppShell({
         logoUrl={logoUrl}
         logoDarkUrl={logoDarkUrl}
         companyName={companyName}
+        className="hidden lg:flex"
       />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header
-          onToggleSidebar={() => setCollapsed((c) => !c)}
+          onToggleSidebar={() => {
+            if (window.matchMedia("(min-width: 1024px)").matches) {
+              setCollapsed((c) => !c);
+            } else {
+              setMobileOpen(true);
+            }
+          }}
           bcv={bcv}
           notifications={notifications}
         />
-        <main className="min-h-0 flex-1 overflow-y-auto bg-background">{children}</main>
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background">
+          {children}
+        </main>
       </div>
     </div>
   );

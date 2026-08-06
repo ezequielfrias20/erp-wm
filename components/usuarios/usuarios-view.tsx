@@ -71,10 +71,12 @@ export function UsuariosView({
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<UserRow | null>(null);
   const [drawerUser, setDrawerUser] = useState<UserRow | null>(null);
-  const [matrix, setMatrix] = useState(permissions);
+  const [matrixState, setMatrixState] = useState({
+    source: permissions,
+    value: permissions,
+  });
   const [, startTransition] = useTransition();
-
-  useEffect(() => setMatrix(permissions), [permissions]);
+  const matrix = matrixState.source === permissions ? matrixState.value : permissions;
 
   const filtered = useMemo(() => {
     let list = users;
@@ -97,11 +99,15 @@ export function UsuariosView({
     if (!canEdit) return;
     const cur = levelOf(role, module);
     const next = (cur + 1) % 3;
-    setMatrix((m) =>
-      m.map((p) =>
-        p.role === role && p.module === module ? { ...p, level: next } : p,
-      ),
-    );
+    setMatrixState((state) => {
+      const current = state.source === permissions ? state.value : permissions;
+      return {
+        source: permissions,
+        value: current.map((p) =>
+          p.role === role && p.module === module ? { ...p, level: next } : p,
+        ),
+      };
+    });
     startTransition(async () => {
       const res = await setPermission(role, module, next);
       if (res?.error) toast.error(res.error);
@@ -121,8 +127,8 @@ export function UsuariosView({
   }
 
   return (
-    <div className="mx-auto max-w-[1560px] px-[30px] pt-[26px] pb-12">
-      <div className="fadeup mb-[18px] flex flex-wrap items-end justify-between gap-4">
+    <div className="mx-auto max-w-[1560px] px-4 pt-4 pb-8 sm:px-5 sm:pt-5 lg:px-[30px] lg:pt-[26px] lg:pb-12">
+      <div className="fadeup mb-[18px] flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:flex-wrap sm:items-end">
         <div>
           <h1 className="text-[25px] font-bold tracking-tight text-foreground">
             Usuarios y permisos
@@ -137,7 +143,7 @@ export function UsuariosView({
               setEditing(null);
               setFormOpen(true);
             }}
-            className="hoverlift flex h-[38px] items-center gap-2 rounded-[10px] bg-brand px-[15px] text-[13px] font-semibold text-white"
+            className="hoverlift flex h-11 items-center justify-center gap-2 rounded-[10px] bg-brand px-[15px] text-[13px] font-semibold text-white sm:h-[38px]"
           >
             <Plus className="size-4" /> Invitar usuario
           </button>
@@ -147,13 +153,13 @@ export function UsuariosView({
       {/* Users table */}
       <div className="fadeup mb-[18px] overflow-hidden rounded-2xl border border-border bg-card shadow-card-sm">
         <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
-          <div className="relative min-w-[220px] flex-1">
+          <div className="relative min-w-0 flex-1 sm:min-w-[220px]">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-[16px] -translate-y-1/2 text-text-3" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar usuario…"
-              className="h-[38px] w-full rounded-[10px] border border-border bg-surface-2 pr-3 pl-9 text-[13px] outline-none"
+              className="h-11 w-full rounded-[10px] border border-border bg-surface-2 pr-3 pl-9 text-[16px] outline-none sm:h-[38px] sm:text-[13px]"
             />
           </div>
           <Filter value={roleFilter} onChange={setRoleFilter} label="Cargo" options={roles} />
@@ -394,7 +400,7 @@ function Filter({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="h-[38px] rounded-[10px] border border-border bg-card px-3 text-[12.5px] text-foreground outline-none"
+      className="h-11 w-full rounded-[10px] border border-border bg-card px-3 text-[16px] text-foreground outline-none sm:h-[38px] sm:w-auto sm:text-[12.5px]"
     >
       <option value="">{label}: todos</option>
       {options.map((o) => (

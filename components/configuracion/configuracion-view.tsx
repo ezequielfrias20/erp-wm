@@ -87,7 +87,7 @@ export function ConfiguracionView(props: Data) {
   const [section, setSection] = useState<(typeof SECTIONS)[number]["id"]>("perfil");
 
   return (
-    <div className="mx-auto max-w-[1560px] px-[30px] pt-[26px] pb-12">
+    <div className="mx-auto max-w-[1560px] px-4 pt-4 pb-8 sm:px-5 sm:pt-5 lg:px-[30px] lg:pt-[26px] lg:pb-12">
       <div className="fadeup mb-5">
         <h1 className="text-[25px] font-bold tracking-tight text-foreground">
           Configuración
@@ -630,23 +630,27 @@ function NotifSection({ settings, canEdit }: Data) {
 function AuditoriaSection({ audit }: Data) {
   return (
     <Card title="Registro de auditoría">
-      <div className="grid grid-cols-[1.2fr_2fr_1fr_1.2fr] border-b border-border pb-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
-        <span>Usuario</span>
-        <span>Acción</span>
-        <span>Módulo</span>
-        <span>Fecha</span>
-      </div>
-      {audit.map((a) => (
-        <div key={a.id} className="tr-row grid grid-cols-[1.2fr_2fr_1fr_1.2fr] items-center border-b border-border py-2.5 text-[12.5px]">
-          <span className="font-medium text-foreground">{a.who ?? "Sistema"}</span>
-          <span className="text-text-2">{a.action}</span>
-          <span className="text-text-2">{a.module ?? "—"}</span>
-          <span className="text-text-3">{fmtDateTime(a.created_at)}</span>
+      <div className="overflow-x-auto">
+        <div className="min-w-[620px]">
+          <div className="grid grid-cols-[1.2fr_2fr_1fr_1.2fr] border-b border-border pb-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
+            <span>Usuario</span>
+            <span>Acción</span>
+            <span>Módulo</span>
+            <span>Fecha</span>
+          </div>
+          {audit.map((a) => (
+            <div key={a.id} className="tr-row grid grid-cols-[1.2fr_2fr_1fr_1.2fr] items-center border-b border-border py-2.5 text-[12.5px]">
+              <span className="font-medium text-foreground">{a.who ?? "Sistema"}</span>
+              <span className="text-text-2">{a.action}</span>
+              <span className="text-text-2">{a.module ?? "—"}</span>
+              <span className="text-text-3">{fmtDateTime(a.created_at)}</span>
+            </div>
+          ))}
+          {audit.length === 0 && (
+            <div className="py-8 text-center text-[12.5px] text-text-3">Sin eventos.</div>
+          )}
         </div>
-      ))}
-      {audit.length === 0 && (
-        <div className="py-8 text-center text-[12.5px] text-text-3">Sin eventos.</div>
-      )}
+      </div>
     </Card>
   );
 }

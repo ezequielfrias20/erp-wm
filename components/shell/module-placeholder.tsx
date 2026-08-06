@@ -4,7 +4,7 @@ import { Hammer } from "lucide-react";
 /** Mirrors the handoff "Módulo" placeholder screen for routes not yet built out. */
 export function ModulePlaceholder({ title }: { title: string }) {
   return (
-    <div className="mx-auto flex max-w-[1560px] flex-col items-center justify-center px-[30px] py-24 text-center fadeup">
+    <div className="mx-auto flex max-w-[1560px] flex-col items-center justify-center px-4 py-16 text-center fadeup sm:px-5 sm:py-20 lg:px-[30px] lg:py-24">
       <span className="flex size-16 items-center justify-center rounded-2xl bg-brand-soft text-brand">
         <Hammer className="size-7" />
       </span>

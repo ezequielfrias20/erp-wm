@@ -176,8 +176,8 @@ export function InventarioView({
   }
 
   return (
-    <div className="mx-auto max-w-[1560px] px-[30px] pt-[26px] pb-12">
-      <div className="fadeup mb-[18px] flex flex-wrap items-end justify-between gap-4">
+    <div className="mx-auto max-w-[1560px] px-4 pt-4 pb-8 sm:px-5 sm:pt-5 lg:px-[30px] lg:pt-[26px] lg:pb-12">
+      <div className="fadeup mb-[18px] flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:flex-wrap sm:items-end">
         <div>
           <h1 className="text-[25px] font-bold tracking-tight text-foreground">
             Inventario
@@ -187,11 +187,11 @@ export function InventarioView({
             <strong className="text-foreground">{fmtUSD(kpis.value)}</strong>
           </p>
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           {canEdit && (
             <button
               onClick={downloadTemplate}
-              className="iconbtn flex h-[38px] items-center gap-2 rounded-[10px] border border-border bg-card px-[13px] text-[13px] font-medium text-foreground"
+              className="iconbtn flex h-11 flex-1 items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-[13px] text-[13px] font-medium text-foreground sm:h-[38px] sm:flex-none"
             >
               <Download className="size-4 text-text-3" /> Plantilla
             </button>
@@ -199,21 +199,21 @@ export function InventarioView({
           {canEdit && (
             <button
               onClick={() => setImportOpen(true)}
-              className="iconbtn flex h-[38px] items-center gap-2 rounded-[10px] border border-border bg-card px-[13px] text-[13px] font-medium text-foreground"
+              className="iconbtn flex h-11 flex-1 items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-[13px] text-[13px] font-medium text-foreground sm:h-[38px] sm:flex-none"
             >
               <Upload className="size-4 text-text-3" /> Importar
             </button>
           )}
           <button
             onClick={exportXlsx}
-            className="iconbtn flex h-[38px] items-center gap-2 rounded-[10px] border border-border bg-card px-[13px] text-[13px] font-medium text-foreground"
+            className="iconbtn flex h-11 flex-1 items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-[13px] text-[13px] font-medium text-foreground sm:h-[38px] sm:flex-none"
           >
             <FileSpreadsheet className="size-4 text-text-3" /> Exportar
           </button>
           {canEdit && (
             <Link
               href="/productos"
-              className="hoverlift flex h-[38px] items-center gap-2 rounded-[10px] bg-brand px-[15px] text-[13px] font-semibold text-white"
+              className="hoverlift flex h-11 flex-1 items-center justify-center gap-2 rounded-[10px] bg-brand px-[15px] text-[13px] font-semibold text-white sm:h-[38px] sm:flex-none"
             >
               <Plus className="size-4" /> Nuevo producto
             </Link>
@@ -221,7 +221,7 @@ export function InventarioView({
         </div>
       </div>
 
-      <div className="fadeup mb-[18px] grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="fadeup mb-[18px] grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:gap-4 lg:grid-cols-4">
         <Kpi icon={Wallet} label="Valor del inventario" value={fmtUSDShort(kpis.value)} tone="brand" />
         <Kpi icon={AlertTriangle} label="Stock bajo" value={`${kpis.low} items`} tone="warning" />
         <Kpi icon={XCircle} label="Agotados" value={`${kpis.out} productos`} tone="danger" />
@@ -229,13 +229,13 @@ export function InventarioView({
       </div>
 
       <div className="fadeup overflow-hidden rounded-2xl border border-border bg-card shadow-card-sm">
-        <div className="flex flex-wrap items-center gap-1 border-b border-border px-3 py-2">
+        <div className="flex gap-1 overflow-x-auto border-b border-border px-3 py-2 sm:flex-wrap sm:overflow-visible">
           {TABS.map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className={cn(
-                "rounded-lg px-3 py-1.5 text-[12.5px] font-medium transition",
+                "flex-none rounded-lg px-3 py-2 text-[12.5px] font-medium transition sm:py-1.5",
                 tab === t
                   ? "bg-brand-soft text-brand"
                   : "text-text-2 hover:bg-[var(--hover)]",
@@ -247,13 +247,13 @@ export function InventarioView({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
-          <div className="relative min-w-[240px] flex-1">
+          <div className="relative min-w-0 flex-1 sm:min-w-[240px]">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-[17px] -translate-y-1/2 text-text-3" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar por SKU o nombre…"
-              className="h-[38px] w-full rounded-[10px] border border-border bg-surface-2 pr-3 pl-[37px] text-[13px] text-foreground outline-none"
+              className="h-11 w-full rounded-[10px] border border-border bg-surface-2 pr-3 pl-[37px] text-[16px] text-foreground outline-none sm:h-[38px] sm:text-[13px]"
             />
           </div>
           <FilterSelect value={cat} onChange={setCat} placeholder="Categoría" options={categories} />
@@ -590,7 +590,7 @@ function FilterSelect({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="h-[38px] rounded-[10px] border border-border bg-card px-3 text-[12.5px] text-foreground outline-none"
+      className="h-11 w-full rounded-[10px] border border-border bg-card px-3 text-[16px] text-foreground outline-none sm:h-[38px] sm:w-auto sm:text-[12.5px]"
     >
       <option value="">{placeholder}: todas</option>
       {options.map((o) => (
