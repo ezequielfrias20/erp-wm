@@ -35,6 +35,35 @@ describe("conference public registration helpers", () => {
     expect(clean.attendees[0]?.email).toBe("ana@example.com");
   });
 
+  it("allows at most two tickets per checkout", () => {
+    expect(() => validateConferenceRegistration({
+      cantidad: "3",
+      metodoPago: "Pago Móvil",
+      referencia: "123",
+      asistentes: [
+        attendee,
+        { ...attendee, documento: "V-124", email: "ana2@example.com" },
+        { ...attendee, documento: "V-125", email: "ana3@example.com" },
+      ],
+    })).toThrow(/entre 1 y 2/i);
+  });
+
+  it("rejects repeated document or email in the same checkout", () => {
+    expect(() => validateConferenceRegistration({
+      cantidad: "2",
+      metodoPago: "Pago Móvil",
+      referencia: "123",
+      asistentes: [attendee, { ...attendee, email: "otro@example.com" }],
+    })).toThrow(/documento/i);
+
+    expect(() => validateConferenceRegistration({
+      cantidad: "2",
+      metodoPago: "Pago Móvil",
+      referencia: "124",
+      asistentes: [attendee, { ...attendee, documento: "V-124" }],
+    })).toThrow(/correo/i);
+  });
+
   it("calculates currency and amount for VES and USD methods", () => {
     expect(conferenceCurrency("Pago móvil")).toBe("VES");
     expect(conferenceAmount({ method: "Pago móvil", unitUsd: 39, bcvRate: 120 })).toBe(4680);

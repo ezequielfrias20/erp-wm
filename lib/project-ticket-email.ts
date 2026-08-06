@@ -195,3 +195,85 @@ export function buildProjectTicketEmailText({
     project.ticket_instructions || "Presenta este correo al ingresar.",
   ].join("\n");
 }
+
+export function buildProjectPaymentRejectedEmailHtml({
+  project,
+  registration,
+  whatsappUrl,
+}: {
+  project: Project;
+  registration: ProjectRegistration;
+  whatsappUrl: string;
+}) {
+  const accent = normalizeAccent(project.ticket_accent_color);
+  const fullName = `${registration.first_name} ${registration.last_name}`.trim();
+
+  return `<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pago no aprobado</title>
+  </head>
+  <body style="margin:0;background:#f3f6fb;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#0f172a">
+    <div style="max-width:680px;margin:0 auto">
+      <div style="height:8px;background:${accent};border-radius:14px 14px 0 0"></div>
+      <div style="background:#ffffff;border:1px solid #e2e8f0;border-top:0;border-radius:0 0 14px 14px;overflow:hidden">
+        <div style="padding:28px">
+          ${
+            project.logo_url
+              ? `<img src="${escapeHtml(project.logo_url)}" alt="${escapeHtml(project.name)}" style="display:block;max-width:176px;max-height:72px;object-fit:contain;margin-bottom:18px" />`
+              : ""
+          }
+          <p style="margin:0 0 7px;color:#dc2626;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase">Pago no aprobado</p>
+          <h1 style="margin:0;color:#0f172a;font-size:26px;line-height:1.15;font-weight:800">${escapeHtml(project.name)}</h1>
+          <p style="margin:14px 0 0;color:#475569;font-size:14px;line-height:1.6">
+            Hola ${escapeHtml(fullName || " ")}, revisamos tu inscripción y el pago no pudo ser aprobado
+            porque los datos enviados no coinciden con la operación recibida.
+          </p>
+          <div style="margin-top:18px;background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:14px;color:#7f1d1d;font-size:13px;line-height:1.55">
+            Si consideras que fue un error o necesitas reenviar la información del pago, comunícate
+            directamente con la organización por WhatsApp.
+          </div>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:18px;border:1px solid #e5e7eb;border-radius:12px;border-collapse:separate;border-spacing:0;overflow:hidden">
+            ${detailRow("Titular", escapeHtml(fullName))}
+            ${detailRow("Cédula", escapeHtml(registration.document))}
+            ${detailRow("Correo", escapeHtml(registration.email))}
+            ${detailRow("Método de pago", escapeHtml(registration.payment_method))}
+            ${detailRow("Referencia", escapeHtml(registration.payment_reference || "No aplica"))}
+          </table>
+          <p style="margin:24px 0 0">
+            <a href="${escapeHtml(whatsappUrl)}" style="display:inline-block;background:${accent};color:#ffffff;text-decoration:none;font-size:14px;font-weight:800;padding:13px 18px;border-radius:10px">
+              Contactar por WhatsApp
+            </a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>`;
+}
+
+export function buildProjectPaymentRejectedEmailText({
+  project,
+  registration,
+  whatsappUrl,
+}: {
+  project: Project;
+  registration: ProjectRegistration;
+  whatsappUrl: string;
+}) {
+  const fullName = `${registration.first_name} ${registration.last_name}`.trim();
+  return [
+    "Pago no aprobado",
+    "",
+    `Evento: ${project.name}`,
+    `Titular: ${fullName}`,
+    `Cédula: ${registration.document}`,
+    `Referencia: ${registration.payment_reference || "No aplica"}`,
+    "",
+    "Tu pago no pudo ser aprobado porque los datos enviados no coinciden con la operación recibida.",
+    "Puedes contactar directamente con la organización por WhatsApp:",
+    whatsappUrl,
+  ].join("\n");
+}

@@ -157,6 +157,8 @@ create unique index if not exists project_registrations_ticket_hash_uidx
   where ticket_hash is not null;
 create unique index if not exists project_registrations_project_document_uidx
   on wm.project_registrations(project_id, lower(document));
+create unique index if not exists project_registrations_project_email_uidx
+  on wm.project_registrations(project_id, lower(email));
 
 drop trigger if exists projects_set_updated_at on wm.projects;
 create trigger projects_set_updated_at

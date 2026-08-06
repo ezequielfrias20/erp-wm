@@ -10,6 +10,7 @@ import {
   validateConferenceReceipt,
   validateConferenceRegistration,
 } from "@/lib/conference-public";
+import type { CleanConferenceAttendee } from "@/lib/conference-public";
 
 export const runtime = "nodejs";
 
@@ -79,6 +80,64 @@ function extensionFromType(type: string) {
   return "jpg";
 }
 
+function comparable(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function sameReference(stored: string, requested: string) {
+  const storedRef = comparable(stored);
+  const requestedRef = comparable(requested);
+  return storedRef === requestedRef || storedRef.startsWith(`${requestedRef}-`);
+}
+
+async function ensureNoDuplicatePaymentReference(
+  supabase: ReturnType<typeof createAdminClient>,
+  reference: string | null,
+) {
+  if (!reference) return;
+  const { data, error } = await supabase
+    .from("project_registrations")
+    .select("id, payment_reference")
+    .ilike("payment_reference", `${reference}%`)
+    .limit(20);
+  if (error) throw error;
+  if ((data ?? []).some((row) => row.payment_reference && sameReference(row.payment_reference, reference))) {
+    throw new Error("Ya existe una inscripción con esa referencia de pago.");
+  }
+}
+
+async function ensureNoDuplicateAttendees(
+  supabase: ReturnType<typeof createAdminClient>,
+  projectIdValue: string,
+  attendees: CleanConferenceAttendee[],
+) {
+  for (const attendee of attendees) {
+    const { data: sameDocument, error: documentError } = await supabase
+      .from("project_registrations")
+      .select("id")
+      .eq("project_id", projectIdValue)
+      .ilike("document", attendee.document)
+      .limit(1)
+      .maybeSingle();
+    if (documentError) throw documentError;
+    if (sameDocument) {
+      throw new Error("Ya existe una inscripción con esa cédula o documento.");
+    }
+
+    const { data: sameEmail, error: emailError } = await supabase
+      .from("project_registrations")
+      .select("id")
+      .eq("project_id", projectIdValue)
+      .ilike("email", attendee.email)
+      .limit(1)
+      .maybeSingle();
+    if (emailError) throw emailError;
+    if (sameEmail) {
+      throw new Error("Ya existe una inscripción con ese correo.");
+    }
+  }
+}
+
 export async function OPTIONS() {
   return new Response(null, { status: 204 });
 }
@@ -113,6 +172,9 @@ export async function POST(request: Request) {
     if (!project || project.status !== "Abierto") {
       return json(409, { ok: false, error: "El proyecto no está abierto para inscripciones." });
     }
+
+    await ensureNoDuplicatePaymentReference(supabase, registration.reference);
+    await ensureNoDuplicateAttendees(supabase, targetProjectId, registration.attendees);
 
     const orderCode = conferenceOrderCode();
     const unitUsd = ticketPriceUsd();
@@ -168,7 +230,7 @@ export async function POST(request: Request) {
       if (error.code === "23505") {
         return json(409, {
           ok: false,
-          error: "Ya existe una inscripción con esa cédula o referencia en el ERP.",
+          error: "Ya existe una inscripción con esa cédula, correo o referencia.",
         });
       }
       throw error;

@@ -1,6 +1,6 @@
 import type { ProjectPaymentMethod } from "@/lib/database.types";
 
-export const CONFERENCE_MAX_TICKETS = 10;
+export const CONFERENCE_MAX_TICKETS = 2;
 export const CONFERENCE_MAX_RECEIPT_BYTES = 5 * 1024 * 1024;
 
 export const CONFERENCE_ALLOWED_RECEIPT_TYPES = new Set([
@@ -11,6 +11,7 @@ export const CONFERENCE_ALLOWED_RECEIPT_TYPES = new Set([
 ]);
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const PAYMENT_REFERENCE = /^[A-Za-z0-9._-]{1,120}$/;
 
 export type ConferenceAttendeeInput = {
   nombre?: unknown;
@@ -119,16 +120,22 @@ export function validateConferenceRegistration(
   if (conferenceMethodRequiresReceipt(paymentMethod) && !reference) {
     throw new Error("La referencia es obligatoria para este método de pago.");
   }
+  if (conferenceMethodRequiresReceipt(paymentMethod) && reference && !PAYMENT_REFERENCE.test(reference)) {
+    throw new Error("Introduce una referencia de pago válida.");
+  }
 
   if (!Array.isArray(input.asistentes) || input.asistentes.length !== quantity) {
     throw new Error("La cantidad de asistentes no coincide con la compra.");
   }
 
+  const attendees = input.asistentes.map(validateConferenceAttendee);
+  validateUniqueConferenceAttendees(attendees);
+
   return {
     quantity,
     paymentMethod,
     reference,
-    attendees: input.asistentes.map(validateConferenceAttendee),
+    attendees,
   };
 }
 
@@ -149,6 +156,23 @@ export function validateConferenceAttendee(
   if (!EMAIL.test(clean.email)) throw new Error("Introduce un correo válido.");
 
   return clean;
+}
+
+function validateUniqueConferenceAttendees(attendees: CleanConferenceAttendee[]) {
+  const documents = new Set<string>();
+  const emails = new Set<string>();
+  for (const attendee of attendees) {
+    const document = attendee.document.toLowerCase();
+    const email = attendee.email.toLowerCase();
+    if (documents.has(document)) {
+      throw new Error("Cada asistente debe tener una cédula o documento diferente.");
+    }
+    if (emails.has(email)) {
+      throw new Error("Cada asistente debe tener un correo diferente.");
+    }
+    documents.add(document);
+    emails.add(email);
+  }
 }
 
 export function validateConferenceReceipt(file: File | null, requiresReceipt: boolean) {

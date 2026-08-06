@@ -455,6 +455,8 @@ create unique index project_registrations_ticket_hash_uidx
   where ticket_hash is not null;
 create unique index project_registrations_project_document_uidx
   on wm.project_registrations(project_id, lower(document));
+create unique index project_registrations_project_email_uidx
+  on wm.project_registrations(project_id, lower(email));
 create index on wm.sales(branch_id);
 create index on wm.sales(customer_id);
 create index on wm.sales(created_at);

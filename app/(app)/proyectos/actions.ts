@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { audit } from "@/lib/audit";
 import { storagePathFromPublicUrl } from "@/lib/storage-path";
 import {
+  buildProjectPaymentRejectedEmailHtml,
+  buildProjectPaymentRejectedEmailText,
   buildProjectTicketEmailHtml,
   buildProjectTicketEmailText,
 } from "@/lib/project-ticket-email";
@@ -47,6 +49,7 @@ const NON_CASH_METHODS = new Set<ProjectPaymentMethod>([
   "Binance",
   "Cashea",
 ]);
+const PAYMENT_REFERENCE_RE = /^[A-Za-z0-9._-]{1,120}$/;
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -77,6 +80,26 @@ function ticketHash() {
 
 function ticketPayload(hash: string) {
   return `WMERP:TICKET:${hash}`;
+}
+
+function normalizeComparable(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function referencesConflict(stored: string, requested: string) {
+  const storedRef = normalizeComparable(stored);
+  const requestedRef = normalizeComparable(requested);
+  return storedRef === requestedRef || storedRef.startsWith(`${requestedRef}-`);
+}
+
+function whatsappLink(project: Project, registration: ProjectRegistration) {
+  const raw = process.env.CONFERENCES_WHATSAPP || project.organizer_phone || "584222069785";
+  let phone = raw.replace(/\D/g, "");
+  if (phone.startsWith("0")) phone = `58${phone.slice(1)}`;
+  const message = encodeURIComponent(
+    `Hola, mi pago de ${project.name} no fue aprobado. Soy ${registration.first_name} ${registration.last_name}, cédula ${registration.document}. Referencia: ${registration.payment_reference || "N/A"}.`,
+  );
+  return `https://wa.me/${phone}?text=${message}`;
 }
 
 function ticketHashFromQr(rawValue: string) {
@@ -292,9 +315,59 @@ async function sendTicketEmail({
   return payload?.id ?? null;
 }
 
+async function sendPaymentRejectedEmail({
+  to,
+  project,
+  registration,
+}: {
+  to: string;
+  project: Project;
+  registration: ProjectRegistration;
+}) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM;
+  if (!apiKey || !from) {
+    throw new Error("Configura RESEND_API_KEY y RESEND_FROM para enviar correos.");
+  }
+
+  const contactUrl = whatsappLink(project, registration);
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: [to],
+      subject: `Pago no aprobado · ${project.name}`,
+      html: buildProjectPaymentRejectedEmailHtml({
+        project,
+        registration,
+        whatsappUrl: contactUrl,
+      }),
+      text: buildProjectPaymentRejectedEmailText({
+        project,
+        registration,
+        whatsappUrl: contactUrl,
+      }),
+      tags: [
+        { name: "module", value: "proyectos" },
+        { name: "type", value: "payment_rejected" },
+      ],
+    }),
+  });
+
+  const payload = (await res.json().catch(() => null)) as { message?: string } | null;
+  if (!res.ok) {
+    throw new Error(payload?.message ?? `Resend respondió ${res.status}.`);
+  }
+}
+
 async function issueAndSendTicket(
   supabase: Supabase,
   registrationId: string,
+  opts: { forceEmail?: boolean } = {},
 ): Promise<FormState> {
   let registration = await getRegistration(supabase, registrationId);
   if (registration.status !== "Confirmado") return { ok: true };
@@ -325,7 +398,7 @@ async function issueAndSendTicket(
     ticket_qr_url: qrUrl,
   };
 
-  if (registration.ticket_email_sent_at) return { ok: true };
+  if (registration.ticket_email_sent_at && !opts.forceEmail) return { ok: true };
 
   const project = await getProject(supabase, registration.project_id);
   if (!project) return { error: "No se encontró el proyecto para enviar la entrada." };
@@ -356,6 +429,31 @@ async function issueAndSendTicket(
     return {
       error:
         "Pago confirmado y QR generado, pero no se pudo enviar el correo: " +
+        (e instanceof Error ? e.message : "error desconocido."),
+    };
+  }
+
+  return { ok: true };
+}
+
+async function sendRejectedPaymentNotice(
+  supabase: Supabase,
+  registrationId: string,
+): Promise<FormState> {
+  const registration = await getRegistration(supabase, registrationId);
+  const project = await getProject(supabase, registration.project_id);
+  if (!project) return { error: "No se encontró el proyecto para enviar el correo." };
+
+  try {
+    await sendPaymentRejectedEmail({
+      to: registration.email,
+      project,
+      registration,
+    });
+  } catch (e) {
+    return {
+      error:
+        "Inscripción cancelada, pero no se pudo enviar el correo: " +
         (e instanceof Error ? e.message : "error desconocido."),
     };
   }
@@ -498,21 +596,53 @@ export async function saveRegistration(
   if (NON_CASH_METHODS.has(paymentMethod) && !paymentReference) {
     return { error: "La referencia es obligatoria para este método de pago." };
   }
+  if (NON_CASH_METHODS.has(paymentMethod) && paymentReference && !PAYMENT_REFERENCE_RE.test(paymentReference)) {
+    return { error: "Introduce una referencia de pago válida." };
+  }
   if (NON_CASH_METHODS.has(paymentMethod) && !receiptFile && !existingReceiptUrl) {
     return { error: "El comprobante es obligatorio para este método de pago." };
   }
 
   const supabase = await createClient();
+  const existing = id ? await getRegistration(supabase, id).catch(() => null) : null;
   if (paymentReference) {
-    let duplicate = supabase
+    let duplicateQuery = supabase
       .from("project_registrations")
-      .select("id")
-      .ilike("payment_reference", paymentReference)
-      .limit(1);
-    if (id) duplicate = duplicate.neq("id", id);
-    const { data: duplicated, error: duplicateError } = await duplicate.maybeSingle();
+      .select("id, payment_reference")
+      .ilike("payment_reference", `${paymentReference}%`)
+      .limit(20);
+    if (id) duplicateQuery = duplicateQuery.neq("id", id);
+    const { data: duplicated, error: duplicateError } = await duplicateQuery;
     if (duplicateError) return { error: duplicateError.message };
-    if (duplicated) return { error: "Ese número de referencia ya existe." };
+    if ((duplicated ?? []).some((row) => row.payment_reference && referencesConflict(row.payment_reference, paymentReference))) {
+      return { error: "Ese número de referencia ya existe." };
+    }
+  }
+
+  let duplicateDocument = supabase
+    .from("project_registrations")
+    .select("id")
+    .eq("project_id", projectId)
+    .ilike("document", document)
+    .limit(1);
+  if (id) duplicateDocument = duplicateDocument.neq("id", id);
+  const { data: sameDocument, error: documentError } = await duplicateDocument.maybeSingle();
+  if (documentError) return { error: documentError.message };
+  if (sameDocument) {
+    return { error: "Ya existe una inscripción con esa cédula o documento." };
+  }
+
+  let duplicateEmail = supabase
+    .from("project_registrations")
+    .select("id")
+    .eq("project_id", projectId)
+    .ilike("email", email)
+    .limit(1);
+  if (id) duplicateEmail = duplicateEmail.neq("id", id);
+  const { data: sameEmail, error: emailError } = await duplicateEmail.maybeSingle();
+  if (emailError) return { error: emailError.message };
+  if (sameEmail) {
+    return { error: "Ya existe una inscripción con ese correo." };
   }
 
   let receiptUrl = existingReceiptUrl;
@@ -550,7 +680,9 @@ export async function saveRegistration(
       .select("id")
       .single();
     if (error) {
-      if (error.code === "23505") return { error: "Ese número de referencia ya existe." };
+      if (error.code === "23505") {
+        return { error: "Ya existe una inscripción con esa cédula, correo o referencia." };
+      }
       return { error: error.message };
     }
     savedId = data.id;
@@ -562,7 +694,9 @@ export async function saveRegistration(
       .select("id")
       .single();
     if (error) {
-      if (error.code === "23505") return { error: "Ese número de referencia ya existe." };
+      if (error.code === "23505") {
+        return { error: "Ya existe una inscripción con esa cédula, correo o referencia." };
+      }
       return { error: error.message };
     }
     savedId = data.id;
@@ -574,10 +708,20 @@ export async function saveRegistration(
       .from("project_registrations")
       .update({ ticket_status: "Anulado" })
       .eq("id", savedId);
+
+    if (existing?.status !== "Cancelado") {
+      const notice = await sendRejectedPaymentNotice(supabase, savedId);
+      if (notice?.error) {
+        revalidatePath("/proyectos");
+        return notice;
+      }
+    }
   }
 
   if (values.status === "Confirmado") {
-    const ticket = await issueAndSendTicket(supabase, savedId);
+    const ticket = await issueAndSendTicket(supabase, savedId, {
+      forceEmail: existing?.status === "Cancelado",
+    });
     if (ticket?.error) {
       revalidatePath("/proyectos");
       return ticket;
