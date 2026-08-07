@@ -35,6 +35,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TablePagination } from "@/components/ui/table-pagination";
 import { fmtUSD, fmtUSDShort, fmtNum, initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { VInventory } from "@/lib/database.types";
@@ -85,6 +86,8 @@ export function InventarioView({
   const [brand, setBrand] = useState("");
   const [editing, setEditing] = useState<VInventory | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const kpis = useMemo(
     () => ({
@@ -115,6 +118,13 @@ export function InventarioView({
       );
     return list;
   }, [rows, tab, cat, brand, query]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const paginated = useMemo(
+    () => filtered.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [filtered, safePage, pageSize],
+  );
 
   async function downloadTemplate() {
     try {
@@ -233,7 +243,10 @@ export function InventarioView({
           {TABS.map((t) => (
             <button
               key={t}
-              onClick={() => setTab(t)}
+              onClick={() => {
+                setTab(t);
+                setPage(1);
+              }}
               className={cn(
                 "flex-none rounded-lg px-3 py-2 text-[12.5px] font-medium transition sm:py-1.5",
                 tab === t
@@ -251,116 +264,162 @@ export function InventarioView({
             <Search className="pointer-events-none absolute top-1/2 left-3 size-[17px] -translate-y-1/2 text-text-3" />
             <input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(1);
+              }}
               placeholder="Buscar por SKU o nombre…"
               className="h-11 w-full rounded-[10px] border border-border bg-surface-2 pr-3 pl-[37px] text-[16px] text-foreground outline-none sm:h-[38px] sm:text-[13px]"
             />
           </div>
-          <FilterSelect value={cat} onChange={setCat} placeholder="Categoría" options={categories} />
-          <FilterSelect value={brand} onChange={setBrand} placeholder="Marca" options={brands} />
+          <FilterSelect
+            value={cat}
+            onChange={(value) => {
+              setCat(value);
+              setPage(1);
+            }}
+            placeholder="Categoría"
+            options={categories}
+          />
+          <FilterSelect
+            value={brand}
+            onChange={(value) => {
+              setBrand(value);
+              setPage(1);
+            }}
+            placeholder="Marca"
+            options={brands}
+          />
         </div>
 
         <div className="overflow-x-auto">
-          <div className="min-w-[980px]">
-            <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.6fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto] border-b border-border px-[22px] py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
-              <span>Producto</span>
-              <span>Categoría</span>
-              <span>Marca</span>
-              <span>Talla</span>
-              <span>Color</span>
-              <span>Stock</span>
-              <span className="text-right">Costo</span>
-              <span className="text-right">Precio</span>
-              <span>Sucursal</span>
-              <span className="text-right">Estado</span>
-              <span />
-            </div>
-            {filtered.map((r) => {
-              const st = ESTADO_STYLE[r.estado];
-              const pct = Math.min(100, Math.round((r.quantity / Math.max(r.min_stock, 1)) * 100));
-              return (
-                <div
-                  key={r.id}
-                  className="tr-row grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.6fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto] items-center border-b border-border px-[22px] py-3"
-                >
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <span className="flex size-8 flex-none items-center justify-center rounded-lg bg-surface-2 text-[10.5px] font-bold text-text-2">
-                      {initials(r.product_name)}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="truncate text-[12.5px] font-medium text-foreground">
-                        {r.product_name}
+          <table className="min-w-[1080px] w-full table-fixed border-collapse">
+            <thead className="border-b border-border text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
+              <tr>
+                <th className="w-[24%] px-[22px] py-2 text-left">Producto</th>
+                <th className="w-[12%] px-3 py-2 text-left">Categoría</th>
+                <th className="w-[10%] px-3 py-2 text-left">Marca</th>
+                <th className="w-[7%] px-3 py-2 text-left">Talla</th>
+                <th className="w-[11%] px-3 py-2 text-left">Color</th>
+                <th className="w-[14%] px-3 py-2 text-left">Stock</th>
+                <th className="w-[8%] px-3 py-2 text-right">Costo</th>
+                <th className="w-[8%] px-3 py-2 text-right">Precio</th>
+                <th className="w-[11%] px-3 py-2 text-left">Sucursal</th>
+                <th className="w-[10%] px-3 py-2 text-right">Estado</th>
+                <th className="w-12 px-[22px] py-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {paginated.map((r) => {
+                const st = ESTADO_STYLE[r.estado] ?? ESTADO_STYLE["En stock"];
+                const pct = Math.min(100, Math.round((r.quantity / Math.max(r.min_stock, 1)) * 100));
+                return (
+                  <tr key={r.id} className="tr-row border-b border-border">
+                    <td className="px-[22px] py-3">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <span className="flex size-8 flex-none items-center justify-center rounded-lg bg-surface-2 text-[10.5px] font-bold text-text-2">
+                          {initials(r.product_name)}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="truncate text-[12.5px] font-medium text-foreground">
+                            {r.product_name}
+                          </div>
+                          <div className="font-mono text-[11px] text-text-3">{r.sku}</div>
+                        </div>
                       </div>
-                      <div className="font-mono text-[11px] text-text-3">{r.sku}</div>
-                    </div>
-                  </div>
-                  <span className="truncate text-[12px] text-text-2">{r.category ?? "—"}</span>
-                  <span className="truncate text-[12px] text-text-2">{r.brand ?? "—"}</span>
-                  <span className="truncate text-[12px] text-text-2">{r.size ?? "—"}</span>
-                  <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-text-2">
-                    <span
-                      className="size-2.5 flex-none rounded-full border border-border"
-                      style={{ background: r.color_hex ?? "var(--surface-2)" }}
-                    />
-                    <span className="truncate">{r.color ?? "—"}</span>
-                  </span>
-                  <div className="min-w-0">
-                    <div className="truncate text-[12.5px]">
-                      <span className="font-semibold text-foreground">{r.quantity}</span>
-                      <span className="text-text-3"> / {r.min_stock} mín · {r.reserved} res</span>
-                    </div>
-                    <div className="mt-1 h-1.5 w-28 overflow-hidden rounded-full bg-surface-2">
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${pct}%`,
-                          background:
-                            r.quantity === 0
-                              ? "var(--danger)"
-                              : r.quantity < r.min_stock
-                                ? "var(--warning)"
-                                : "var(--success)",
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <span className="truncate text-right text-[12px] text-text-2">{fmtUSD(r.cost)}</span>
-                  <span className="truncate text-right text-[12.5px] font-medium text-foreground">
-                    {fmtUSD(r.price)}
-                  </span>
-                  <span className="truncate text-[12px] text-text-2">{r.branch_city}</span>
-                  <span className="text-right">
-                    <span
-                      className="inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                      style={{ background: st.bg, color: st.color }}
-                    >
-                      {r.estado}
-                    </span>
-                  </span>
-                  <div className="flex justify-end">
-                    {canEdit && (
-                      <button
-                        onClick={() => setEditing(r)}
-                        className="iconbtn flex size-7 items-center justify-center rounded-md text-text-3"
+                    </td>
+                    <td className="px-3 py-3 text-[12px] text-text-2">
+                      <span className="block truncate">{r.category ?? "—"}</span>
+                    </td>
+                    <td className="px-3 py-3 text-[12px] text-text-2">
+                      <span className="block truncate">{r.brand ?? "—"}</span>
+                    </td>
+                    <td className="px-3 py-3 text-[12px] text-text-2">
+                      <span className="block truncate">{r.size ?? "—"}</span>
+                    </td>
+                    <td className="px-3 py-3">
+                      <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-text-2">
+                        <span
+                          className="size-2.5 flex-none rounded-full border border-border"
+                          style={{ background: r.color_hex ?? "var(--surface-2)" }}
+                        />
+                        <span className="truncate">{r.color ?? "—"}</span>
+                      </span>
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-[12.5px]">
+                          <span className="font-semibold text-foreground">{r.quantity}</span>
+                          <span className="text-text-3"> / {r.min_stock} mín · {r.reserved} res</span>
+                        </div>
+                        <div className="mt-1 h-1.5 w-28 overflow-hidden rounded-full bg-surface-2">
+                          <div
+                            className="h-full rounded-full"
+                            style={{
+                              width: `${pct}%`,
+                              background:
+                                r.quantity === 0
+                                  ? "var(--danger)"
+                                  : r.quantity < r.min_stock
+                                    ? "var(--warning)"
+                                    : "var(--success)",
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-right text-[12px] text-text-2">{fmtUSD(r.cost)}</td>
+                    <td className="px-3 py-3 text-right text-[12.5px] font-medium text-foreground">
+                      {fmtUSD(r.price)}
+                    </td>
+                    <td className="px-3 py-3 text-[12px] text-text-2">
+                      <span className="block truncate">{r.branch_city}</span>
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <span
+                        className="inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                        style={{ background: st.bg, color: st.color }}
                       >
-                        <Pencil className="size-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-            {filtered.length === 0 && (
-              <div className="px-[22px] py-10 text-center text-[13px] text-text-3">
-                No hay productos en esta vista.
-              </div>
-            )}
-          </div>
+                        {r.estado}
+                      </span>
+                    </td>
+                    <td className="px-[22px] py-3">
+                      <div className="flex justify-end">
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => setEditing(r)}
+                            className="iconbtn flex size-7 items-center justify-center rounded-md text-text-3"
+                            aria-label={`Editar inventario de ${r.product_name}`}
+                          >
+                            <Pencil className="size-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={11} className="px-[22px] py-10 text-center text-[13px] text-text-3">
+                    No hay productos en esta vista.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
-        <div className="px-[22px] py-3 text-[12px] text-text-3">
-          Mostrando <strong className="text-foreground">{filtered.length}</strong>{" "}
-          de <strong className="text-foreground">{rows.length}</strong> registros
-        </div>
+        <TablePagination
+          page={safePage}
+          pageSize={pageSize}
+          totalItems={filtered.length}
+          onPageChange={setPage}
+          onPageSizeChange={(value) => {
+            setPageSize(value);
+            setPage(1);
+          }}
+        />
       </div>
 
       {canEdit && (
