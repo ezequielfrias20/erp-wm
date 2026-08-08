@@ -18,7 +18,7 @@ function SubmitButton() {
   );
 }
 
-export function InviteForm() {
+export function InviteForm({ initialEmail = "" }: { initialEmail?: string }) {
   const [state, formAction] = useActionState<AuthState, FormData>(
     acceptInvite,
     null,
@@ -34,6 +34,7 @@ export function InviteForm() {
           type="email"
           autoComplete="email"
           placeholder="nombre@worldmedics.ve"
+          defaultValue={initialEmail}
           required
         />
       </div>

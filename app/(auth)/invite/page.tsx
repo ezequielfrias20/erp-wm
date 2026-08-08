@@ -3,7 +3,13 @@ import { InviteForm } from "./invite-form";
 
 export const metadata = { title: "Activar cuenta · World Medics ERP" };
 
-export default function InvitePage() {
+export default async function InvitePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ email?: string }>;
+}) {
+  const email = (await searchParams).email ?? "";
+
   return (
     <div className="rounded-2xl border border-border bg-card p-6 shadow-card-md">
       <div className="mb-5">
@@ -14,7 +20,7 @@ export default function InvitePage() {
           Define tu contraseña con el correo de tu invitación.
         </p>
       </div>
-      <InviteForm />
+      <InviteForm initialEmail={email} />
       <p className="mt-5 text-center text-[12.5px] text-text-3">
         ¿Ya tienes cuenta?{" "}
         <Link href="/login" className="font-medium text-brand hover:underline">

@@ -35,6 +35,8 @@ export default async function UsuariosPage() {
       permissions={permsRes.data ?? []}
       branches={branches}
       canEdit={canEdit(session.permissions, "Usuarios")}
+      currentUserId={session.profile.id}
+      currentRole={session.profile.role}
     />
   );
 }

@@ -2,14 +2,33 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type AuthState = { error?: string; ok?: string } | null;
+
+type AdminClient = ReturnType<typeof createAdminClient>;
+
+async function findAuthUserByEmail(admin: AdminClient, email: string) {
+  const target = email.toLowerCase();
+  for (let page = 1; page <= 10; page += 1) {
+    const { data, error } = await admin.auth.admin.listUsers({
+      page,
+      perPage: 1000,
+    });
+    if (error) throw error;
+
+    const user = data.users.find((u) => u.email?.toLowerCase() === target);
+    if (user) return user;
+    if (!data.nextPage) break;
+  }
+  return null;
+}
 
 export async function signIn(
   _prev: AuthState,
   formData: FormData,
 ): Promise<AuthState> {
-  const email = String(formData.get("email") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   if (!email || !password) {
     return { error: "Ingresa tu correo y contraseña." };
@@ -18,11 +37,17 @@ export async function signIn(
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
+    if (error.message.toLowerCase().includes("email not confirmed")) {
+      return {
+        error:
+          "La cuenta existe, pero el correo no quedó confirmado. Vuelve a activar el usuario desde el enlace de invitación.",
+      };
+    }
     return { error: "Credenciales inválidas. Verifica tu correo y contraseña." };
   }
 
-  const { data: profile } = await supabase.rpc("claim_profile");
-  if (!profile) {
+  const { data: claimedProfile } = await supabase.rpc("claim_profile");
+  if (!claimedProfile) {
     await supabase.auth.signOut();
     return {
       error: "Tu cuenta no tiene acceso al ERP. Contacta a un administrador.",
@@ -36,7 +61,7 @@ export async function acceptInvite(
   _prev: AuthState,
   formData: FormData,
 ): Promise<AuthState> {
-  const email = String(formData.get("email") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   const confirm = String(formData.get("confirm") ?? "");
   if (!email) return { error: "Ingresa el correo de tu invitación." };
@@ -44,18 +69,69 @@ export async function acceptInvite(
     return { error: "La contraseña debe tener al menos 8 caracteres." };
   if (password !== confirm) return { error: "Las contraseñas no coinciden." };
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.signUp({ email, password });
-  if (error) return { error: error.message };
-
-  if (!data.session) {
+  const admin = createAdminClient();
+  const { data: profile, error: profileError } = await admin
+    .from("profiles")
+    .select("id, user_id, full_name, email, status")
+    .eq("email", email)
+    .maybeSingle();
+  if (profileError) return { error: profileError.message };
+  if (!profile || profile.status !== "Activo") {
     return {
-      ok: "Cuenta creada. Si el proyecto exige confirmación por correo, revísalo; luego inicia sesión.",
+      error:
+        "No encontramos una invitación activa para este correo. Contacta a un administrador.",
     };
   }
 
-  const { data: profile } = await supabase.rpc("claim_profile");
-  if (!profile) {
+  let authUser = null;
+  try {
+    if (profile.user_id) {
+      const { data, error } = await admin.auth.admin.getUserById(profile.user_id);
+      if (!error) authUser = data.user;
+    }
+    authUser ??= await findAuthUserByEmail(admin, email);
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? `No se pudo validar la cuenta de acceso: ${error.message}`
+          : "No se pudo validar la cuenta de acceso.",
+    };
+  }
+
+  const userAttrs = {
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { full_name: profile.full_name },
+  };
+
+  const userResult = authUser
+    ? await admin.auth.admin.updateUserById(authUser.id, userAttrs)
+    : await admin.auth.admin.createUser(userAttrs);
+  if (userResult.error || !userResult.data.user) {
+    return {
+      error:
+        userResult.error?.message ??
+        "No se pudo crear la cuenta de acceso. Contacta a un administrador.",
+    };
+  }
+
+  const userId = userResult.data.user.id;
+  if (profile.user_id !== userId) {
+    const { error } = await admin
+      .from("profiles")
+      .update({ user_id: userId })
+      .eq("id", profile.id);
+    if (error) return { error: error.message };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) return { error: error.message };
+
+  const { data: claimedProfile } = await supabase.rpc("claim_profile");
+  if (!claimedProfile) {
     await supabase.auth.signOut();
     return {
       error:

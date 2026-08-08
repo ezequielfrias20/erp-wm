@@ -3,10 +3,11 @@
 import { useMemo, useState, useActionState, useEffect, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
-import { Plus, Search, Check, Loader2, Trash2, Mail, Phone, Store } from "lucide-react";
+import { Plus, Search, Check, Loader2, Trash2, Mail, Phone, Store, Send } from "lucide-react";
 import {
   saveUser,
   deleteUser,
+  resendUserInvite,
   setPermission,
   type FormState,
 } from "@/app/(app)/usuarios/actions";
@@ -57,6 +58,8 @@ export function UsuariosView({
   permissions,
   branches,
   canEdit,
+  currentUserId,
+  currentRole,
 }: {
   users: UserRow[];
   roles: string[];
@@ -64,6 +67,8 @@ export function UsuariosView({
   permissions: RolePermission[];
   branches: Branch[];
   canEdit: boolean;
+  currentUserId: string;
+  currentRole: string;
 }) {
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
@@ -75,8 +80,12 @@ export function UsuariosView({
     source: permissions,
     value: permissions,
   });
-  const [, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
   const matrix = matrixState.source === permissions ? matrixState.value : permissions;
+  const isSuperAdmin = currentRole === "Super Admin";
+  const rolesForForm = isSuperAdmin
+    ? roles
+    : roles.filter((role) => role !== "Super Admin");
 
   const filtered = useMemo(() => {
     let list = users;
@@ -115,15 +124,40 @@ export function UsuariosView({
   }
 
   function onDelete(u: UserRow) {
-    if (!confirm(`¿Eliminar a ${u.full_name}?`)) return;
+    if (!isSuperAdmin) {
+      toast.error("Solo un Super Admin puede eliminar usuarios.");
+      return;
+    }
+    if (u.role === "Super Admin" || u.id === currentUserId) {
+      toast.error("No se puede eliminar este usuario.");
+      return;
+    }
+    if (!confirm(`¿Eliminar a ${u.full_name}? Se eliminará su acceso al sistema.`)) return;
     startTransition(async () => {
       const res = await deleteUser(u.id);
       if (res?.error) toast.error(res.error);
       else {
-        toast.success("Usuario eliminado");
+        toast.success(res?.message ?? "Usuario eliminado");
         setFormOpen(false);
+        setDrawerUser(null);
       }
     });
+  }
+
+  function onResendInvite(u: UserRow) {
+    startTransition(async () => {
+      const res = await resendUserInvite(u.id);
+      if (res?.error) toast.error(res.error);
+      else toast.success(res?.message ?? "Invitación enviada");
+    });
+  }
+
+  function canEditUser(u: UserRow) {
+    return canEdit && (isSuperAdmin || u.role !== "Super Admin");
+  }
+
+  function canDeleteUser(u: UserRow | null) {
+    return Boolean(u && isSuperAdmin && u.role !== "Super Admin" && u.id !== currentUserId);
   }
 
   return (
@@ -305,9 +339,9 @@ export function UsuariosView({
           open={formOpen}
           onOpenChange={setFormOpen}
           user={editing}
-          roles={roles}
+          roles={rolesForForm}
           branches={branches}
-          onDelete={editing ? () => onDelete(editing) : undefined}
+          onDelete={canDeleteUser(editing) ? () => onDelete(editing!) : undefined}
         />
       )}
 
@@ -366,16 +400,40 @@ export function UsuariosView({
                 })}
               </div>
               {canEdit && (
-                <Button
-                  onClick={() => {
-                    setEditing(drawerUser);
-                    setDrawerUser(null);
-                    setFormOpen(true);
-                  }}
-                  className="mt-2 font-semibold"
-                >
-                  Editar usuario
-                </Button>
+                <div className="mt-2 flex flex-col gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => onResendInvite(drawerUser)}
+                    disabled={isPending || drawerUser.status !== "Activo"}
+                    className="font-semibold"
+                  >
+                    <Send className="size-4" /> Reenviar acceso
+                  </Button>
+                  {canEditUser(drawerUser) && (
+                    <Button
+                      onClick={() => {
+                        setEditing(drawerUser);
+                        setDrawerUser(null);
+                        setFormOpen(true);
+                      }}
+                      className="font-semibold"
+                    >
+                      Editar usuario
+                    </Button>
+                  )}
+                  {canDeleteUser(drawerUser) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="font-semibold text-danger"
+                      onClick={() => onDelete(drawerUser)}
+                      disabled={isPending}
+                    >
+                      <Trash2 className="size-4" /> Eliminar usuario
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -439,7 +497,12 @@ function UserForm({
 }) {
   const [state, formAction] = useActionState<FormState, FormData>(saveUser, null);
   useEffect(() => {
-    if (state?.ok) onOpenChange(false);
+    if (state?.error) toast.error(state.error);
+    if (state?.ok) {
+      toast.success(state.message ?? "Usuario guardado");
+      if (state.warning) toast.warning(state.warning);
+      onOpenChange(false);
+    }
   }, [state, onOpenChange]);
 
   return (
@@ -502,7 +565,12 @@ function UserForm({
           </div>
           {!user && (
             <p className="rounded-lg bg-brand-soft px-3 py-2 text-[12px] text-brand">
-              Se creará el perfil. La persona activa su cuenta en /invite con este correo.
+              Se creará el perfil y se enviará un correo con el enlace de activación.
+            </p>
+          )}
+          {state?.warning && (
+            <p className="rounded-lg bg-warning-soft px-3 py-2 text-[12.5px] text-warning">
+              {state.warning}
             </p>
           )}
           {state?.error && (
