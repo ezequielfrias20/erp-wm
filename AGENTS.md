@@ -8,13 +8,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <claude-mem-context>
 # Memory Context
 
-# [erp] recent context, 2026-08-08 10:54am GMT-4
+# [erp] recent context, 2026-08-08 12:00pm GMT-4
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision 🚨security_alert 🔐security_note
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (18,341t read) | 558,870t work | 97% savings
+Stats: 50 obs (17,059t read) | 461,201t work | 96% savings
 
 ### Jun 22, 2026
 S735 CRM SaaS — Brand settings expansion: delete logo/favicon, dark/light logo variants, fix favicon in browser tab (Jun 22 at 9:27 PM)
@@ -31,23 +31,7 @@ S945 CRM SaaS — .env.local points to deleted/invalid Supabase project yxwedegs
 ### Jul 12, 2026
 S947 CRM SaaS — DNS ENOTFOUND for yxwedegszxtujplffaac.supabase.co, diagnosing stale .env.local Supabase credentials (Jul 12 at 3:48 PM)
 ### Aug 7, 2026
-1987 7:11p 🔵 backend-reimpet WM ERP — Supabase DB schema and current data state confirmed
-1988 " 🔵 backend-reimpet WM ERP — product naming convention and branch UUIDs confirmed
-1989 " 🔵 backend-reimpet WM ERP — inventory Excel files structure and full Maracay dataset confirmed
-1990 " 🔵 backend-reimpet WM ERP — existing DB products match Excel rows by price, confirming upsert mapping strategy
-1991 " ✅ backend-reimpet WM ERP — all sales, sale_items, and expenses purged from production DB
-1992 " 🔵 backend-reimpet WM ERP — DB product catalog vs Excel mismatch: 87 DB products vs 98/100 Excel rows
-1993 7:18p 🟣 backend-reimpet WM ERP — inventory import script executed, upserted 198 rows across both branches
-1994 7:20p ⚖️ backend-reimpet WM ERP — Maracay database cleanup and inventory reset planned
-1995 7:21p 🔵 WM ERP sales reset dry-run reveals inventory import plan for two branches
-1996 " 🔴 Sales reset apply fails — table public.customer_events not found in Supabase schema cache
-1997 " ⚖️ backend-reimpet WM ERP — Supabase DB cleanup and inventory reset planned for Maracay and San Juan de los Morros branches
-1998 7:22p ⚖️ WM ERP Maracay DB cleanup and inventory reset planned
-1999 7:23p 🟣 WM ERP — Sales reset and inventory sync from Excel files applied to production Supabase DB
-2000 " ⚖️ backend-reimpet WM ERP — Supabase DB cleanup and inventory reset plan for Maracay and San Juan de los Morros branches
-2001 " 🟣 backend-reimpet WM ERP — sales wipe and inventory load completed for Maracay and San Juan de los Morros
-2003 7:24p 🔵 backend-reimpet WM ERP — paginated inventory verification reveals higher counts than v_inventory view
-2004 " 🔵 backend-reimpet WM ERP — direct psql connection to Supabase pooler fails with auth error
+2004 7:24p 🔵 backend-reimpet WM ERP — direct psql connection to Supabase pooler fails with auth error
 2005 " ✅ backend-reimpet WM ERP — maintenance script deleted after one-time use
 2006 " 🔵 backend-reimpet WM ERP — repo state after maintenance: Excel files untracked, AGENTS.md modified
 2007 7:40p ⚖️ frontend-reimpet — Inventory and Products modules require paginated table UI
@@ -82,6 +66,22 @@ S947 CRM SaaS — DNS ENOTFOUND for yxwedegszxtujplffaac.supabase.co, diagnosing
 2041 " 🟣 frontend-reimpet — talla/color/marca/categoría filters added to Ventas, Inventario, and Productos modules
 2042 " 🔴 frontend-reimpet Inventario "Todas las sucursales" — missing products fixed by switching to paginated fetchAllRows()
 2043 10:54a ✅ frontend-reimpet — filter + pagination changes pass TypeScript check and production build cleanly
+2044 10:55a 🔴 frontend-reimpet Inventario — "Todas las sucursales" missing products fixed via Supabase pagination
+2045 " 🟣 frontend-reimpet — Attribute filters (talla, color, marca, categoría) added to Ventas, Inventario, and Productos
+2046 11:21a ⚖️ frontend-reimpet USD/VES rate — dual-endpoint fetch with most-recent-date selection logic
+2047 " 🔵 frontend-reimpet BCV rate — full call graph and lib/bcv.ts structure discovered
+2049 11:22a 🟣 frontend-reimpet BCV rate — dual-endpoint fetch with most-recent-date reconciliation implemented
+2050 " 🟣 frontend-reimpet BCV rate — vitest unit tests added for resolveBcvRate()
+2051 " ✅ frontend-reimpet BCV rate — all 5 vitest tests pass for resolveBcvRate()
+2052 11:23a 🔴 frontend-reimpet BCV rate — TypeScript TS2353 error fixed by adding fuente field to response types
+2054 11:24a ✅ frontend-reimpet BCV rate — tsc clean (0 errors) and full test suite 25/25 passing
+2055 " ✅ frontend-reimpet BCV rate — Next.js production build passes cleanly after dual-endpoint implementation
+2057 11:25a ✅ frontend-reimpet BCV rate — uncommitted changeset ready for commit
+2058 " ✅ frontend-reimpet BCV rate — fetchJson() hardened with try/catch and Array.isArray guard
+2060 " 🟣 frontend-reimpet BCV rate — live endpoint verified returning historical rate as most recent
+2061 11:44a ⚖️ frontend-reimpet VES pricing — 4-decimal precision recommended to reduce bolivar rounding error
+2063 " 🔵 frontend-reimpet ERP — sale price precision is numeric(12,2) throughout DB and RPC
+2064 11:45a 🔵 frontend-reimpet ERP — full USD→VES precision chain traced through POS and invoice code
 
-Access 559k tokens of past work via get_observations([IDs]) or mem-search skill.
+Access 461k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>

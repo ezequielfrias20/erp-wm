@@ -9,6 +9,7 @@
 
 import { forwardRef } from "react";
 import { fmtUSD, fmtVES, fmtDate, fmtByCurrency } from "@/lib/format";
+import { usdToVesAmount } from "@/lib/sales/totals";
 
 export type InvoiceCompany = {
   name: string | null;
@@ -198,14 +199,14 @@ export const InvoiceDocument = forwardRef<HTMLDivElement, { data: InvoiceData }>
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
           <table style={{ width: 320, borderCollapse: "collapse" }}>
             <tbody>
-              <Row label="Subtotal" value={fmtUSD(data.subtotal)} />
+              <Row label="Subtotal con IVA" value={fmtUSD(data.subtotal)} />
               {data.discount > 0 ? (
                 <Row
                   label={data.discount_label ?? `Descuento (${data.discount_pct}%)`}
                   value={`- ${fmtUSD(data.discount)}`}
                 />
               ) : null}
-              <Row label="IVA (16%)" value={fmtUSD(data.tax)} />
+              <Row label="IVA incluido (16%)" value={fmtUSD(data.tax)} />
               <tr>
                 <td style={{ ...td, fontWeight: 800, fontSize: 14, borderBottom: "none" }}>
                   Total
@@ -229,7 +230,7 @@ export const InvoiceDocument = forwardRef<HTMLDivElement, { data: InvoiceData }>
                 <td
                   style={{ ...td, ...rt, color: muted, borderBottom: "none", paddingTop: 0 }}
                 >
-                  {fmtVES(data.total_ves ?? data.total * data.rate)}
+                  {fmtVES(data.total_ves ?? usdToVesAmount(data.total, data.rate))}
                 </td>
               </tr>
             </tbody>
@@ -313,11 +314,12 @@ export const InvoiceDocument = forwardRef<HTMLDivElement, { data: InvoiceData }>
 export const ThermalInvoiceDocument = forwardRef<HTMLDivElement, { data: InvoiceData }>(
   function ThermalInvoiceDocument({ data }, ref) {
     const c = data.company;
-    const subtotalVes = data.subtotal * data.rate;
-    const discountVes = data.discount * data.rate;
-    const taxableVes = Math.max(0, (data.subtotal - data.discount) * data.rate);
-    const taxVes = data.tax * data.rate;
-    const totalVes = data.total_ves ?? data.total * data.rate;
+    const subtotalVes = usdToVesAmount(data.subtotal, data.rate);
+    const discountVes = usdToVesAmount(data.discount, data.rate);
+    const taxableBase = Math.max(0, data.total - data.tax);
+    const taxableVes = usdToVesAmount(taxableBase, data.rate);
+    const taxVes = usdToVesAmount(data.tax, data.rate);
+    const totalVes = data.total_ves ?? usdToVesAmount(data.total, data.rate);
     const paidTodayUsd = data.payments
       .filter((p) => !p.is_financed)
       .reduce((a, p) => a + p.amount_usd, 0);
@@ -408,8 +410,8 @@ export const ThermalInvoiceDocument = forwardRef<HTMLDivElement, { data: Invoice
         <ReceiptDash />
         <div>
           {data.items.map((it, i) => {
-            const unitVes = it.unit_price * data.rate;
-            const totalLineVes = it.line_total * data.rate;
+            const unitVes = usdToVesAmount(it.unit_price, data.rate);
+            const totalLineVes = usdToVesAmount(it.line_total, data.rate);
             return (
               <div key={i} style={{ marginBottom: 5 }}>
                 <ReceiptLine alignStart>
@@ -469,7 +471,7 @@ export const ThermalInvoiceDocument = forwardRef<HTMLDivElement, { data: Invoice
               <div key={i} style={{ marginBottom: 3 }}>
                 <ReceiptLine>
                   <span>{receiptPaymentName(p)}</span>
-                  <span>{fmtReceiptVES(p.amount_usd * data.rate)}</span>
+                  <span>{fmtReceiptVES(usdToVesAmount(p.amount_usd, data.rate))}</span>
                 </ReceiptLine>
                 {p.currency === "USD" ? (
                   <div style={{ color: receiptMuted }}>{fmtReceiptUSD(p.amount)}</div>
@@ -485,11 +487,11 @@ export const ThermalInvoiceDocument = forwardRef<HTMLDivElement, { data: Invoice
           <div style={{ marginTop: 4 }}>
             <ReceiptLine>
               <span>INICIAL PAGADA</span>
-              <span>{fmtReceiptVES(paidTodayUsd * data.rate)}</span>
+              <span>{fmtReceiptVES(usdToVesAmount(paidTodayUsd, data.rate))}</span>
             </ReceiptLine>
             <ReceiptLine>
               <span>FINANCIADO</span>
-              <span>{fmtReceiptVES(financedUsd * data.rate)}</span>
+              <span>{fmtReceiptVES(usdToVesAmount(financedUsd, data.rate))}</span>
             </ReceiptLine>
           </div>
         ) : null}

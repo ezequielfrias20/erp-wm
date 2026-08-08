@@ -1,5 +1,7 @@
 /** Currency + number formatting, matching the handoff (USD en-US, VES de-DE separators). */
 
+import { roundMoney, usdToVesAmount } from "@/lib/sales/totals";
+
 export function fmtUSD(n: number | null | undefined): string {
   return "$" + Number(n ?? 0).toLocaleString("en-US", {
     minimumFractionDigits: 2,
@@ -69,12 +71,12 @@ export function fmtRelative(d: string | Date | null | undefined): string {
 
 /** USD -> Bs. usando la tasa BCV. */
 export function usdToVes(usd: number | null | undefined, rate: number): number {
-  return Number(usd ?? 0) * (rate || 0);
+  return usdToVesAmount(Number(usd ?? 0), rate);
 }
 
 /** Bs. -> USD usando la tasa BCV. */
 export function vesToUsd(ves: number | null | undefined, rate: number): number {
-  return rate ? Number(ves ?? 0) / rate : 0;
+  return rate ? roundMoney(Number(ves ?? 0) / rate) : 0;
 }
 
 /**

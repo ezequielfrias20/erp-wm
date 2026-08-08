@@ -818,9 +818,9 @@ begin
   end loop;
 
   v_discount := round(v_subtotal * coalesce(p_discount_pct, 0) / 100.0, 2);
-  v_taxbase  := v_subtotal - v_discount;
-  v_tax      := round(v_taxbase * 0.16, 2);
-  v_total    := round(v_taxbase + v_tax, 2);
+  v_total    := round(v_subtotal - v_discount, 2);
+  v_taxbase  := round(v_total / 1.16, 2);
+  v_tax      := round(v_total - v_taxbase, 2);
 
   if v_npay > 1 then
     v_method := 'Mixto';

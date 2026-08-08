@@ -51,6 +51,12 @@ import { Label } from "@/components/ui/label";
 import { fmtUSD, fmtVES, fmtByCurrency, fmtNum, initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
+  calculateTaxIncludedTotals,
+  roundCalc,
+  roundMoney,
+  usdToVesAmount,
+} from "@/lib/sales/totals";
+import {
   InvoiceDocument,
   ThermalInvoiceDocument,
   printNode,
@@ -104,8 +110,8 @@ export type CasheaDraft = {
 type CartLine = PosProduct & { qty: number };
 type DiscountMode = "percent" | "amount";
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
-const cents = (n: number) => Math.round(round2(n) * 100);
+const round2 = roundMoney;
+const cents = (n: number) => Math.round(roundMoney(n) * 100);
 const moneyPattern = /^\d+(?:\.\d{1,2})?$/;
 const formatAmountInput = (n: number) => round2(n).toFixed(2);
 const centsToMoney = (value: number) => Math.abs(value) / 100;
@@ -267,19 +273,20 @@ export function PosView({
   }, [products, cat, brand, size, color, query]);
 
   const lines = Object.values(cart);
-  const subtotal = lines.reduce((a, l) => a + l.qty * l.price, 0);
+  const subtotal = roundCalc(lines.reduce((a, l) => a + l.qty * l.price, 0));
   const rawDiscountValue = discountInput.trim() ? Number(discountInput) : 0;
   const discountValue = Number.isFinite(rawDiscountValue) ? rawDiscountValue : 0;
-  const discount =
-    discountMode === "percent"
-      ? round2((subtotal * Math.min(Math.max(discountValue, 0), 100)) / 100)
-      : round2(Math.min(Math.max(discountValue, 0), subtotal));
+  const totals = calculateTaxIncludedTotals({
+    grossSubtotal: subtotal,
+    discountPct: discountMode === "percent" ? discountValue : 0,
+    discountAmount: discountMode === "amount" ? discountValue : undefined,
+  });
+  const discount = totals.discount;
   const discountPct = subtotal > 0 ? round2((discount / subtotal) * 100) : 0;
   const discountLabel =
     discountMode === "amount" ? "Descuento ($)" : `Descuento (${discountPct}%)`;
-  const taxbase = subtotal - discount;
-  const tax = taxbase * 0.16;
-  const total = round2(taxbase + tax);
+  const tax = totals.tax;
+  const total = totals.total;
   const count = lines.reduce((a, l) => a + l.qty, 0);
 
   function add(p: PosProduct) {
@@ -328,7 +335,7 @@ export function PosView({
     if (pm.requires_reference && !singleReference.trim())
       return { error: `Ingresa el número de referencia de ${pm.name}.` };
     const amount_usd = round2(total);
-    const amount = pm.currency === "VES" ? round2(total * rate) : amount_usd;
+    const amount = pm.currency === "VES" ? usdToVesAmount(total, rate) : amount_usd;
     return {
       payments: [
         {
@@ -448,7 +455,7 @@ export function PosView({
         tax: snapshot.tax,
         total: snapshot.total,
         rate,
-        total_ves: round2(snapshot.total * rate),
+        total_ves: usdToVesAmount(snapshot.total, rate),
         payments: snapshot.payments.map((p) => ({
           ...p,
           is_financed:
@@ -673,7 +680,7 @@ export function PosView({
                           {fmtUSD(p.price)}
                         </div>
                         <div className="text-[10.5px] text-text-3">
-                          {fmtVES(p.price * rate)}
+                          {fmtVES(usdToVesAmount(p.price, rate))}
                         </div>
                       </div>
                       <span className="flex size-7 items-center justify-center rounded-full bg-brand text-white">
@@ -798,7 +805,7 @@ export function PosView({
 
         <div className="flex-none border-t border-border p-4">
           <div className="flex flex-col gap-1.5 text-[12.5px]">
-            <Row label="Subtotal" value={fmtUSD(subtotal)} />
+            <Row label="Subtotal con IVA" value={fmtUSD(subtotal)} />
             <div className="rounded-[10px] border border-border bg-surface-2 p-2.5">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-text-2">Descuento</span>
@@ -867,7 +874,7 @@ export function PosView({
                 </div>
               ) : null}
             </div>
-            <Row label="IVA (16%)" value={fmtUSD(tax)} />
+            <Row label="IVA incluido (16%)" value={fmtUSD(tax)} />
           </div>
 
           <div className="mt-2.5 flex items-end justify-between border-t border-border pt-2.5">
@@ -876,7 +883,7 @@ export function PosView({
               <div className="text-[19px] font-bold tracking-tight text-foreground">
                 {fmtUSD(total)}
               </div>
-              <div className="text-[11.5px] text-text-3">{fmtVES(total * rate)}</div>
+              <div className="text-[11.5px] text-text-3">{fmtVES(usdToVesAmount(total, rate))}</div>
             </div>
           </div>
 
@@ -944,7 +951,7 @@ export function PosView({
           {/* Conversión para método único en VES */}
           {!mixed && !cashea && selectedPm?.currency === "VES" && (
             <p className="mt-1.5 text-[11px] text-text-3">
-              A cobrar: <strong className="text-foreground">{fmtVES(total * rate)}</strong>
+              A cobrar: <strong className="text-foreground">{fmtVES(usdToVesAmount(total, rate))}</strong>
             </p>
           )}
 
@@ -1387,12 +1394,12 @@ function MixedPaymentForm({
     const pm = pmOf(r.method);
     const amt = Number(r.amount.trim()) || 0;
     if (!pm) return 0;
-    return round2(pm.currency === "VES" ? (rate ? amt / rate : 0) : amt);
+    return round2(pm.currency === "VES" ? (rate ? roundCalc(amt / rate) : 0) : amt);
   };
   const paidUsd = rows.reduce((a, r) => a + toUsd(r), 0);
   const remainingCents = cents(total) - cents(paidUsd);
   const remaining = centsToMoney(remainingCents);
-  const remainingVes = round2(remaining * rate);
+  const remainingVes = usdToVesAmount(remaining, rate);
 
   function update(i: number, patch: Partial<DraftPayLine>) {
     setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
@@ -1408,7 +1415,7 @@ function MixedPaymentForm({
     const pm = pmOf(rows[i].method);
     if (!pm) return;
     const restUsd = Math.max(0, remainingCents / 100 + toUsd(rows[i])); // ignora el monto actual de esta fila
-    const native = pm.currency === "VES" ? round2(restUsd * rate) : round2(restUsd);
+    const native = pm.currency === "VES" ? usdToVesAmount(restUsd, rate) : round2(restUsd);
     update(i, { amount: formatAmountInput(native) });
   }
 
@@ -1647,7 +1654,7 @@ function CasheaPaymentForm({
     const pm = pmOf(r.method);
     const amt = Number(r.amount.trim()) || 0;
     if (!pm) return 0;
-    return round2(pm.currency === "VES" ? (rate ? amt / rate : 0) : amt);
+    return round2(pm.currency === "VES" ? (rate ? roundCalc(amt / rate) : 0) : amt);
   };
   const initialUsd = round2(rows.reduce((a, r) => a + toUsd(r), 0));
   const financedCents = cents(total) - cents(initialUsd);
@@ -1829,7 +1836,7 @@ function CasheaPaymentForm({
               <span>{fmtUSD(financed)}</span>
               {financedCents > 0 && (
                 <span className="text-[11px] font-medium leading-tight text-text-2">
-                  {fmtVES(round2(financed * rate))}
+                  {fmtVES(usdToVesAmount(financed, rate))}
                 </span>
               )}
             </span>
@@ -1951,7 +1958,7 @@ function SaleCompletedModal({
               <div className="text-[12px] text-text-3">Total cobrado</div>
               <div className="text-[18px] font-bold text-foreground">{fmtUSD(data.total)}</div>
               <div className="text-[11.5px] text-text-3">
-                {fmtVES(data.total_ves ?? data.total * data.rate)}
+                {fmtVES(data.total_ves ?? usdToVesAmount(data.total, data.rate))}
               </div>
             </div>
           ) : null}
