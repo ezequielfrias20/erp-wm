@@ -5,6 +5,7 @@ const CHART_COLORS = ["#0EA5E9", "#6366F1", "#10B981", "#F59E0B", "#F43F5E", "#6
 const MONTHS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
 export type DashboardData = Awaited<ReturnType<typeof getDashboard>>;
+export type OperationalDashboardData = Awaited<ReturnType<typeof getOperationalDashboard>>;
 
 export async function getDashboard(branchId: string | null) {
   const supabase = await createClient();
@@ -212,5 +213,105 @@ export async function getDashboard(branchId: string | null) {
     outStock,
     orders,
     activity,
+  };
+}
+
+export async function getOperationalDashboard(branchId: string | null) {
+  const supabase = await createClient();
+  const now = new Date();
+  const dayStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  ).toISOString();
+
+  const salesQ = supabase
+    .from("sales")
+    .select("id, invoice_number, total, total_ves, status, payment_method, created_at, customer_id, branch_id")
+    .gte("created_at", dayStart)
+    .order("created_at", { ascending: false });
+  const linesQ = supabase
+    .from("v_sale_lines")
+    .select("quantity, status, created_at, branch_id")
+    .gte("created_at", dayStart);
+  const invQ = supabase.from("v_inventory").select("*");
+  const ordersQ = supabase
+    .from("purchase_orders")
+    .select("code, status, expected_date, supplier_id, branch_id")
+    .neq("status", "Recibido")
+    .order("expected_date", { ascending: true, nullsFirst: false })
+    .limit(5);
+
+  const [salesRes, linesRes, invRes, ordersRes, suppliersRes] = await Promise.all([
+    branchId ? salesQ.eq("branch_id", branchId) : salesQ,
+    branchId ? linesQ.eq("branch_id", branchId) : linesQ,
+    branchId ? invQ.eq("branch_id", branchId) : invQ,
+    branchId ? ordersQ.eq("branch_id", branchId) : ordersQ,
+    supabase.from("suppliers").select("id, name"),
+  ]);
+
+  const sales = salesRes.data ?? [];
+  const paidSales = sales.filter((s) => s.status === "Pagada");
+  const lines = (linesRes.data ?? []).filter((l) => l.status === "Pagada");
+  const inv = invRes.data ?? [];
+  const suppliers = new Map((suppliersRes.data ?? []).map((s) => [s.id, s.name]));
+  const customerIds = [
+    ...new Set(sales.map((s) => s.customer_id).filter(Boolean)),
+  ] as string[];
+  const branchIds = [...new Set(sales.map((s) => s.branch_id).filter(Boolean))];
+  const [customersRes, branchesRes] = await Promise.all([
+    customerIds.length
+      ? supabase.from("customers").select("id, name").in("id", customerIds)
+      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    branchIds.length
+      ? supabase.from("branches").select("id, city").in("id", branchIds)
+      : Promise.resolve({ data: [] as { id: string; city: string }[] }),
+  ]);
+  const customers = new Map((customersRes.data ?? []).map((c) => [c.id, c.name]));
+  const branches = new Map((branchesRes.data ?? []).map((b) => [b.id, b.city]));
+
+  const todayTotal = paidSales.reduce((a, s) => a + Number(s.total), 0);
+  const todayProducts = lines.reduce((a, l) => a + l.quantity, 0);
+  const lowStock = inv
+    .filter((r) => r.estado === "Stock bajo")
+    .slice(0, 8)
+    .map((r) => ({
+      name: r.product_name,
+      branch: r.branch_city,
+      cur: r.quantity,
+      min: r.min_stock,
+    }));
+  const outStock = inv
+    .filter((r) => r.estado === "Agotado")
+    .slice(0, 8)
+    .map((r) => ({ name: r.product_name, branch: r.branch_city }));
+
+  return {
+    kpis: {
+      todaySales: todayTotal,
+      todayTransactions: paidSales.length,
+      todayProducts,
+      lowStock: lowStock.length,
+      outStock: outStock.length,
+    },
+    todaySales: sales.slice(0, 8).map((s) => ({
+      inv: s.invoice_number,
+      customer: s.customer_id
+        ? (customers.get(s.customer_id) ?? "Cliente general")
+        : "Cliente general",
+      branch: branches.get(s.branch_id) ?? "—",
+      method: s.payment_method ?? "—",
+      total: Number(s.total),
+      ves: Number(s.total_ves ?? 0),
+      status: s.status,
+    })),
+    lowStock,
+    outStock,
+    orders: (ordersRes.data ?? []).map((o) => ({
+      code: o.code,
+      supplier: o.supplier_id ? (suppliers.get(o.supplier_id) ?? "—") : "—",
+      date: o.expected_date,
+      status: o.status,
+    })),
   };
 }
