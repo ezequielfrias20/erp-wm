@@ -1,16 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { getBranding } from "@/lib/queries/branding";
 import { buildBrandStyle } from "@/lib/brand-css";
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-});
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -38,7 +31,7 @@ export default async function RootLayout({
   const brandStyle = buildBrandStyle(primaryColor);
 
   return (
-    <html lang="es" className={`${inter.variable} h-full`} suppressHydrationWarning>
+    <html lang="es" className="h-full" suppressHydrationWarning>
       <body className="min-h-full">
         {brandStyle ? (
           <style dangerouslySetInnerHTML={{ __html: brandStyle }} />

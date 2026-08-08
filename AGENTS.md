@@ -8,13 +8,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <claude-mem-context>
 # Memory Context
 
-# [erp] recent context, 2026-08-07 7:45pm GMT-4
+# [erp] recent context, 2026-08-07 8:58pm GMT-4
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision 🚨security_alert 🔐security_note
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (18,824t read) | 683,877t work | 97% savings
+Stats: 50 obs (18,882t read) | 697,481t work | 97% savings
 
 ### Jun 22, 2026
 S735 CRM SaaS — Brand settings expansion: delete logo/favicon, dark/light logo variants, fix favicon in browser tab (Jun 22 at 9:27 PM)
@@ -31,8 +31,7 @@ S945 CRM SaaS — .env.local points to deleted/invalid Supabase project yxwedegs
 ### Jul 12, 2026
 S947 CRM SaaS — DNS ENOTFOUND for yxwedegszxtujplffaac.supabase.co, diagnosing stale .env.local Supabase credentials (Jul 12 at 3:48 PM)
 ### Aug 5, 2026
-1946 7:27p 🟣 frontend-reimpet Proyectos — saveRegistration wired with reference deduplication and ticket issuance on status change
-1947 " 🟣 frontend-reimpet Proyectos — ticket status column and QR link added to registration table UI
+1947 7:27p 🟣 frontend-reimpet Proyectos — ticket status column and QR link added to registration table UI
 1948 7:28p ✅ backend-reimpet Proyectos — ticket_hash column-level UNIQUE constraint removed in favor of partial index only
 1949 " 🔵 frontend-reimpet Proyectos — TypeScript compilation passes clean after QR ticket feature implementation
 1950 " 🔵 backend-reimpet Proyectos — live Supabase DB verified: all 8 ticket columns and both unique indexes confirmed present
@@ -83,6 +82,7 @@ S947 CRM SaaS — DNS ENOTFOUND for yxwedegszxtujplffaac.supabase.co, diagnosing
 2016 " 🔵 frontend-reimpet — ESLint flags react-hooks/set-state-in-effect errors in pagination useEffects
 2017 " 🔴 frontend-reimpet — ESLint react-hooks/set-state-in-effect errors fixed in InventarioView
 2018 7:44p 🔴 frontend-reimpet — Pagination lint errors fully resolved; build and lint both pass clean
+2021 7:45p 🟣 backend-reimpet WM ERP — Maintenance script to zero missing-stock inventory and remove IVA from prices
 
-Access 684k tokens of past work via get_observations([IDs]) or mem-search skill.
+Access 697k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>

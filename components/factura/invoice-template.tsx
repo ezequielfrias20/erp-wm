@@ -51,6 +51,7 @@ export type InvoiceData = {
   subtotal: number;
   discount: number;
   discount_pct: number;
+  discount_label?: string;
   tax: number;
   total: number; // USD
   rate: number; // tasa BCV usada
@@ -200,7 +201,7 @@ export const InvoiceDocument = forwardRef<HTMLDivElement, { data: InvoiceData }>
               <Row label="Subtotal" value={fmtUSD(data.subtotal)} />
               {data.discount > 0 ? (
                 <Row
-                  label={`Descuento (${data.discount_pct}%)`}
+                  label={data.discount_label ?? `Descuento (${data.discount_pct}%)`}
                   value={`- ${fmtUSD(data.discount)}`}
                 />
               ) : null}
@@ -434,7 +435,7 @@ export const ThermalInvoiceDocument = forwardRef<HTMLDivElement, { data: Invoice
         </ReceiptLine>
         {data.discount > 0 ? (
           <ReceiptLine>
-            <span>DESCUENTO {data.discount_pct}%</span>
+            <span>{(data.discount_label ?? `DESCUENTO ${data.discount_pct}%`).toUpperCase()}</span>
             <span>-{fmtReceiptVES(discountVes)}</span>
           </ReceiptLine>
         ) : null}

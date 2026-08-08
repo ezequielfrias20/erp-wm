@@ -30,6 +30,9 @@ export type PosDraft = {
   branchId: string | null;
   label: string;
   customer: PosDraftCustomer;
+  discountMode?: "percent" | "amount";
+  discountValue?: number;
+  /** Compatibilidad con borradores anteriores al descuento fijo en USD. */
   discountPct: number;
   lines: PosDraftLine[];
 };

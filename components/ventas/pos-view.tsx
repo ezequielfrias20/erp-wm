@@ -101,6 +101,7 @@ export type CasheaDraft = {
 };
 
 type CartLine = PosProduct & { qty: number };
+type DiscountMode = "percent" | "amount";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const cents = (n: number) => Math.round(round2(n) * 100);
@@ -161,7 +162,8 @@ export function PosView({
   const [cart, setCart] = useState<Record<string, CartLine>>({});
   const [customer, setCustomer] = useState<PosCustomer | null>(null);
   const [custOpen, setCustOpen] = useState(false);
-  const [discountPct, setDiscountPct] = useState(0);
+  const [discountMode, setDiscountMode] = useState<DiscountMode>("percent");
+  const [discountInput, setDiscountInput] = useState("");
   const [pending, startTransition] = useTransition();
 
   const realMethods = useMemo(
@@ -215,7 +217,15 @@ export function PosView({
 
   const lines = Object.values(cart);
   const subtotal = lines.reduce((a, l) => a + l.qty * l.price, 0);
-  const discount = (subtotal * discountPct) / 100;
+  const rawDiscountValue = discountInput.trim() ? Number(discountInput) : 0;
+  const discountValue = Number.isFinite(rawDiscountValue) ? rawDiscountValue : 0;
+  const discount =
+    discountMode === "percent"
+      ? round2((subtotal * Math.min(Math.max(discountValue, 0), 100)) / 100)
+      : round2(Math.min(Math.max(discountValue, 0), subtotal));
+  const discountPct = subtotal > 0 ? round2((discount / subtotal) * 100) : 0;
+  const discountLabel =
+    discountMode === "amount" ? "Descuento ($)" : `Descuento (${discountPct}%)`;
   const taxbase = subtotal - discount;
   const tax = taxbase * 0.16;
   const total = round2(taxbase + tax);
@@ -284,7 +294,8 @@ export function PosView({
   function clearTicket() {
     setCart({});
     setCustomer(null);
-    setDiscountPct(0);
+    setDiscountMode("percent");
+    setDiscountInput("");
     setMixed(null);
     setCashea(null);
     setSingleReference("");
@@ -332,6 +343,7 @@ export function PosView({
       subtotal: round2(subtotal),
       discount: round2(discount),
       discount_pct: discountPct,
+      discount_label: discountLabel,
       tax: round2(tax),
       total,
       payments,
@@ -381,6 +393,7 @@ export function PosView({
         subtotal: snapshot.subtotal,
         discount: snapshot.discount,
         discount_pct: snapshot.discount_pct,
+        discount_label: snapshot.discount_label,
         tax: snapshot.tax,
         total: snapshot.total,
         rate,
@@ -418,6 +431,8 @@ export function PosView({
           }
         : null,
       discountPct,
+      discountMode,
+      discountValue: round2(discountValue),
       lines: lines.map((l) => ({ ...l })),
     };
     saveDraft(draft);
@@ -436,7 +451,8 @@ export function PosView({
     }
     setCart(newCart);
     setCustomer(d.customer);
-    setDiscountPct(d.discountPct);
+    setDiscountMode(d.discountMode ?? "percent");
+    setDiscountInput(String(d.discountValue ?? d.discountPct ?? ""));
     setActiveDraftId(d.id);
     setMixed(null);
     setSingleReference("");
@@ -695,22 +711,73 @@ export function PosView({
         <div className="flex-none border-t border-border p-4">
           <div className="flex flex-col gap-1.5 text-[12.5px]">
             <Row label="Subtotal" value={fmtUSD(subtotal)} />
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-text-2">
-                Descuento
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={discountPct}
-                  onChange={(e) =>
-                    setDiscountPct(Math.max(0, Math.min(100, Number(e.target.value))))
-                  }
-                  className="h-6 w-12 rounded-md border border-border bg-surface-2 px-1.5 text-center text-[11.5px] outline-none"
-                />
-                %
-              </span>
-              <span className="text-foreground">−{fmtUSD(discount)}</span>
+            <div className="rounded-[10px] border border-border bg-surface-2 p-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-text-2">Descuento</span>
+                <span className="text-foreground">−{fmtUSD(discount)}</span>
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <div className="grid w-[104px] flex-none grid-cols-2 rounded-lg border border-border bg-card p-0.5">
+                  {(["percent", "amount"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => {
+                        setDiscountMode(mode);
+                        setDiscountInput("");
+                      }}
+                      className={cn(
+                        "h-7 rounded-md text-[11.5px] font-semibold transition",
+                        discountMode === mode
+                          ? "bg-brand-soft text-brand"
+                          : "text-text-2 hover:bg-[var(--hover)]",
+                      )}
+                    >
+                      {mode === "percent" ? "%" : "$"}
+                    </button>
+                  ))}
+                </div>
+                <div className="relative min-w-0 flex-1">
+                  {discountMode === "amount" ? (
+                    <span className="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-[11.5px] font-semibold text-text-3">
+                      $
+                    </span>
+                  ) : null}
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={discountInput}
+                    onChange={(e) => {
+                      const value = e.target.value.trim();
+                      if (value === "" || /^\d*(?:\.\d{0,2})?$/.test(value)) {
+                        setDiscountInput(value);
+                      }
+                    }}
+                    onBlur={() => {
+                      if (!discountInput.trim() || !Number.isFinite(Number(discountInput))) {
+                        setDiscountInput("");
+                        return;
+                      }
+                      const max = discountMode === "percent" ? 100 : subtotal;
+                      const value = Math.min(Math.max(Number(discountInput), 0), max);
+                      setDiscountInput(formatAmountInput(value));
+                    }}
+                    placeholder="0.00"
+                    className={cn(
+                      "h-8 w-full rounded-lg border border-border bg-card px-2 text-right text-[12px] font-medium text-foreground outline-none",
+                      discountMode === "amount" && "pl-5",
+                    )}
+                  />
+                </div>
+                <span className="w-8 flex-none text-[11.5px] font-semibold text-text-3">
+                  {discountMode === "percent" ? "%" : "USD"}
+                </span>
+              </div>
+              {discountMode === "amount" && discount > 0 ? (
+                <div className="mt-1.5 text-[11px] text-text-3">
+                  Equivale a {discountPct}% del subtotal.
+                </div>
+              ) : null}
             </div>
             <Row label="IVA (16%)" value={fmtUSD(tax)} />
           </div>
