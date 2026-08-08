@@ -4,6 +4,8 @@ import { getSession } from "@/lib/queries/session";
 import { getActiveBranchId } from "@/lib/branch";
 import { canView, canEdit } from "@/lib/permissions";
 import { InventarioView } from "@/components/inventario/inventario-view";
+import { fetchAllRows } from "@/lib/supabase/pagination";
+import type { VInventory } from "@/lib/database.types";
 
 export const metadata = { title: "Inventario · World Medics ERP" };
 
@@ -15,11 +17,11 @@ export default async function InventarioPage() {
   const supabase = await createClient();
   const branchId = await getActiveBranchId();
 
-  let query = supabase.from("v_inventory").select("*").order("product_name");
-  if (branchId) query = query.eq("branch_id", branchId);
-  const { data: rows } = await query;
-
-  const list = rows ?? [];
+  const list = await fetchAllRows<VInventory>((from, to) => {
+    let query = supabase.from("v_inventory").select("*");
+    if (branchId) query = query.eq("branch_id", branchId);
+    return query.order("product_name").range(from, to);
+  });
   const categories = [
     ...new Set(list.map((r) => r.category).filter(Boolean)),
   ] as string[];

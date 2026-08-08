@@ -452,6 +452,11 @@ export type VProductSummary = {
   total_stock: number;
 };
 
+export type ProductListItem = VProductSummary & {
+  sizes: string[];
+  colors: { name: string; hex: string | null }[];
+};
+
 export type VCustomerStats = {
   id: string;
   name: string;

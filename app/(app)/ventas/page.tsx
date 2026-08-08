@@ -4,6 +4,7 @@ import { getSession } from "@/lib/queries/session";
 import { getActiveBranchId } from "@/lib/branch";
 import { canView } from "@/lib/permissions";
 import { fetchBcvRate, BCV_FALLBACK } from "@/lib/bcv";
+import { fetchAllRows } from "@/lib/supabase/pagination";
 import { PosView, type PosProduct } from "@/components/ventas/pos-view";
 
 export const metadata = { title: "Punto de venta · World Medics ERP" };
@@ -29,20 +30,37 @@ export default async function VentasPage() {
     branchId = first?.id ?? null;
   }
 
-  const [branchRes, invRes, customersRes, pmRes, settingsRes, bcv] = await Promise.all([
+  type PosInventoryRow = {
+    variant_id: string;
+    sku: string;
+    product_name: string;
+    category: string | null;
+    brand: string | null;
+    price: number;
+    cost: number;
+    color: string | null;
+    color_hex: string | null;
+    size: string | null;
+    quantity: number;
+  };
+
+  const [branchRes, invRows, customersRes, pmRes, settingsRes, bcv] = await Promise.all([
     branchId
       ? supabase.from("branches").select("id, city").eq("id", branchId).maybeSingle()
       : Promise.resolve({ data: null }),
     branchId
-      ? supabase
-          .from("v_inventory")
-          .select(
-            "variant_id, sku, product_name, category, price, cost, color, color_hex, size, quantity",
-          )
-          .eq("branch_id", branchId)
-          .gt("quantity", 0)
-          .order("product_name")
-      : Promise.resolve({ data: [] }),
+      ? fetchAllRows<PosInventoryRow>((from, to) =>
+          supabase
+            .from("v_inventory")
+            .select(
+              "variant_id, sku, product_name, category, brand, price, cost, color, color_hex, size, quantity",
+            )
+            .eq("branch_id", branchId)
+            .gt("quantity", 0)
+            .order("product_name")
+            .range(from, to),
+        )
+      : Promise.resolve([]),
     supabase
       .from("customers")
       .select("id, name, document, segment")
@@ -64,11 +82,12 @@ export default async function VentasPage() {
     })),
   ]);
 
-  const products: PosProduct[] = (invRes.data ?? []).map((r) => ({
+  const products: PosProduct[] = invRows.map((r) => ({
     variant_id: r.variant_id,
     sku: r.sku,
     product_name: r.product_name,
     category: r.category,
+    brand: r.brand,
     price: r.price,
     cost: r.cost,
     color: r.color,

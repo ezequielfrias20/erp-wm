@@ -1,20 +1,63 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/supabase/pagination";
 import type {
   Brand,
   Category,
   Product,
+  ProductListItem,
   ProductVariant,
   VProductSummary,
 } from "@/lib/database.types";
 
-export async function listProducts(): Promise<VProductSummary[]> {
+export async function listProducts(): Promise<ProductListItem[]> {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("v_product_summary")
-    .select("*")
-    .order("name");
-  return data ?? [];
+  const [products, variants] = await Promise.all([
+    fetchAllRows<VProductSummary>((from, to) =>
+      supabase
+        .from("v_product_summary")
+        .select("*")
+        .order("name")
+        .range(from, to),
+    ),
+    fetchAllRows<{
+      product_id: string;
+      size: string | null;
+      color: string | null;
+      color_hex: string | null;
+    }>((from, to) =>
+      supabase
+        .from("product_variants")
+        .select("product_id, size, color, color_hex")
+        .order("product_id")
+        .range(from, to),
+    ),
+  ]);
+
+  const sizesByProduct = new Map<string, Set<string>>();
+  const colorsByProduct = new Map<string, Map<string, string | null>>();
+
+  for (const variant of variants) {
+    if (variant.size) {
+      const sizes = sizesByProduct.get(variant.product_id) ?? new Set<string>();
+      sizes.add(variant.size);
+      sizesByProduct.set(variant.product_id, sizes);
+    }
+    if (variant.color) {
+      const colors =
+        colorsByProduct.get(variant.product_id) ?? new Map<string, string | null>();
+      colors.set(variant.color, variant.color_hex);
+      colorsByProduct.set(variant.product_id, colors);
+    }
+  }
+
+  return products.map((product) => ({
+    ...product,
+    sizes: [...(sizesByProduct.get(product.id) ?? [])].sort(),
+    colors: [...(colorsByProduct.get(product.id) ?? [])]
+      .map(([name, hex]) => ({ name, hex }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  }));
 }
 
 export async function getCatalogRefs(): Promise<{

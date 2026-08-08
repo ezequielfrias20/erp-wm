@@ -15,6 +15,7 @@ export type PosDraftLine = {
   sku: string;
   product_name: string;
   category: string | null;
+  brand?: string | null;
   price: number;
   cost: number;
   color?: string | null;

@@ -4,7 +4,7 @@ import { useMemo, useState, useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useFormStatus } from "react-dom";
-import { Plus, Search, Loader2, ChevronRight } from "lucide-react";
+import { Plus, Search, Loader2, ChevronRight, X } from "lucide-react";
 import { saveProduct, type FormState } from "@/app/(app)/productos/actions";
 import {
   Dialog,
@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/select";
 import { fmtUSD, fmtNum, initials } from "@/lib/format";
 import { ProductsBulkBar } from "@/components/productos/bulk-bar";
-import type { VProductSummary } from "@/lib/database.types";
+import type { ProductListItem } from "@/lib/database.types";
 
 type Ref = { id: string; name: string };
 
@@ -39,7 +39,7 @@ export function ProductsView({
   colors,
   canEdit,
 }: {
-  products: VProductSummary[];
+  products: ProductListItem[];
   categories: Ref[];
   brands: Ref[];
   sizes: { id: string; label: string }[];
@@ -47,20 +47,44 @@ export function ProductsView({
   canEdit: boolean;
 }) {
   const [query, setQuery] = useState("");
+  const [cat, setCat] = useState("");
+  const [brand, setBrand] = useState("");
+  const [size, setSize] = useState("");
+  const [color, setColor] = useState("");
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
+  const filterOptions = useMemo(
+    () => ({
+      categories: uniqueSorted(products.map((p) => p.category)),
+      brands: uniqueSorted(products.map((p) => p.brand)),
+      sizes: uniqueSorted(products.flatMap((p) => p.sizes)),
+      colors: uniqueSorted(products.flatMap((p) => p.colors.map((c) => c.name))),
+    }),
+    [products],
+  );
+  const hasFilters = Boolean(query.trim() || cat || brand || size || color);
+
   const filtered = useMemo(() => {
+    let list = products;
+    if (cat) list = list.filter((p) => p.category === cat);
+    if (brand) list = list.filter((p) => p.brand === brand);
+    if (size) list = list.filter((p) => p.sizes.includes(size));
+    if (color) list = list.filter((p) => p.colors.some((c) => c.name === color));
     const q = query.toLowerCase().trim();
-    if (!q) return products;
-    return products.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        (p.brand ?? "").toLowerCase().includes(q) ||
-        (p.category ?? "").toLowerCase().includes(q),
-    );
-  }, [products, query]);
+    if (q) {
+      list = list.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          (p.brand ?? "").toLowerCase().includes(q) ||
+          (p.category ?? "").toLowerCase().includes(q) ||
+          p.sizes.some((s) => s.toLowerCase().includes(q)) ||
+          p.colors.some((c) => c.name.toLowerCase().includes(q)),
+      );
+    }
+    return list;
+  }, [products, cat, brand, size, color, query]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -77,7 +101,7 @@ export function ProductsView({
             Productos
           </h1>
           <p className="mt-1 text-[13.5px] text-text-2">
-            {products.length} productos en catálogo
+            {fmtNum(filtered.length)} de {fmtNum(products.length)} productos en catálogo
           </p>
         </div>
         {canEdit && (
@@ -101,8 +125,8 @@ export function ProductsView({
       </div>
 
       <div className="fadeup overflow-hidden rounded-2xl border border-border bg-card shadow-card-sm">
-        <div className="border-b border-border p-3">
-          <div className="relative max-w-sm sm:max-w-sm">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
+          <div className="relative min-w-0 flex-1 sm:min-w-[260px]">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-[17px] -translate-y-1/2 text-text-3" />
             <input
               value={query}
@@ -114,15 +138,68 @@ export function ProductsView({
               className="h-11 w-full rounded-[10px] border border-border bg-surface-2 pr-3 pl-[37px] text-[16px] text-foreground outline-none sm:h-[38px] sm:text-[13px]"
             />
           </div>
+          <FilterSelect
+            value={cat}
+            onChange={(value) => {
+              setCat(value);
+              setPage(1);
+            }}
+            placeholder="Categoría"
+            options={filterOptions.categories}
+          />
+          <FilterSelect
+            value={brand}
+            onChange={(value) => {
+              setBrand(value);
+              setPage(1);
+            }}
+            placeholder="Marca"
+            options={filterOptions.brands}
+          />
+          <FilterSelect
+            value={size}
+            onChange={(value) => {
+              setSize(value);
+              setPage(1);
+            }}
+            placeholder="Talla"
+            options={filterOptions.sizes}
+          />
+          <FilterSelect
+            value={color}
+            onChange={(value) => {
+              setColor(value);
+              setPage(1);
+            }}
+            placeholder="Color"
+            options={filterOptions.colors}
+          />
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                setCat("");
+                setBrand("");
+                setSize("");
+                setColor("");
+                setPage(1);
+              }}
+              className="iconbtn flex h-11 w-full items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-3 text-[13px] font-medium text-text-2 sm:h-[38px] sm:w-auto"
+            >
+              <X className="size-4" /> Limpiar
+            </button>
+          )}
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-[820px] w-full table-fixed border-collapse">
+          <table className="min-w-[1040px] w-full table-fixed border-collapse">
             <thead className="border-b border-border text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
               <tr>
-                <th className="w-[32%] px-[22px] py-2 text-left">Producto</th>
-                <th className="w-[16%] px-3 py-2 text-left">Categoría</th>
-                <th className="w-[14%] px-3 py-2 text-left">Marca</th>
+                <th className="w-[28%] px-[22px] py-2 text-left">Producto</th>
+                <th className="w-[14%] px-3 py-2 text-left">Categoría</th>
+                <th className="w-[12%] px-3 py-2 text-left">Marca</th>
+                <th className="w-[18%] px-3 py-2 text-left">Variantes</th>
                 <th className="w-[14%] px-3 py-2 text-right">Precio</th>
                 <th className="w-[10%] px-3 py-2 text-right">Stock</th>
                 <th className="w-[10%] px-3 py-2 text-right">Estado</th>
@@ -152,6 +229,9 @@ export function ProductsView({
                   </td>
                   <td className="px-3 py-3 text-[12px] text-text-2">
                     <span className="block truncate">{p.brand ?? "—"}</span>
+                  </td>
+                  <td className="px-3 py-3">
+                    <VariantSummary sizes={p.sizes} colors={p.colors} />
                   </td>
                   <td className="px-3 py-3 text-right text-[12.5px] font-medium text-foreground">
                     {p.min_price === p.max_price
@@ -186,7 +266,7 @@ export function ProductsView({
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-[22px] py-10 text-center text-[13px] text-text-3">
+                  <td colSpan={8} className="px-[22px] py-10 text-center text-[13px] text-text-3">
                     No hay productos que coincidan.
                   </td>
                 </tr>
@@ -214,6 +294,88 @@ export function ProductsView({
           categories={categories}
           brands={brands}
         />
+      )}
+    </div>
+  );
+}
+
+function uniqueSorted(values: Array<string | null | undefined>) {
+  return [...new Set(values.filter(Boolean) as string[])].sort((a, b) =>
+    a.localeCompare(b),
+  );
+}
+
+function FilterSelect({
+  value,
+  onChange,
+  placeholder,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  options: string[];
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="h-11 w-full rounded-[10px] border border-border bg-card px-3 text-[16px] text-foreground outline-none sm:h-[38px] sm:w-auto sm:text-[12.5px]"
+    >
+      <option value="">{placeholder}: todos</option>
+      {options.map((o) => (
+        <option key={o} value={o}>
+          {o}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function VariantSummary({
+  sizes,
+  colors,
+}: {
+  sizes: string[];
+  colors: { name: string; hex: string | null }[];
+}) {
+  const shownSizes = sizes.slice(0, 3);
+  const shownColors = colors.slice(0, 2);
+  const hiddenCount =
+    Math.max(0, sizes.length - shownSizes.length) +
+    Math.max(0, colors.length - shownColors.length);
+
+  if (!shownSizes.length && !shownColors.length) {
+    return <span className="text-[12px] text-text-3">—</span>;
+  }
+
+  return (
+    <div className="flex min-w-0 flex-wrap gap-1">
+      {shownSizes.map((item) => (
+        <span
+          key={`size-${item}`}
+          className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[10.5px] font-semibold text-text-2"
+        >
+          {item}
+        </span>
+      ))}
+      {shownColors.map((item) => (
+        <span
+          key={`color-${item.name}`}
+          className="inline-flex max-w-[96px] items-center gap-1 rounded-md bg-surface-2 px-1.5 py-0.5 text-[10.5px] font-medium text-text-2"
+        >
+          <span
+            className="size-2 flex-none rounded-full border border-black/10"
+            style={{ backgroundColor: item.hex ?? "#CBD5E1" }}
+            aria-hidden="true"
+          />
+          <span className="truncate">{item.name}</span>
+        </span>
+      ))}
+      {hiddenCount > 0 && (
+        <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[10.5px] font-medium text-text-3">
+          +{hiddenCount}
+        </span>
       )}
     </div>
   );

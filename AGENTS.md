@@ -8,13 +8,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <claude-mem-context>
 # Memory Context
 
-# [erp] recent context, 2026-08-07 8:58pm GMT-4
+# [erp] recent context, 2026-08-08 10:54am GMT-4
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision 🚨security_alert 🔐security_note
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (18,882t read) | 697,481t work | 97% savings
+Stats: 50 obs (18,341t read) | 558,870t work | 97% savings
 
 ### Jun 22, 2026
 S735 CRM SaaS — Brand settings expansion: delete logo/favicon, dark/light logo variants, fix favicon in browser tab (Jun 22 at 9:27 PM)
@@ -30,28 +30,6 @@ S913 CRM SaaS (WM ERP / FR Medic Group) — connect to Supabase DB via .env.loca
 S945 CRM SaaS — .env.local points to deleted/invalid Supabase project yxwedegszxtujplffaac (Jul 9 at 3:14 PM)
 ### Jul 12, 2026
 S947 CRM SaaS — DNS ENOTFOUND for yxwedegszxtujplffaac.supabase.co, diagnosing stale .env.local Supabase credentials (Jul 12 at 3:48 PM)
-### Aug 5, 2026
-1947 7:27p 🟣 frontend-reimpet Proyectos — ticket status column and QR link added to registration table UI
-1948 7:28p ✅ backend-reimpet Proyectos — ticket_hash column-level UNIQUE constraint removed in favor of partial index only
-1949 " 🔵 frontend-reimpet Proyectos — TypeScript compilation passes clean after QR ticket feature implementation
-1950 " 🔵 backend-reimpet Proyectos — live Supabase DB verified: all 8 ticket columns and both unique indexes confirmed present
-1951 7:29p 🔵 frontend-reimpet + backend-reimpet Proyectos — full uncommitted git state captured before commit
-### Aug 6, 2026
-1953 10:17a ⚖️ frontend-reimpet Proyectos — checkout form fields Universidad/Institución and Perfil to be removed
-1954 " 🔵 conferences checkout — "Universidad o institución" and "Perfil" fields located across three files
-1955 " 🔵 conferences checkout — complete field-removal scope confirmed across 6 files
-1956 10:18a 🔵 backend-reimpet conferences — full perfil/institucion removal scope includes ERP lib and route
-1957 " ⚖️ frontend-reimpet Proyectos — Remove Universidad/Institución and Perfil fields from conference checkout
-1958 10:19a ⚖️ frontend-reimpet Proyectos — Remove Universidad/Institución and Perfil fields from conference checkout form
-1959 " ⚖️ frontend-reimpet Proyectos — Remove Universidad/Institución and Perfil fields from conference checkout form
-1960 10:35a 🔵 conferences + erp — Field removal scope clarified by reading current file state
-1961 " 🔵 conferences + erp — Full integration architecture mapped for conference registration
-1962 10:41a 🔵 backend-reimpet Proyectos — CONFERENCES_PROJECT_ID retrieval via Supabase REST API failed locally
-1963 10:42a 🔵 backend-reimpet Proyectos — CONFERENCES_PROJECT_ID retrieval method: psql via SUPABASE_DB_URL
-1964 " 🔵 backend-reimpet Proyectos — SUPABASE_DB_URL password has unencoded special chars, breaking psql URI parsing
-1965 " 🔵 backend-reimpet Proyectos — CONFERENCES_PROJECT_ID not stored in codebase; must be fetched from Supabase dashboard
-1966 " 🔵 frontend-reimpet + backend-reimpet Proyectos — conferences project is "10.ª CIM" with CIM10 order code prefix, no UUID in frontend repo
-1967 10:48a 🔵 backend-reimpet Proyectos — CONFERENCES_PROJECT_ID retrieved: 7ef7b37a-760a-4a5c-86d7-0d28dd32d77c
 ### Aug 7, 2026
 1987 7:11p 🔵 backend-reimpet WM ERP — Supabase DB schema and current data state confirmed
 1988 " 🔵 backend-reimpet WM ERP — product naming convention and branch UUIDs confirmed
@@ -83,6 +61,27 @@ S947 CRM SaaS — DNS ENOTFOUND for yxwedegszxtujplffaac.supabase.co, diagnosing
 2017 " 🔴 frontend-reimpet — ESLint react-hooks/set-state-in-effect errors fixed in InventarioView
 2018 7:44p 🔴 frontend-reimpet — Pagination lint errors fully resolved; build and lint both pass clean
 2021 7:45p 🟣 backend-reimpet WM ERP — Maintenance script to zero missing-stock inventory and remove IVA from prices
+### Aug 8, 2026
+2022 10:46a ⚖️ frontend-reimpet Ventas/Inventario/Productos — filter and branch inconsistency fix scoped
+2023 " ⚖️ frontend-reimpet Ventas/Inventario/Productos — Filter and Branch Consistency Requirements Scoped
+2025 10:47a ⚖️ frontend-reimpet Ventas/Inventario/Productos — filter and branch-visibility bug scope defined
+2026 " ⚖️ frontend-reimpet Ventas/Inventario/Productos — filter and branch-visibility bug scope defined
+2027 10:48a ⚖️ frontend-reimpet Ventas/Inventario/Productos — filter and branch-visibility bug scope defined
+2028 " ⚖️ frontend-reimpet Ventas/Inventario/Productos — filter and branch-visibility bug scope defined
+2029 " 🟣 frontend-reimpet Ventas — inventory fetch migrated to fetchAllRows with brand field added
+2031 " 🟣 frontend-reimpet Productos — listProducts enriched with per-product sizes and colors arrays
+2032 10:49a 🟣 frontend-reimpet Productos — attribute filter UI added with Categoría, Marca, Talla, Color dropdowns
+2033 10:50a ⚖️ frontend-reimpet Ventas/Inventario/Productos — filter and branch-visibility bug scope defined
+2034 " ⚖️ frontend-reimpet Ventas/Inventario/Productos — filter and branch-visibility bug scope defined
+2035 " 🟣 frontend-reimpet Ventas POS — brand/size/color attribute filters added to pos-view
+2036 10:51a 🟣 frontend-reimpet — ProductListItem type and brand field propagated across type system
+2037 " 🔄 frontend-reimpet — ProductListItem type moved to database.types.ts as canonical source
+2038 " 🔵 frontend-reimpet — Turbopack FATAL panic on npm run build (OS port-binding permission error)
+2039 10:53a 🟣 frontend-reimpet Ventas/Inventario/Productos — attribute filters and branch-visibility fix scoped
+2040 " ⚖️ frontend-reimpet Ventas/Inventario/Productos — filter and branch-visibility bug scope defined
+2041 " 🟣 frontend-reimpet — talla/color/marca/categoría filters added to Ventas, Inventario, and Productos modules
+2042 " 🔴 frontend-reimpet Inventario "Todas las sucursales" — missing products fixed by switching to paginated fetchAllRows()
+2043 10:54a ✅ frontend-reimpet — filter + pagination changes pass TypeScript check and production build cleanly
 
-Access 697k tokens of past work via get_observations([IDs]) or mem-search skill.
+Access 559k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>

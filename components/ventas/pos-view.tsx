@@ -48,7 +48,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { fmtUSD, fmtVES, fmtByCurrency, initials } from "@/lib/format";
+import { fmtUSD, fmtVES, fmtByCurrency, fmtNum, initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   InvoiceDocument,
@@ -72,6 +72,7 @@ export type PosProduct = {
   sku: string;
   product_name: string;
   category: string | null;
+  brand: string | null;
   price: number;
   cost: number;
   color: string | null;
@@ -140,6 +141,39 @@ function variantDescription(p: Pick<PosProduct, "product_name" | "color" | "size
   return attrs.length ? `${p.product_name} (${attrs.join(", ")})` : p.product_name;
 }
 
+function uniqueSorted(values: Array<string | null | undefined>) {
+  return [...new Set(values.filter(Boolean) as string[])].sort((a, b) =>
+    a.localeCompare(b),
+  );
+}
+
+function FilterSelect({
+  value,
+  onChange,
+  placeholder,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  options: string[];
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="h-11 w-full rounded-[10px] border border-border bg-card px-3 text-[16px] text-foreground outline-none sm:h-[38px] sm:w-auto sm:text-[12.5px]"
+    >
+      <option value="">{placeholder}: todos</option>
+      {options.map((o) => (
+        <option key={o} value={o}>
+          {o}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export function PosView({
   products,
   customers,
@@ -159,6 +193,9 @@ export function PosView({
 }) {
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("Todos");
+  const [brand, setBrand] = useState("");
+  const [size, setSize] = useState("");
+  const [color, setColor] = useState("");
   const [cart, setCart] = useState<Record<string, CartLine>>({});
   const [customer, setCustomer] = useState<PosCustomer | null>(null);
   const [custOpen, setCustOpen] = useState(false);
@@ -199,21 +236,35 @@ export function PosView({
     () => ["Todos", ...new Set(products.map((p) => p.category).filter(Boolean) as string[])],
     [products],
   );
+  const filterOptions = useMemo(
+    () => ({
+      brands: uniqueSorted(products.map((p) => p.brand)),
+      sizes: uniqueSorted(products.map((p) => p.size)),
+      colors: uniqueSorted(products.map((p) => p.color)),
+    }),
+    [products],
+  );
+  const hasProductFilters = Boolean(query.trim() || cat !== "Todos" || brand || size || color);
 
   const filtered = useMemo(() => {
     let list = products;
     if (cat !== "Todos") list = list.filter((p) => p.category === cat);
+    if (brand) list = list.filter((p) => p.brand === brand);
+    if (size) list = list.filter((p) => p.size === size);
+    if (color) list = list.filter((p) => p.color === color);
     const q = query.toLowerCase().trim();
     if (q)
       list = list.filter(
         (p) =>
           p.product_name.toLowerCase().includes(q) ||
           p.sku.toLowerCase().includes(q) ||
+          (p.category?.toLowerCase().includes(q) ?? false) ||
+          (p.brand?.toLowerCase().includes(q) ?? false) ||
           (p.color?.toLowerCase().includes(q) ?? false) ||
           (p.size?.toLowerCase().includes(q) ?? false),
       );
     return list;
-  }, [products, cat, query]);
+  }, [products, cat, brand, size, color, query]);
 
   const lines = Object.values(cart);
   const subtotal = lines.reduce((a, l) => a + l.qty * l.price, 0);
@@ -445,6 +496,7 @@ export function PosView({
     for (const l of d.lines) {
       newCart[l.variant_id] = {
         ...l,
+        brand: l.brand ?? null,
         color: l.color ?? null,
         size: l.size ?? null,
       };
@@ -479,7 +531,7 @@ export function PosView({
                 Punto de venta
               </h1>
               <p className="mt-0.5 text-[12.5px] text-text-2">
-                Sucursal {branch?.city ?? "—"} · Caja 01 · tasa {fmtVES(rate)}
+                Sucursal {branch?.city ?? "—"} · {fmtNum(filtered.length)} productos · tasa {fmtVES(rate)}
               </p>
             </div>
             <button
@@ -521,6 +573,42 @@ export function PosView({
               </button>
             ))}
           </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <FilterSelect
+              value={brand}
+              onChange={setBrand}
+              placeholder="Marca"
+              options={filterOptions.brands}
+            />
+            <FilterSelect
+              value={size}
+              onChange={setSize}
+              placeholder="Talla"
+              options={filterOptions.sizes}
+            />
+            <FilterSelect
+              value={color}
+              onChange={setColor}
+              placeholder="Color"
+              options={filterOptions.colors}
+            />
+            {hasProductFilters && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  setCat("Todos");
+                  setBrand("");
+                  setSize("");
+                  setColor("");
+                }}
+                className="iconbtn flex h-11 w-full items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-3 text-[13px] font-medium text-text-2 sm:h-[38px] sm:w-auto"
+              >
+                <X className="size-4" /> Limpiar
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="min-h-0 flex-1 px-4 py-4 sm:px-5 lg:overflow-y-auto lg:px-[30px]">
@@ -548,7 +636,7 @@ export function PosView({
                   <div className="flex flex-1 flex-col gap-2.5 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 text-[10.5px] font-medium tracking-wide text-text-3 uppercase">
-                        {p.category ?? "Sin categoría"}
+                        {[p.category, p.brand].filter(Boolean).join(" · ") || "Sin categoría"}
                       </div>
                       <div className="flex-none text-[10.5px] font-medium text-text-3">
                         {p.stock} disp.

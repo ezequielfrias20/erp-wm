@@ -15,6 +15,7 @@ import {
   Boxes,
   Pencil,
   Loader2,
+  X,
 } from "lucide-react";
 import {
   updateStock,
@@ -84,6 +85,8 @@ export function InventarioView({
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("");
   const [brand, setBrand] = useState("");
+  const [size, setSize] = useState("");
+  const [color, setColor] = useState("");
   const [editing, setEditing] = useState<VInventory | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -99,6 +102,15 @@ export function InventarioView({
     [rows],
   );
 
+  const filterOptions = useMemo(
+    () => ({
+      sizes: uniqueSorted(rows.map((r) => r.size)),
+      colors: uniqueSorted(rows.map((r) => r.color)),
+    }),
+    [rows],
+  );
+  const hasFilters = Boolean(query.trim() || cat || brand || size || color);
+
   const filtered = useMemo(() => {
     let list = rows;
     if (tab === "Stock bajo") list = list.filter((r) => r.estado === "Stock bajo");
@@ -109,18 +121,28 @@ export function InventarioView({
       list = [...list].sort((a, b) => b.quantity - a.quantity);
     if (cat) list = list.filter((r) => r.category === cat);
     if (brand) list = list.filter((r) => r.brand === brand);
+    if (size) list = list.filter((r) => r.size === size);
+    if (color) list = list.filter((r) => r.color === color);
     const q = query.toLowerCase().trim();
     if (q)
       list = list.filter(
         (r) =>
           r.product_name.toLowerCase().includes(q) ||
-          r.sku.toLowerCase().includes(q),
+          r.sku.toLowerCase().includes(q) ||
+          (r.category?.toLowerCase().includes(q) ?? false) ||
+          (r.brand?.toLowerCase().includes(q) ?? false) ||
+          (r.size?.toLowerCase().includes(q) ?? false) ||
+          (r.color?.toLowerCase().includes(q) ?? false),
       );
     return list;
-  }, [rows, tab, cat, brand, query]);
+  }, [rows, tab, cat, brand, size, color, query]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
+  const filteredValue = useMemo(
+    () => filtered.reduce((a, r) => a + Number(r.stock_value), 0),
+    [filtered],
+  );
   const paginated = useMemo(
     () => filtered.slice((safePage - 1) * pageSize, safePage * pageSize),
     [filtered, safePage, pageSize],
@@ -193,8 +215,8 @@ export function InventarioView({
             Inventario
           </h1>
           <p className="mt-1 text-[13.5px] text-text-2">
-            {fmtNum(kpis.skus)} SKUs · {branchLabel} · valor total{" "}
-            <strong className="text-foreground">{fmtUSD(kpis.value)}</strong>
+            {fmtNum(filtered.length)} de {fmtNum(kpis.skus)} SKUs · {branchLabel} · valor visible{" "}
+            <strong className="text-foreground">{fmtUSD(filteredValue)}</strong>
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
@@ -290,6 +312,40 @@ export function InventarioView({
             placeholder="Marca"
             options={brands}
           />
+          <FilterSelect
+            value={size}
+            onChange={(value) => {
+              setSize(value);
+              setPage(1);
+            }}
+            placeholder="Talla"
+            options={filterOptions.sizes}
+          />
+          <FilterSelect
+            value={color}
+            onChange={(value) => {
+              setColor(value);
+              setPage(1);
+            }}
+            placeholder="Color"
+            options={filterOptions.colors}
+          />
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                setCat("");
+                setBrand("");
+                setSize("");
+                setColor("");
+                setPage(1);
+              }}
+              className="iconbtn flex h-11 w-full items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-3 text-[13px] font-medium text-text-2 sm:h-[38px] sm:w-auto"
+            >
+              <X className="size-4" /> Limpiar
+            </button>
+          )}
         </div>
 
         <div className="overflow-x-auto">
@@ -435,6 +491,12 @@ export function InventarioView({
 /** Extrae el SKU de un valor que puede venir como "SKU — Producto Talla". */
 function cleanSku(v: string): string {
   return String(v ?? "").split("—")[0].trim();
+}
+
+function uniqueSorted(values: Array<string | null | undefined>) {
+  return [...new Set(values.filter(Boolean) as string[])].sort((a, b) =>
+    a.localeCompare(b),
+  );
 }
 
 function parseInventoryCsv(text: string): ImportRow[] {
