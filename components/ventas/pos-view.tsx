@@ -93,6 +93,10 @@ export type PosCustomer = {
   document: string | null;
   segment: string;
 };
+export type PosSeller = {
+  id: string;
+  full_name: string;
+};
 export type PaymentMethodOption = {
   name: string;
   currency: "USD" | "VES";
@@ -186,6 +190,7 @@ export function PosView({
   customers,
   paymentMethods,
   branch,
+  sellers,
   rate,
   company,
   cashier,
@@ -194,6 +199,7 @@ export function PosView({
   customers: PosCustomer[];
   paymentMethods: PaymentMethodOption[];
   branch: { id: string; city: string } | null;
+  sellers: PosSeller[];
   rate: number;
   company: InvoiceCompany;
   cashier: string | null;
@@ -206,6 +212,8 @@ export function PosView({
   const [cart, setCart] = useState<Record<string, CartLine>>({});
   const [customer, setCustomer] = useState<PosCustomer | null>(null);
   const [custOpen, setCustOpen] = useState(false);
+  const [sellerId, setSellerId] = useState("");
+  const [sellerCode, setSellerCode] = useState("");
   const [discountMode, setDiscountMode] = useState<DiscountMode>("percent");
   const [discountInput, setDiscountInput] = useState("");
   const [pending, startTransition] = useTransition();
@@ -275,6 +283,7 @@ export function PosView({
   }, [products, cat, brand, size, color, query]);
 
   const lines = Object.values(cart);
+  const selectedSeller = sellers.find((s) => s.id === sellerId) ?? null;
   const subtotal = roundCalc(lines.reduce((a, l) => a + l.qty * l.price, 0));
   const rawDiscountValue = discountInput.trim() ? Number(discountInput) : 0;
   const discountValue = Number.isFinite(rawDiscountValue) ? rawDiscountValue : 0;
@@ -354,6 +363,8 @@ export function PosView({
   function clearTicket() {
     setCart({});
     setCustomer(null);
+    setSellerId("");
+    setSellerCode("");
     setDiscountMode("percent");
     setDiscountInput("");
     setMixed(null);
@@ -369,6 +380,8 @@ export function PosView({
       setCustOpen(true);
       return toast.error("Selecciona un cliente para cobrar la venta.");
     }
+    if (!sellerId) return toast.error("Selecciona el vendedor de la venta.");
+    if (!sellerCode.trim()) return toast.error("Ingresa el código del vendedor.");
     const selectedCustomer = customer;
     const resolved = resolvePayments();
     if (resolved.error || !resolved.payments) return toast.error(resolved.error);
@@ -414,6 +427,8 @@ export function PosView({
       const res = await checkout({
         branch_id: branch.id,
         customer_id: selectedCustomer.id,
+        seller_id: sellerId,
+        seller_code: sellerCode,
         payments,
         discount_pct: discountPct,
         rate,
@@ -733,6 +748,54 @@ export function PosView({
           </div>
           <span className="text-[12px] font-medium text-brand">Cambiar</span>
         </button>
+
+        <div className="border-b border-border px-4 py-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div className="text-[11px] font-semibold tracking-wide text-text-3 uppercase">
+              Vendedor
+            </div>
+            {selectedSeller ? (
+              <span className="truncate text-[11.5px] font-medium text-text-2">
+                {selectedSeller.full_name}
+              </span>
+            ) : null}
+          </div>
+          <div className="grid grid-cols-[1fr_112px] gap-2">
+            <Select
+              value={sellerId}
+              onValueChange={(value) => {
+                setSellerId(value);
+                setSellerCode("");
+              }}
+              disabled={sellers.length === 0}
+            >
+              <SelectTrigger className="h-10 min-w-0">
+                <SelectValue placeholder={sellers.length ? "Seleccionar" : "Sin vendedores"} />
+              </SelectTrigger>
+              <SelectContent>
+                {sellers.map((seller) => (
+                  <SelectItem key={seller.id} value={seller.id}>
+                    {seller.full_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              type="password"
+              inputMode="numeric"
+              value={sellerCode}
+              onChange={(e) => {
+                const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+                setSellerCode(value);
+              }}
+              placeholder="Código"
+              className="h-10 text-center font-semibold tracking-wide"
+              maxLength={4}
+              autoComplete="off"
+              disabled={!sellerId}
+            />
+          </div>
+        </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {lines.length === 0 ? (

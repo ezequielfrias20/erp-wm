@@ -72,6 +72,7 @@ function ReportPDFDoc({
   branchLabel: string;
 }) {
   const { kpis, monthly, byPayment, sales, range, rate, cashea } = data;
+  const commissionTotal = data.commissions.reduce((sum, row) => sum + row.commission_total, 0);
   return (
     <Document>
       <Page size="A4" style={s.page}>
@@ -207,6 +208,40 @@ function ReportPDFDoc({
           </>
         ) : null}
 
+        <Text style={s.sectionTitle}>Comisiones vendedores</Text>
+        <View style={s.trow}>
+          <Td w="50%">Total comisiones ({Math.round(data.commissionRate * 100)}%)</Td>
+          <Td w="50%" right>
+            {fmtUSD(commissionTotal)}
+          </Td>
+        </View>
+        <View style={s.trow}>
+          <Th w="42%">Vendedor</Th>
+          <Th w="16%" right>
+            Ventas
+          </Th>
+          <Th w="21%" right>
+            Vendido
+          </Th>
+          <Th w="21%" right>
+            Comisión
+          </Th>
+        </View>
+        {data.commissions.map((row) => (
+          <View style={s.trow} key={row.seller_id}>
+            <Td w="42%">{row.seller}</Td>
+            <Td w="16%" right>
+              {row.sales_count}
+            </Td>
+            <Td w="21%" right>
+              {fmtUSD(row.sales_total)}
+            </Td>
+            <Td w="21%" right>
+              {fmtUSD(row.commission_total)}
+            </Td>
+          </View>
+        ))}
+
         <Text style={s.sectionTitle}>Desglose mensual</Text>
         <View style={s.trow}>
           <Th w="28%">Mes</Th>
@@ -243,22 +278,28 @@ function ReportPDFDoc({
 
         <Text style={s.sectionTitle}>Ventas del período ({sales.length})</Text>
         <View style={s.trow}>
-          <Th w="16%">Factura</Th>
-          <Th w="22%">Fecha</Th>
-          <Th w="26%">Cliente</Th>
-          <Th w="18%">Método</Th>
-          <Th w="18%" right>
+          <Th w="14%">Factura</Th>
+          <Th w="18%">Fecha</Th>
+          <Th w="22%">Cliente</Th>
+          <Th w="18%">Vendedor</Th>
+          <Th w="14%" right>
             Total
+          </Th>
+          <Th w="14%" right>
+            Comisión
           </Th>
         </View>
         {sales.slice(0, 60).map((v) => (
           <View style={s.trow} key={v.id}>
-            <Td w="16%">{v.invoice_number}</Td>
-            <Td w="22%">{fmtDate(v.created_at)}</Td>
-            <Td w="26%">{v.customer ?? "Cliente general"}</Td>
-            <Td w="18%">{v.payment_method ?? "—"}</Td>
-            <Td w="18%" right>
+            <Td w="14%">{v.invoice_number}</Td>
+            <Td w="18%">{fmtDate(v.created_at)}</Td>
+            <Td w="22%">{v.customer ?? "Cliente general"}</Td>
+            <Td w="18%">{v.seller ?? "—"}</Td>
+            <Td w="14%" right>
               {fmtUSD(v.total)}
+            </Td>
+            <Td w="14%" right>
+              {fmtUSD(v.commission)}
             </Td>
           </View>
         ))}

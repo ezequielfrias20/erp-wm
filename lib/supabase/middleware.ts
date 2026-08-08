@@ -4,16 +4,24 @@ import type { User } from "@supabase/supabase-js";
 
 const PUBLIC_PATHS = ["/login", "/invite", "/api/bcv", "/.well-known"];
 
-async function getCurrentUser(
-  supabase: ReturnType<typeof createServerClient>,
-): Promise<User | null> {
-  try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    return user;
-  } catch {
-    return null;
+function isSupabaseAuthCookie(name: string) {
+  return name.startsWith("sb-") && name.includes("auth-token");
+}
+
+function isInvalidRefreshToken(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const e = error as { code?: string; message?: string };
+  return (
+    e.code === "refresh_token_not_found" ||
+    e.message?.toLowerCase().includes("invalid refresh token") === true
+  );
+}
+
+function clearSupabaseAuthCookies(request: NextRequest, response: NextResponse) {
+  for (const cookie of request.cookies.getAll()) {
+    if (!isSupabaseAuthCookie(cookie.name)) continue;
+    request.cookies.delete(cookie.name);
+    response.cookies.set(cookie.name, "", { path: "/", maxAge: 0 });
   }
 }
 
@@ -54,7 +62,16 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  const user = await getCurrentUser(supabase);
+  let user: User | null = null;
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) throw error;
+    user = data.user;
+  } catch (error) {
+    if (isInvalidRefreshToken(error)) {
+      clearSupabaseAuthCookies(request, response);
+    }
+  }
 
   const { pathname } = request.nextUrl;
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));

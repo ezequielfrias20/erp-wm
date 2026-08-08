@@ -72,11 +72,11 @@ export async function acceptInvite(
   const admin = createAdminClient();
   const { data: profile, error: profileError } = await admin
     .from("profiles")
-    .select("id, user_id, full_name, email, status")
+    .select("id, user_id, full_name, email, status, system_access")
     .eq("email", email)
     .maybeSingle();
   if (profileError) return { error: profileError.message };
-  if (!profile || profile.status !== "Activo") {
+  if (!profile || profile.status !== "Activo" || !profile.system_access || !profile.email) {
     return {
       error:
         "No encontramos una invitación activa para este correo. Contacta a un administrador.",

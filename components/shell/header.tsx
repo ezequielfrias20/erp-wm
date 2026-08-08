@@ -220,7 +220,7 @@ export function Header({
               <div className="text-[13px] font-semibold text-foreground">
                 {profile.full_name}
               </div>
-              <div className="text-[11.5px] text-text-3">{profile.email}</div>
+              <div className="text-[11.5px] text-text-3">{profile.email ?? "Sin correo"}</div>
             </div>
           </div>
           <DropdownMenuSeparator />

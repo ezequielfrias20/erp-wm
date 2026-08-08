@@ -160,8 +160,10 @@ create table wm.profiles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid unique references auth.users(id) on delete set null,
   full_name text not null,
-  email text unique not null,
+  email text unique,
   phone text,
+  employee_code text,
+  system_access boolean not null default true,
   role text not null default 'Vendedor'
     check (role in ('Super Admin','Administrador','Gerente','Vendedor','Inventario','Cajero')),
   branch_id uuid references wm.branches(id) on delete set null,
@@ -169,7 +171,13 @@ create table wm.profiles (
   avatar_url text,
   last_sign_in_at timestamptz,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint profiles_employee_code_not_blank
+    check (employee_code is null or btrim(employee_code) <> ''),
+  constraint profiles_employee_code_format_chk
+    check (employee_code is null or employee_code ~ '^[0-9]{4}$'),
+  constraint profiles_system_access_email_chk
+    check (system_access = false or email is not null)
 );
 
 -- FK circular: responsable de sucursal -> perfil
@@ -285,6 +293,7 @@ create table wm.sales (
   customer_id uuid references wm.customers(id) on delete set null,
   branch_id uuid not null references wm.branches(id) on delete restrict,
   user_id uuid references wm.profiles(id) on delete set null,
+  seller_id uuid references wm.profiles(id) on delete set null,
   payment_method text,
   subtotal numeric(12,2) not null default 0,
   discount numeric(12,2) not null default 0,
@@ -460,6 +469,7 @@ create unique index project_registrations_project_email_uidx
 create index on wm.sales(branch_id);
 create index on wm.sales(customer_id);
 create index on wm.sales(created_at);
+create index on wm.sales(seller_id);
 create index on wm.sale_items(sale_id);
 create index on wm.sale_items(variant_id);
 create index on wm.purchase_orders(supplier_id);
@@ -467,6 +477,9 @@ create index on wm.purchase_orders(branch_id);
 create index on wm.purchase_order_items(po_id);
 create index on wm.audit_log(created_at);
 create index on wm.profiles(branch_id);
+create unique index profiles_employee_code_key
+  on wm.profiles (lower(employee_code))
+  where employee_code is not null;
 create index sale_payments_sale_id_idx on wm.sale_payments(sale_id);
 create index sale_payments_method_idx  on wm.sale_payments(method);
 create index cashea_orders_status_idx  on wm.cashea_orders(status);
@@ -494,17 +507,24 @@ create trigger set_updated_at before update on wm.cashea_orders
 -- ===== 4. Helpers de autorización (SECURITY DEFINER, evitan recursión RLS) ===
 create or replace function wm.my_profile_id()
 returns uuid language sql stable security definer set search_path = wm, public as $$
-  select id from wm.profiles where user_id = auth.uid() and status = 'Activo' limit 1;
+  select id from wm.profiles
+   where user_id = auth.uid() and status = 'Activo' and system_access = true
+   limit 1;
 $$;
 
 create or replace function wm.is_member()
 returns boolean language sql stable security definer set search_path = wm, public as $$
-  select exists(select 1 from wm.profiles where user_id = auth.uid() and status = 'Activo');
+  select exists(
+    select 1 from wm.profiles
+     where user_id = auth.uid() and status = 'Activo' and system_access = true
+  );
 $$;
 
 create or replace function wm.my_role()
 returns text language sql stable security definer set search_path = wm, public as $$
-  select role from wm.profiles where user_id = auth.uid() and status = 'Activo' limit 1;
+  select role from wm.profiles
+   where user_id = auth.uid() and status = 'Activo' and system_access = true
+   limit 1;
 $$;
 
 create or replace function wm.has_module(p_module text, p_min int default 1)
@@ -515,6 +535,7 @@ returns boolean language sql stable security definer set search_path = wm, publi
     join wm.role_permissions rp on rp.role = pr.role
     where pr.user_id = auth.uid()
       and pr.status = 'Activo'
+      and pr.system_access = true
       and rp.module = p_module
       and rp.level >= p_min
   );
@@ -609,7 +630,11 @@ set search_path = wm, public
 as $$
 declare prof wm.profiles;
 begin
-  select * into prof from wm.profiles where user_id = auth.uid();
+  select * into prof
+    from wm.profiles
+   where user_id = auth.uid()
+     and status = 'Activo'
+     and system_access = true;
   if found then
     update wm.profiles set last_sign_in_at = now() where id = prof.id returning * into prof;
     return prof;
@@ -620,6 +645,7 @@ begin
    where lower(email) = lower(auth.email())
      and user_id is null
      and status = 'Activo'
+     and system_access = true
    returning * into prof;
 
   return prof;
@@ -786,7 +812,9 @@ create or replace function wm.create_sale(
   p_rate numeric,
   p_items jsonb,
   p_status text default 'Pagada'::text,
-  p_cashea jsonb default null
+  p_cashea jsonb default null,
+  p_seller_id uuid default null,
+  p_seller_code text default null
 )
 returns wm.sales
 language plpgsql
@@ -802,6 +830,7 @@ declare
   v_total numeric := 0;
   v_sale wm.sales;
   v_method text;
+  v_seller uuid;
   v_npay int := coalesce(jsonb_array_length(p_payments), 0);
   it jsonb;
   pay jsonb;
@@ -811,6 +840,21 @@ begin
   end if;
   if p_items is null or jsonb_array_length(p_items) = 0 then
     raise exception 'El ticket no tiene productos';
+  end if;
+  if p_seller_id is null or coalesce(p_seller_code, '') !~ '^[0-9]{4}$' then
+    raise exception 'Selecciona el vendedor e ingresa su código de 4 dígitos';
+  end if;
+
+  select id into v_seller
+    from wm.profiles
+   where id = p_seller_id
+     and role = 'Vendedor'
+     and status = 'Activo'
+     and employee_code is not null
+     and employee_code = btrim(p_seller_code)
+   limit 1;
+  if v_seller is null then
+    raise exception 'Código de vendedor inválido';
   end if;
 
   for it in select * from jsonb_array_elements(p_items) loop
@@ -831,11 +875,11 @@ begin
   end if;
 
   insert into wm.sales (
-    customer_id, branch_id, user_id, payment_method,
+    customer_id, branch_id, user_id, seller_id, payment_method,
     subtotal, discount, discount_pct, tax, total,
     exchange_rate, total_ves, status
   ) values (
-    p_customer_id, p_branch_id, v_profile, v_method,
+    p_customer_id, p_branch_id, v_profile, v_seller, v_method,
     round(v_subtotal, 2), v_discount, coalesce(p_discount_pct, 0), v_tax, v_total,
     p_rate, round(v_total * coalesce(p_rate, 0), 2), coalesce(p_status, 'Pagada')
   )

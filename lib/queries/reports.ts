@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 
 const MONTHS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 const COLORS = ["#0EA5E9", "#6366F1", "#10B981", "#F59E0B", "#F43F5E", "#64748B", "#8B5CF6", "#14B8A6"];
+const COMMISSION_RATE = 0.02;
 
 export type ReportData = Awaited<ReturnType<typeof getReports>>;
 
@@ -11,10 +12,20 @@ export type SaleRow = {
   invoice_number: string;
   created_at: string;
   customer: string | null;
+  seller: string | null;
   payment_method: string | null;
   total: number;
   total_ves: number | null;
+  commission: number;
   status: string;
+};
+
+export type SellerCommissionRow = {
+  seller_id: string;
+  seller: string;
+  sales_count: number;
+  sales_total: number;
+  commission_total: number;
 };
 
 export type PaymentBreakdown = {
@@ -72,11 +83,12 @@ export async function getReports(
   const supabase = await createClient();
   const fromIso = new Date(from + "T00:00:00").toISOString();
   const toIso = new Date(to + "T23:59:59.999").toISOString();
+  const r2 = (n: number) => Math.round(n * 100) / 100;
 
   const salesQ = supabase
     .from("sales")
     .select(
-      "id, invoice_number, total, total_ves, status, payment_method, exchange_rate, created_at, branch_id, customers(name)",
+      "id, invoice_number, total, total_ves, status, payment_method, exchange_rate, created_at, branch_id, seller_id, customers(name)",
     )
     .gte("created_at", fromIso)
     .lte("created_at", toIso)
@@ -96,6 +108,14 @@ export async function getReports(
   ]);
   const sales = salesRes.data ?? [];
   const lines = linesRes.data ?? [];
+  const sellerIds = [...new Set(sales.map((s) => s.seller_id).filter(Boolean))] as string[];
+  const { data: sellerProfiles } = sellerIds.length
+    ? await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", sellerIds)
+    : { data: [] as { id: string; full_name: string }[] };
+  const sellersById = new Map((sellerProfiles ?? []).map((s) => [s.id, s]));
   const pmCurrency = new Map(
     (pmRes.data ?? []).map((p) => [p.name, (p.currency ?? "VES") as "USD" | "VES"]),
   );
@@ -194,11 +214,33 @@ export async function getReports(
     invoice_number: s.invoice_number,
     created_at: s.created_at,
     customer: (s.customers as { name?: string } | null)?.name ?? null,
+    seller: s.seller_id ? (sellersById.get(s.seller_id)?.full_name ?? null) : null,
     payment_method: s.payment_method,
     total: Number(s.total),
     total_ves: s.total_ves != null ? Number(s.total_ves) : null,
+    commission: r2(Number(s.total) * COMMISSION_RATE),
     status: s.status,
   }));
+
+  const commissionMap = new Map<string, SellerCommissionRow>();
+  for (const sale of salesList) {
+    const sellerId = sales.find((s) => s.id === sale.id)?.seller_id;
+    if (!sellerId) continue;
+    const current = commissionMap.get(sellerId) ?? {
+      seller_id: sellerId,
+      seller: sale.seller ?? "Vendedor no asignado",
+      sales_count: 0,
+      sales_total: 0,
+      commission_total: 0,
+    };
+    current.sales_count += 1;
+    current.sales_total = r2(current.sales_total + sale.total);
+    current.commission_total = r2(current.commission_total + sale.commission);
+    commissionMap.set(sellerId, current);
+  }
+  const commissions = [...commissionMap.values()].sort(
+    (a, b) => b.commission_total - a.commission_total,
+  );
 
   // Resumen Cashea (cuentas por cobrar) — fuente de verdad: wm.cashea_orders.
   let casheaQ = supabase
@@ -243,7 +285,6 @@ export async function getReports(
       ch.comision += Number(c.commission_amount ?? 0);
     }
   }
-  const r2 = (n: number) => Math.round(n * 100) / 100;
   cashea.ventasCashea = r2(cashea.ventasCashea);
   cashea.inicialCobrado = r2(cashea.inicialCobrado);
   cashea.porCobrar = r2(cashea.porCobrar);
@@ -264,6 +305,8 @@ export async function getReports(
     trend,
     byCategory,
     byPayment,
+    commissions,
+    commissionRate: COMMISSION_RATE,
     cashea,
     efectivoCobrado,
     sales: salesList,

@@ -85,6 +85,14 @@ export default async function VentasPage() {
     })),
   ]);
 
+  const { data: sellers } = await supabase
+    .from("profiles")
+    .select("id, full_name, employee_code")
+    .eq("role", "Vendedor")
+    .eq("status", "Activo")
+    .not("employee_code", "is", null)
+    .order("full_name");
+
   const products: PosProduct[] = invRows.map((r) => ({
     variant_id: r.variant_id,
     sku: r.sku,
@@ -111,6 +119,10 @@ export default async function VentasPage() {
         is_financed: !!p.is_financed,
       }))}
       branch={branchRes.data ?? null}
+      sellers={(sellers ?? []).map((s) => ({
+        id: s.id,
+        full_name: s.full_name,
+      }))}
       rate={bcv.rate}
       company={{
         name: s?.company_name ?? null,

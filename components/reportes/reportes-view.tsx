@@ -51,6 +51,7 @@ export function ReportesView({
 
   const { kpis, monthly, trend, rate, sales } = data;
   const trendMax = Math.max(1, ...trend.map((t) => t.value));
+  const commissionTotal = data.commissions.reduce((sum, row) => sum + row.commission_total, 0);
 
   const breakdown =
     tab === "Por método de pago"
@@ -353,6 +354,50 @@ export function ReportesView({
         </div>
       )}
 
+      {/* Comisiones vendedores */}
+      <div className="fadeup mb-[18px] overflow-x-auto rounded-2xl border border-border bg-card shadow-card-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-[18px] pb-3.5">
+          <div>
+            <div className="text-[15px] font-bold tracking-tight text-foreground">
+              Comisiones vendedores
+            </div>
+            <div className="text-[12.5px] text-text-3">
+              {Math.round(data.commissionRate * 100)}% sobre ventas pagadas del período
+            </div>
+          </div>
+          <div className="rounded-lg bg-brand-soft px-3 py-2 text-right">
+            <div className="text-[11px] font-semibold tracking-wide text-brand uppercase">
+              Total comisiones
+            </div>
+            <div className="text-[15px] font-bold text-brand">{fmtUSD(commissionTotal)}</div>
+          </div>
+        </div>
+        <div className="grid min-w-[620px] grid-cols-[1.6fr_0.8fr_1fr_1fr] border-y border-border px-5 py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
+          <span>Vendedor</span>
+          <span className="text-right">Ventas</span>
+          <span className="text-right">Vendido</span>
+          <span className="text-right">Comisión</span>
+        </div>
+        {data.commissions.map((row) => (
+          <div
+            key={row.seller_id}
+            className="grid min-w-[620px] grid-cols-[1.6fr_0.8fr_1fr_1fr] items-center border-b border-border px-5 py-2.5 text-[12.5px] last:border-b-0"
+          >
+            <span className="font-medium text-foreground">{row.seller}</span>
+            <span className="text-right text-text-2">{row.sales_count}</span>
+            <span className="text-right text-foreground">{fmtUSD(row.sales_total)}</span>
+            <span className="text-right font-semibold text-success">
+              {fmtUSD(row.commission_total)}
+            </span>
+          </div>
+        ))}
+        {data.commissions.length === 0 && (
+          <div className="px-5 py-8 text-center text-[13px] text-text-3">
+            Sin ventas con vendedor asignado en el período.
+          </div>
+        )}
+      </div>
+
       {/* Ventas del período */}
       <div className="fadeup mb-[18px] overflow-hidden rounded-2xl border border-border bg-card shadow-card-sm">
         <div className="px-5 pt-[18px] pb-3.5">
@@ -365,28 +410,30 @@ export function ReportesView({
         </div>
         <div className="overflow-x-auto">
           <div className="min-w-[760px]">
-            <div className="grid grid-cols-[0.9fr_1.1fr_1.6fr_1.1fr_1fr_0.9fr_auto] border-y border-border px-5 py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
+            <div className="grid grid-cols-[0.9fr_1.1fr_1.4fr_1.2fr_1fr_0.9fr_0.9fr_auto] border-y border-border px-5 py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
               <span>Factura</span>
               <span>Fecha</span>
               <span>Cliente</span>
+              <span>Vendedor</span>
               <span>Método</span>
               <span className="text-right">Total</span>
-              <span className="text-right">Bs.</span>
+              <span className="text-right">Comisión</span>
               <span />
             </div>
             {sales.map((v) => (
               <button
                 key={v.id}
                 onClick={() => openDetail(v.id)}
-                className="tr-row grid w-full grid-cols-[0.9fr_1.1fr_1.6fr_1.1fr_1fr_0.9fr_auto] items-center border-b border-border px-5 py-2.5 text-left text-[12.5px]"
+                className="tr-row grid w-full grid-cols-[0.9fr_1.1fr_1.4fr_1.2fr_1fr_0.9fr_0.9fr_auto] items-center border-b border-border px-5 py-2.5 text-left text-[12.5px]"
               >
                 <span className="truncate font-medium text-foreground">{v.invoice_number}</span>
                 <span className="truncate text-text-2">{fmtDate(v.created_at)}</span>
                 <span className="truncate text-text-2">{v.customer ?? "Cliente general"}</span>
+                <span className="truncate text-text-2">{v.seller ?? "—"}</span>
                 <span className="truncate text-text-2">{v.payment_method ?? "—"}</span>
                 <span className="text-right font-semibold text-foreground">{fmtUSD(v.total)}</span>
-                <span className="text-right text-text-3">
-                  {fmtVES(v.total_ves ?? v.total * rate)}
+                <span className="text-right font-semibold text-success">
+                  {fmtUSD(v.commission)}
                 </span>
                 <span className="flex justify-end">
                   {loadingId === v.id ? (

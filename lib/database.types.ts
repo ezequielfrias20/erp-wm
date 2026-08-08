@@ -156,8 +156,10 @@ export type Profile = {
   id: string;
   user_id: string | null;
   full_name: string;
-  email: string;
+  email: string | null;
   phone: string | null;
+  employee_code: string | null;
+  system_access: boolean;
   role: Role;
   branch_id: string | null;
   status: UserStatus;
@@ -251,6 +253,7 @@ export type Sale = {
   customer_id: string | null;
   branch_id: string;
   user_id: string | null;
+  seller_id: string | null;
   payment_method: string | null;
   subtotal: number;
   discount: number;
@@ -566,6 +569,8 @@ export type Database = {
           p_items: unknown;
           p_status?: string;
           p_cashea?: unknown; // CasheaInput | null
+          p_seller_id?: string | null;
+          p_seller_code?: string | null;
         };
         Returns: Sale;
       };

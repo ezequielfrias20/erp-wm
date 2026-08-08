@@ -24,6 +24,7 @@ export async function getCurrentProfile(): Promise<Profile | null> {
 
   const { data, error } = await supabase.rpc("claim_profile");
   if (error || !data) return null;
+  if (data.system_access === false) return null;
   return data as Profile;
 }
 

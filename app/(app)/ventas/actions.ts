@@ -33,6 +33,8 @@ export type CasheaInput = {
 export type CheckoutInput = {
   branch_id: string;
   customer_id: string;
+  seller_id: string;
+  seller_code: string;
   payments: SalePaymentInput[];
   discount_pct: number;
   rate: number;
@@ -49,6 +51,11 @@ export async function checkout(input: CheckoutInput): Promise<{
 }> {
   if (!input.items.length) return { error: "El ticket está vacío." };
   if (!input.customer_id) return { error: "Selecciona un cliente para cobrar la venta." };
+  if (!input.seller_id) return { error: "Selecciona el vendedor de la venta." };
+  if (!input.seller_code.trim()) return { error: "Ingresa el código del vendedor." };
+  if (!/^\d{4}$/.test(input.seller_code.trim())) {
+    return { error: "El código del vendedor debe tener 4 dígitos." };
+  }
   if (!input.payments.length) return { error: "Configura al menos un método de pago." };
 
   const session = await getSession();
@@ -67,6 +74,8 @@ export async function checkout(input: CheckoutInput): Promise<{
     p_items: input.items,
     p_status: input.status ?? "Pagada",
     p_cashea: input.cashea ?? null,
+    p_seller_id: input.seller_id,
+    p_seller_code: input.seller_code.trim(),
   });
 
   if (error) return { error: error.message };

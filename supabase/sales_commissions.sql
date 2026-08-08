@@ -1,6 +1,106 @@
--- create_sale: product variant prices are final prices with IVA included.
--- The sale subtotal stores the final-price subtotal before discount.
--- IVA is extracted from the final total instead of added on top.
+-- Sales commissions: employee codes, seller attribution and 2% monthly reporting.
+-- Apply on an existing WM ERP database, then deploy the matching app changes.
+
+alter table wm.profiles
+  alter column email drop not null;
+
+alter table wm.profiles
+  add column if not exists employee_code text,
+  add column if not exists system_access boolean not null default true;
+
+update wm.profiles
+   set employee_code = null
+ where employee_code is not null
+   and btrim(employee_code) = '';
+
+alter table wm.profiles
+  drop constraint if exists profiles_employee_code_not_blank,
+  add constraint profiles_employee_code_not_blank
+    check (employee_code is null or btrim(employee_code) <> '');
+
+alter table wm.profiles
+  drop constraint if exists profiles_employee_code_format_chk,
+  add constraint profiles_employee_code_format_chk
+    check (employee_code is null or employee_code ~ '^[0-9]{4}$') not valid;
+
+alter table wm.profiles
+  drop constraint if exists profiles_system_access_email_chk,
+  add constraint profiles_system_access_email_chk
+    check (system_access = false or email is not null);
+
+create unique index if not exists profiles_employee_code_key
+  on wm.profiles (lower(employee_code))
+  where employee_code is not null;
+
+alter table wm.sales
+  add column if not exists seller_id uuid references wm.profiles(id) on delete set null;
+
+create index if not exists sales_seller_id_idx on wm.sales(seller_id);
+
+create or replace function wm.my_profile_id()
+returns uuid language sql stable security definer set search_path = wm, public as $$
+  select id from wm.profiles
+   where user_id = auth.uid() and status = 'Activo' and system_access = true
+   limit 1;
+$$;
+
+create or replace function wm.is_member()
+returns boolean language sql stable security definer set search_path = wm, public as $$
+  select exists(
+    select 1 from wm.profiles
+     where user_id = auth.uid() and status = 'Activo' and system_access = true
+  );
+$$;
+
+create or replace function wm.my_role()
+returns text language sql stable security definer set search_path = wm, public as $$
+  select role from wm.profiles
+   where user_id = auth.uid() and status = 'Activo' and system_access = true
+   limit 1;
+$$;
+
+create or replace function wm.has_module(p_module text, p_min int default 1)
+returns boolean language sql stable security definer set search_path = wm, public as $$
+  select exists(
+    select 1
+    from wm.profiles pr
+    join wm.role_permissions rp on rp.role = pr.role
+    where pr.user_id = auth.uid()
+      and pr.status = 'Activo'
+      and pr.system_access = true
+      and rp.module = p_module
+      and rp.level >= p_min
+  );
+$$;
+
+create or replace function wm.claim_profile()
+returns wm.profiles
+language plpgsql
+security definer
+set search_path = wm, public
+as $$
+declare prof wm.profiles;
+begin
+  select * into prof
+    from wm.profiles
+   where user_id = auth.uid()
+     and status = 'Activo'
+     and system_access = true;
+  if found then
+    update wm.profiles set last_sign_in_at = now() where id = prof.id returning * into prof;
+    return prof;
+  end if;
+
+  update wm.profiles
+     set user_id = auth.uid(), last_sign_in_at = now()
+   where lower(email) = lower(auth.email())
+     and user_id is null
+     and status = 'Activo'
+     and system_access = true
+   returning * into prof;
+
+  return prof;
+end$$;
 
 create or replace function wm.create_sale(
   p_branch_id uuid,

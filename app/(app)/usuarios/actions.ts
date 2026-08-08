@@ -1,5 +1,6 @@
 "use server";
 
+import { randomInt } from "crypto";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
@@ -14,13 +15,19 @@ import {
 import type { Profile, Role, UserStatus } from "@/lib/database.types";
 
 export type FormState =
-  | { error?: string; ok?: boolean; message?: string; warning?: string }
+  | {
+      error?: string;
+      ok?: boolean;
+      message?: string;
+      warning?: string;
+      employeeCode?: string;
+    }
   | null;
 
 type UserAccessEmailProfile = Pick<
   Profile,
-  "id" | "full_name" | "email" | "role" | "branch_id"
->;
+  "id" | "full_name" | "role" | "branch_id"
+> & { email: string };
 
 async function assertCanManageUsers() {
   const session = await getSession();
@@ -115,6 +122,56 @@ async function sendUserAccessEmail(profile: UserAccessEmailProfile) {
   }
 }
 
+async function generateUniqueEmployeeCode(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  excludeId?: string,
+) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const code = randomInt(0, 10_000).toString().padStart(4, "0");
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("employee_code", code)
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      if (isMissingEmployeeCodeColumn(error)) {
+        throw new Error(employeeCodeMigrationMessage);
+      }
+      throw error;
+    }
+    if (!data || data.id === excludeId) return code;
+  }
+  throw new Error("No se pudo generar un código único de vendedor.");
+}
+
+const employeeCodeMigrationMessage =
+  "Falta aplicar la actualización de comisiones en Supabase. Ejecuta supabase/sales_commissions.sql y vuelve a intentar.";
+
+function isMissingEmployeeCodeColumn(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: unknown; message?: unknown };
+  return (
+    candidate.code === "42703" &&
+    typeof candidate.message === "string" &&
+    candidate.message.includes("employee_code")
+  );
+}
+
+function databaseErrorMessage(error: unknown) {
+  if (isMissingEmployeeCodeColumn(error)) return employeeCodeMigrationMessage;
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message) return message;
+  }
+  return "Ocurrió un error inesperado.";
+}
+
+function isFourDigitCode(value: string | null | undefined) {
+  return /^\d{4}$/.test(value ?? "");
+}
+
 export async function saveUser(
   _prev: FormState,
   formData: FormData,
@@ -125,8 +182,12 @@ export async function saveUser(
   const id = String(formData.get("id") ?? "").trim();
   const full_name = String(formData.get("full_name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  if (!full_name || !email) {
-    return { error: "Nombre y correo son obligatorios." };
+  const system_access = formData.get("system_access") === "on";
+  if (!full_name) {
+    return { error: "El nombre es obligatorio." };
+  }
+  if (system_access && !email) {
+    return { error: "El correo es obligatorio cuando el perfil tendrá acceso al sistema." };
   }
 
   const branchVal = String(formData.get("branch_id") ?? "").trim();
@@ -134,24 +195,27 @@ export async function saveUser(
   if (role === "Super Admin" && access.session.profile.role !== "Super Admin") {
     return { error: "Solo un Super Admin puede crear o asignar otro Super Admin." };
   }
+  const supabase = await createClient();
 
-  const values = {
+  const baseValues = {
     full_name,
-    email,
+    email: email || null,
     phone: String(formData.get("phone") ?? "").trim() || null,
+    system_access,
     role,
     branch_id: branchVal && branchVal !== "none" ? branchVal : null,
     status: (String(formData.get("status") ?? "Activo") || "Activo") as UserStatus,
   };
 
-  const supabase = await createClient();
+  let createdEmployeeCode: string | null = null;
+
   if (id) {
     const { data: current, error: currentError } = await supabase
       .from("profiles")
-      .select("id, role")
+      .select("id, role, employee_code")
       .eq("id", id)
       .maybeSingle();
-    if (currentError) return { error: currentError.message };
+    if (currentError) return { error: databaseErrorMessage(currentError) };
     if (!current) return { error: "Usuario no encontrado." };
     if (
       current.role === "Super Admin" &&
@@ -160,27 +224,72 @@ export async function saveUser(
       return { error: "Solo un Super Admin puede editar otro Super Admin." };
     }
 
+    let employee_code: string | null = null;
+    try {
+      employee_code =
+        role === "Vendedor"
+          ? isFourDigitCode(current.employee_code)
+            ? current.employee_code
+            : await generateUniqueEmployeeCode(supabase, id)
+          : null;
+    } catch (error) {
+      return { error: databaseErrorMessage(error) };
+    }
+    const values = { ...baseValues, employee_code };
     const { error } = await supabase.from("profiles").update(values).eq("id", id);
-    if (error) return { error: error.message };
+    if (error) return { error: databaseErrorMessage(error) };
     await audit(`Editó al usuario ${full_name}`, "Usuarios");
     revalidatePath("/usuarios");
-    return { ok: true, message: "Usuario actualizado." };
+    return {
+      ok: true,
+      message:
+        role === "Vendedor" && !isFourDigitCode(current.employee_code)
+          ? `Usuario actualizado. Código vendedor: ${employee_code}`
+          : "Usuario actualizado.",
+    };
   } else {
+    let employee_code: string | null = null;
+    try {
+      employee_code =
+        role === "Vendedor" ? await generateUniqueEmployeeCode(supabase) : null;
+    } catch (error) {
+      return { error: databaseErrorMessage(error) };
+    }
+    createdEmployeeCode = employee_code;
+    const values = { ...baseValues, employee_code };
     const { data: profile, error } = await supabase
       .from("profiles")
       .insert(values)
       .select("id, full_name, email, role, branch_id")
       .single();
-    if (error) return { error: error.message };
-    await audit(`Invitó al usuario ${full_name}`, "Usuarios");
+    if (error) return { error: databaseErrorMessage(error) };
+    await audit(
+      system_access ? `Invitó al usuario ${full_name}` : `Creó al vendedor ${full_name}`,
+      "Usuarios",
+    );
+
+    if (!system_access) {
+      revalidatePath("/usuarios");
+      return {
+        ok: true,
+        message:
+          role === "Vendedor"
+            ? `Vendedor creado. Código secreto: ${createdEmployeeCode}`
+            : "Perfil creado.",
+      };
+    }
 
     try {
-      await sendUserAccessEmail(profile);
+      if (!profile.email) throw new Error("El perfil no tiene correo.");
+      await sendUserAccessEmail({ ...profile, email: profile.email });
     } catch (error) {
       revalidatePath("/usuarios");
       return {
         ok: true,
-        message: "Usuario creado.",
+        message:
+          role === "Vendedor"
+            ? `Usuario creado. Código secreto: ${createdEmployeeCode}`
+            : "Usuario creado.",
         warning:
           error instanceof Error
             ? `No se pudo enviar el correo: ${error.message}`
@@ -190,7 +299,13 @@ export async function saveUser(
   }
 
   revalidatePath("/usuarios");
-  return { ok: true, message: "Usuario creado e invitación enviada." };
+  return {
+    ok: true,
+    message:
+      role === "Vendedor"
+        ? `Usuario creado e invitación enviada. Código secreto: ${createdEmployeeCode}`
+        : "Usuario creado e invitación enviada.",
+  };
 }
 
 export async function deleteUser(id: string): Promise<FormState> {
@@ -237,7 +352,7 @@ export async function resendUserInvite(id: string): Promise<FormState> {
   const supabase = await createClient();
   const { data: profile, error } = await supabase
     .from("profiles")
-    .select("id, full_name, email, role, branch_id, status")
+    .select("id, full_name, email, role, branch_id, status, system_access")
     .eq("id", id)
     .maybeSingle();
   if (error) return { error: error.message };
@@ -245,9 +360,12 @@ export async function resendUserInvite(id: string): Promise<FormState> {
   if (profile.status !== "Activo") {
     return { error: "Activa el usuario antes de reenviar la invitación." };
   }
+  if (!profile.system_access || !profile.email) {
+    return { error: "Este perfil no tiene acceso por correo al sistema." };
+  }
 
   try {
-    await sendUserAccessEmail(profile);
+    await sendUserAccessEmail({ ...profile, email: profile.email });
   } catch (error) {
     return {
       error:
@@ -259,6 +377,44 @@ export async function resendUserInvite(id: string): Promise<FormState> {
 
   await audit(`Reenvió invitación a ${profile.full_name}`, "Usuarios");
   return { ok: true, message: "Invitación enviada." };
+}
+
+export async function regenerateSellerCode(id: string): Promise<FormState> {
+  const access = await assertCanManageUsers();
+  if ("error" in access) return { error: access.error };
+
+  const supabase = await createClient();
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("id, full_name, role")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) return { error: error.message };
+  if (!profile) return { error: "Usuario no encontrado." };
+  if (profile.role !== "Vendedor") {
+    return { error: "Solo los vendedores tienen código de comisión." };
+  }
+
+  let employee_code: string;
+  try {
+    employee_code = await generateUniqueEmployeeCode(supabase, id);
+  } catch (error) {
+    return { error: databaseErrorMessage(error) };
+  }
+  const { error: updateError } = await supabase
+    .from("profiles")
+    .update({ employee_code })
+    .eq("id", id);
+  if (updateError) return { error: databaseErrorMessage(updateError) };
+
+  await audit(`Regeneró el código de vendedor de ${profile.full_name}`, "Usuarios");
+  revalidatePath("/usuarios");
+  revalidatePath("/ventas");
+  return {
+    ok: true,
+    message: `Nuevo código secreto: ${employee_code}`,
+    employeeCode: employee_code,
+  };
 }
 
 export async function setPermission(

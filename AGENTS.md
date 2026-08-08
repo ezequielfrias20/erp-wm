@@ -8,13 +8,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <claude-mem-context>
 # Memory Context
 
-# [erp] recent context, 2026-08-08 4:55pm GMT-4
+# [erp] recent context, 2026-08-08 6:04pm GMT-4
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision 🚨security_alert 🔐security_note
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (17,059t read) | 461,201t work | 96% savings
+Stats: 50 obs (19,576t read) | 554,154t work | 96% savings
 
 ### Jun 22, 2026
 S735 CRM SaaS — Brand settings expansion: delete logo/favicon, dark/light logo variants, fix favicon in browser tab (Jun 22 at 9:27 PM)
@@ -30,44 +30,7 @@ S913 CRM SaaS (WM ERP / FR Medic Group) — connect to Supabase DB via .env.loca
 S945 CRM SaaS — .env.local points to deleted/invalid Supabase project yxwedegszxtujplffaac (Jul 9 at 3:14 PM)
 ### Jul 12, 2026
 S947 CRM SaaS — DNS ENOTFOUND for yxwedegszxtujplffaac.supabase.co, diagnosing stale .env.local Supabase credentials (Jul 12 at 3:48 PM)
-### Aug 7, 2026
-2004 7:24p 🔵 backend-reimpet WM ERP — direct psql connection to Supabase pooler fails with auth error
-2005 " ✅ backend-reimpet WM ERP — maintenance script deleted after one-time use
-2006 " 🔵 backend-reimpet WM ERP — repo state after maintenance: Excel files untracked, AGENTS.md modified
-2007 7:40p ⚖️ frontend-reimpet — Inventory and Products modules require paginated table UI
-2009 " 🔵 frontend-reimpet — Inventario and Productos modules architecture pre-pagination
-2010 7:41p 🔵 frontend-reimpet — No pagination component exists anywhere in the codebase
-2011 " 🟣 frontend-reimpet — TablePagination shared component created
-2012 7:42p 🟣 frontend-reimpet — InventarioView refactored to paginated semantic table
-2014 " 🟣 frontend-reimpet — ProductsView refactored to paginated semantic table
-2015 7:43p 🟣 frontend-reimpet — Pagination feature complete: TypeScript build passes with zero errors
-2016 " 🔵 frontend-reimpet — ESLint flags react-hooks/set-state-in-effect errors in pagination useEffects
-2017 " 🔴 frontend-reimpet — ESLint react-hooks/set-state-in-effect errors fixed in InventarioView
-2018 7:44p 🔴 frontend-reimpet — Pagination lint errors fully resolved; build and lint both pass clean
-2021 7:45p 🟣 backend-reimpet WM ERP — Maintenance script to zero missing-stock inventory and remove IVA from prices
 ### Aug 8, 2026
-2022 10:46a ⚖️ frontend-reimpet Ventas/Inventario/Productos — filter and branch inconsistency fix scoped
-2023 " ⚖️ frontend-reimpet Ventas/Inventario/Productos — Filter and Branch Consistency Requirements Scoped
-2025 10:47a ⚖️ frontend-reimpet Ventas/Inventario/Productos — filter and branch-visibility bug scope defined
-2026 " ⚖️ frontend-reimpet Ventas/Inventario/Productos — filter and branch-visibility bug scope defined
-2027 10:48a ⚖️ frontend-reimpet Ventas/Inventario/Productos — filter and branch-visibility bug scope defined
-2028 " ⚖️ frontend-reimpet Ventas/Inventario/Productos — filter and branch-visibility bug scope defined
-2029 " 🟣 frontend-reimpet Ventas — inventory fetch migrated to fetchAllRows with brand field added
-2031 " 🟣 frontend-reimpet Productos — listProducts enriched with per-product sizes and colors arrays
-2032 10:49a 🟣 frontend-reimpet Productos — attribute filter UI added with Categoría, Marca, Talla, Color dropdowns
-2033 10:50a ⚖️ frontend-reimpet Ventas/Inventario/Productos — filter and branch-visibility bug scope defined
-2034 " ⚖️ frontend-reimpet Ventas/Inventario/Productos — filter and branch-visibility bug scope defined
-2035 " 🟣 frontend-reimpet Ventas POS — brand/size/color attribute filters added to pos-view
-2036 10:51a 🟣 frontend-reimpet — ProductListItem type and brand field propagated across type system
-2037 " 🔄 frontend-reimpet — ProductListItem type moved to database.types.ts as canonical source
-2038 " 🔵 frontend-reimpet — Turbopack FATAL panic on npm run build (OS port-binding permission error)
-2039 10:53a 🟣 frontend-reimpet Ventas/Inventario/Productos — attribute filters and branch-visibility fix scoped
-2040 " ⚖️ frontend-reimpet Ventas/Inventario/Productos — filter and branch-visibility bug scope defined
-2041 " 🟣 frontend-reimpet — talla/color/marca/categoría filters added to Ventas, Inventario, and Productos modules
-2042 " 🔴 frontend-reimpet Inventario "Todas las sucursales" — missing products fixed by switching to paginated fetchAllRows()
-2043 10:54a ✅ frontend-reimpet — filter + pagination changes pass TypeScript check and production build cleanly
-2044 10:55a 🔴 frontend-reimpet Inventario — "Todas las sucursales" missing products fixed via Supabase pagination
-2045 " 🟣 frontend-reimpet — Attribute filters (talla, color, marca, categoría) added to Ventas, Inventario, and Productos
 2046 11:21a ⚖️ frontend-reimpet USD/VES rate — dual-endpoint fetch with most-recent-date selection logic
 2047 " 🔵 frontend-reimpet BCV rate — full call graph and lib/bcv.ts structure discovered
 2049 11:22a 🟣 frontend-reimpet BCV rate — dual-endpoint fetch with most-recent-date reconciliation implemented
@@ -82,6 +45,42 @@ S947 CRM SaaS — DNS ENOTFOUND for yxwedegszxtujplffaac.supabase.co, diagnosing
 2061 11:44a ⚖️ frontend-reimpet VES pricing — 4-decimal precision recommended to reduce bolivar rounding error
 2063 " 🔵 frontend-reimpet ERP — sale price precision is numeric(12,2) throughout DB and RPC
 2064 11:45a 🔵 frontend-reimpet ERP — full USD→VES precision chain traced through POS and invoice code
+2065 5:12p ⚖️ frontend-reimpet + backend-reimpet — Vendedor commission tracking system architecture planned
+2066 5:13p ⚖️ frontend-reimpet + backend-reimpet — Vendedor commission tracking system architecture planned
+2067 5:14p ⚖️ frontend-reimpet + backend-reimpet — Vendedores commission system architecture planned
+2068 " ⚖️ frontend-reimpet + backend-reimpet — Vendedor commission system architecture planned
+2069 5:15p 🔵 backend-reimpet — Schema patch for vendedor commission system failed; current schema state confirmed
+2071 " 🟣 backend-reimpet — Vendedor commission system schema implemented in 01_schema.sql
+2072 5:16p 🟣 backend-reimpet — create_sale_tax_included.sql patched with vendedor seller validation
+2073 " ⚖️ frontend-reimpet + backend-reimpet — Vendedor commission tracking system architecture planned
+2074 5:17p ⚖️ frontend-reimpet + backend-reimpet — Vendedor commission tracking system architecture planned
+2075 " ⚖️ frontend-reimpet + backend-reimpet — Vendedor commission tracking system architecture planned
+2076 5:18p 🟣 backend-reimpet — system_access=true guard added to all auth SQL functions and session query
+2078 " 🟣 backend-reimpet — acceptInvite action hardened to block vendedor profiles from completing auth invite flow
+2079 " 🟣 frontend-reimpet — Ventas page server component fetches active Vendedor sellers and passes them to PosView
+2080 " 🟣 frontend-reimpet — PosView vendedor selector and employee code input wired into checkout flow
+2081 5:19p ⚖️ frontend-reimpet + backend-reimpet — Vendedor commission tracking system architecture planned
+2082 5:20p ⚖️ frontend-reimpet + backend-reimpet — Vendedor commission tracking system architecture planned
+2083 " ⚖️ frontend-reimpet + backend-reimpet — Vendedor commission tracking system: requirements re-confirmed by client
+2084 5:21p ⚖️ frontend-reimpet + backend-reimpet — Vendedor commission tracking system architecture planned
+2085 5:22p ⚖️ frontend-reimpet + backend-reimpet — Vendedor commission tracking system architecture planned
+2087 " 🔵 frontend-reimpet Usuarios — ESLint error: setState called synchronously inside useEffect in usuarios-view.tsx
+2088 " 🔴 frontend-reimpet Usuarios — ESLint react-hooks/set-state-in-effect error fixed in usuarios-view.tsx
+2089 5:23p ✅ frontend-reimpet — TypeScript and ESLint both pass clean after usuarios-view.tsx fix
+2091 " 🔵 frontend-reimpet — Turbopack FATAL panic during production build: "binding to a port - Operation not permitted (os error 1)"
+2092 5:24p 🔵 frontend-reimpet — Production build passes clean with 18 routes including new /usuarios and /ventas with vendedor support
+2093 " 🟣 frontend-reimpet + backend-reimpet — Vendedor commission system fully implemented across 16 files
+2095 5:25p 🔵 frontend-reimpet — Dev server already running at localhost:3000 (PID 44250) before commission system changes
+2096 " 🔴 frontend-reimpet — app/(auth)/actions.ts: duplicate `profile` variable causes Turbopack runtime error after hot-reload
+2097 5:26p 🔵 frontend-reimpet — Dev server confirmed live at localhost:3000; /ventas auth guard redirects unauthenticated requests correctly
+2099 " 🟣 backend-reimpet — supabase/sales_commissions.sql: full DB migration for vendedor commission system
+2100 5:31p 🔵 frontend-reimpet Login — Blank Screen Bug Reported
+2102 5:32p 🔵 frontend-reimpet Login — Blank Screen Root Causes Identified from Logs
+2103 " 🔵 frontend-reimpet — lib/queries/session.ts Blocks Vendedor Login via system_access Guard
+2104 5:33p 🔴 frontend-reimpet Middleware — Stale Refresh Token Now Clears Auth Cookies Instead of Looping
+2105 5:36p 🔴 frontend-reimpet — Production Build Passes Clean After Middleware Auth Fix
+2106 5:37p 🔵 frontend-reimpet — Full Route Inventory Confirmed in Production Build
+2107 " 🔴 frontend-reimpet — session.ts system_access Guard Uses Strict Equality to Avoid Null Coercion Bug
 
-Access 461k tokens of past work via get_observations([IDs]) or mem-search skill.
+Access 554k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>

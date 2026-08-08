@@ -196,7 +196,7 @@ function PerfilSection({ profile, canEdit }: Data) {
           <Fld label="Cargo" name="role" defaultValue={profile.role} disabled />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Fld label="Correo" name="email" defaultValue={profile.email} disabled />
+          <Fld label="Correo" name="email" defaultValue={profile.email ?? ""} disabled />
           <Fld label="Teléfono" name="phone" defaultValue={profile.phone ?? ""} disabled={!canEdit} />
         </div>
         {canEdit && (

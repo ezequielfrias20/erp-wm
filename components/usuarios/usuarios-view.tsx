@@ -3,11 +3,12 @@
 import { useMemo, useState, useActionState, useEffect, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
-import { Plus, Search, Check, Loader2, Trash2, Mail, Phone, Store, Send } from "lucide-react";
+import { Plus, Search, Check, Loader2, Trash2, Mail, Phone, Store, Send, KeyRound } from "lucide-react";
 import {
   saveUser,
   deleteUser,
   resendUserInvite,
+  regenerateSellerCode,
   setPermission,
   type FormState,
 } from "@/app/(app)/usuarios/actions";
@@ -27,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -94,7 +96,7 @@ export function UsuariosView({
       list = list.filter(
         (u) =>
           u.full_name.toLowerCase().includes(q) ||
-          u.email.toLowerCase().includes(q),
+          (u.email ?? "").toLowerCase().includes(q),
       );
     if (roleFilter) list = list.filter((u) => u.role === roleFilter);
     if (branchFilter) list = list.filter((u) => u.branch_city === branchFilter);
@@ -152,6 +154,25 @@ export function UsuariosView({
     });
   }
 
+  function onRegenerateSellerCode(u: UserRow) {
+    if (u.role !== "Vendedor") return;
+    if (!confirm(`¿Regenerar el código secreto de ${u.full_name}? El código anterior dejará de servir.`)) return;
+    startTransition(async () => {
+      const res = await regenerateSellerCode(u.id);
+      if (res?.error) toast.error(res.error);
+      else {
+        if (res?.employeeCode) {
+          setDrawerUser((current) =>
+            current?.id === u.id
+              ? { ...current, employee_code: res.employeeCode ?? current.employee_code }
+              : current,
+          );
+        }
+        toast.success(res?.message ?? "Código regenerado");
+      }
+    });
+  }
+
   function canEditUser(u: UserRow) {
     return canEdit && (isSuperAdmin || u.role !== "Super Admin");
   }
@@ -179,7 +200,7 @@ export function UsuariosView({
             }}
             className="hoverlift flex h-11 items-center justify-center gap-2 rounded-[10px] bg-brand px-[15px] text-[13px] font-semibold text-white sm:h-[38px]"
           >
-            <Plus className="size-4" /> Invitar usuario
+            <Plus className="size-4" /> Nuevo perfil
           </button>
         )}
       </div>
@@ -201,13 +222,14 @@ export function UsuariosView({
         </div>
 
         <div className="overflow-x-auto">
-          <div className="min-w-[860px]">
-            <div className="grid grid-cols-[2fr_1.2fr_1fr_1fr_0.9fr_1fr_auto] border-b border-border px-5 py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
+          <div className="min-w-[940px]">
+            <div className="grid grid-cols-[2fr_1.1fr_1fr_1fr_0.9fr_0.9fr_1fr_auto] border-b border-border px-5 py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
               <span>Usuario</span>
               <span>Teléfono</span>
               <span>Cargo</span>
               <span>Sucursal</span>
               <span>Estado</span>
+              <span>Acceso</span>
               <span>Último acceso</span>
               <span />
             </div>
@@ -215,7 +237,7 @@ export function UsuariosView({
               <button
                 key={u.id}
                 onClick={() => setDrawerUser(u)}
-                className="tr-row grid w-full grid-cols-[2fr_1.2fr_1fr_1fr_0.9fr_1fr_auto] items-center border-b border-border px-5 py-3 text-left"
+                className="tr-row grid w-full grid-cols-[2fr_1.1fr_1fr_1fr_0.9fr_0.9fr_1fr_auto] items-center border-b border-border px-5 py-3 text-left"
               >
                 <div className="flex min-w-0 items-center gap-2.5">
                   <span className="flex size-9 flex-none items-center justify-center rounded-full bg-surface-2 text-[11px] font-bold text-text-2">
@@ -225,7 +247,9 @@ export function UsuariosView({
                     <div className="truncate text-[12.5px] font-medium text-foreground">
                       {u.full_name}
                     </div>
-                    <div className="truncate text-[11px] text-text-3">{u.email}</div>
+                    <div className="truncate text-[11px] text-text-3">
+                      {u.email ?? "Sin correo"}
+                    </div>
                   </div>
                 </div>
                 <span className="text-[12px] text-text-2">{u.phone ?? "—"}</span>
@@ -247,6 +271,9 @@ export function UsuariosView({
                     style={{ background: u.status === "Activo" ? "var(--success)" : "var(--text-3)" }}
                   />
                   {u.status}
+                </span>
+                <span className="text-[12px] text-text-2">
+                  {u.system_access ? "Sistema" : "Comisión"}
                 </span>
                 <span className="text-[12px] text-text-3">{fmtRelative(u.last_sign_in_at)}</span>
                 <span />
@@ -334,7 +361,7 @@ export function UsuariosView({
         </div>
       </div>
 
-      {canEdit && (
+      {canEdit && formOpen && (
         <UserForm
           open={formOpen}
           onOpenChange={setFormOpen}
@@ -373,9 +400,21 @@ export function UsuariosView({
                 </div>
               </div>
               <div className="flex flex-col gap-2 text-[12.5px] text-text-2">
-                <span className="flex items-center gap-2"><Mail className="size-4 text-text-3" />{drawerUser.email}</span>
+                <span className="flex items-center gap-2"><Mail className="size-4 text-text-3" />{drawerUser.email ?? "Sin correo"}</span>
                 <span className="flex items-center gap-2"><Phone className="size-4 text-text-3" />{drawerUser.phone ?? "—"}</span>
                 <span className="flex items-center gap-2"><Store className="size-4 text-text-3" />Sucursal: {drawerUser.branch_city ?? "Todas"}</span>
+                <span>Acceso: {drawerUser.system_access ? "Puede iniciar sesión" : "Solo comisiones"}</span>
+                {drawerUser.role === "Vendedor" && (
+                  <span className="flex items-center justify-between gap-3 rounded-[10px] border border-border bg-surface-2 px-3 py-2">
+                    <span className="flex items-center gap-2">
+                      <KeyRound className="size-4 text-text-3" />
+                      Código de comisión
+                    </span>
+                    <span className="font-mono text-[14px] font-bold tracking-[0.18em] text-foreground">
+                      {drawerUser.employee_code ?? "----"}
+                    </span>
+                  </span>
+                )}
               </div>
               <div className="text-[12px] font-semibold tracking-wide text-text-3 uppercase">
                 Permisos por módulo
@@ -405,7 +444,12 @@ export function UsuariosView({
                     type="button"
                     variant="outline"
                     onClick={() => onResendInvite(drawerUser)}
-                    disabled={isPending || drawerUser.status !== "Activo"}
+                    disabled={
+                      isPending ||
+                      drawerUser.status !== "Activo" ||
+                      !drawerUser.system_access ||
+                      !drawerUser.email
+                    }
                     className="font-semibold"
                   >
                     <Send className="size-4" /> Reenviar acceso
@@ -420,6 +464,17 @@ export function UsuariosView({
                       className="font-semibold"
                     >
                       Editar usuario
+                    </Button>
+                  )}
+                  {canEditUser(drawerUser) && drawerUser.role === "Vendedor" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="font-semibold"
+                      onClick={() => onRegenerateSellerCode(drawerUser)}
+                      disabled={isPending}
+                    >
+                      <KeyRound className="size-4" /> Regenerar código
                     </Button>
                   )}
                   {canDeleteUser(drawerUser) && (
@@ -496,6 +551,9 @@ function UserForm({
   onDelete?: () => void;
 }) {
   const [state, formAction] = useActionState<FormState, FormData>(saveUser, null);
+  const [systemAccess, setSystemAccess] = useState(user?.system_access ?? false);
+  const [role, setRole] = useState(user?.role ?? "Vendedor");
+
   useEffect(() => {
     if (state?.error) toast.error(state.error);
     if (state?.ok) {
@@ -509,19 +567,43 @@ function UserForm({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>{user ? "Editar usuario" : "Invitar usuario"}</DialogTitle>
+          <DialogTitle>{user ? "Editar perfil" : "Crear perfil"}</DialogTitle>
         </DialogHeader>
         <form action={formAction} className="flex flex-col gap-3">
           {user && <input type="hidden" name="id" value={user.id} />}
+          {systemAccess && <input type="hidden" name="system_access" value="on" />}
           <div className="grid grid-cols-2 gap-3">
             <Fld label="Nombre completo" name="full_name" defaultValue={user?.full_name} required />
             <Fld label="Teléfono" name="phone" defaultValue={user?.phone ?? ""} />
           </div>
-          <Fld label="Correo" name="email" type="email" defaultValue={user?.email} required />
+          <Fld
+            label="Correo"
+            name="email"
+            type="email"
+            defaultValue={user?.email ?? ""}
+            required={systemAccess}
+            placeholder={systemAccess ? "correo@empresa.com" : "Opcional"}
+          />
+          {role === "Vendedor" && !user && (
+            <p className="rounded-lg bg-warning-soft px-3 py-2 text-[12px] text-warning">
+              El sistema generará un código secreto de 4 dígitos al guardar.
+            </p>
+          )}
+          <div className="flex items-center justify-between gap-3 rounded-[10px] border border-border bg-surface-2 px-3 py-2.5">
+            <div>
+              <div className="text-[12.5px] font-semibold text-foreground">
+                Acceso al sistema
+              </div>
+              <div className="text-[11.5px] text-text-3">
+                Actívalo solo si este perfil iniciará sesión con correo.
+              </div>
+            </div>
+            <Switch checked={systemAccess} onCheckedChange={setSystemAccess} />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label>Cargo</Label>
-              <Select name="role" defaultValue={user?.role ?? "Vendedor"}>
+              <Select name="role" value={role} onValueChange={(value) => setRole(value as UserRow["role"])}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -565,7 +647,9 @@ function UserForm({
           </div>
           {!user && (
             <p className="rounded-lg bg-brand-soft px-3 py-2 text-[12px] text-brand">
-              Se creará el perfil y se enviará un correo con el enlace de activación.
+              {systemAccess
+                ? "Se creará el perfil y se enviará un correo con el enlace de activación."
+                : "Se creará un perfil interno para comisiones, sin correo ni acceso al ERP."}
             </p>
           )}
           {state?.warning && (
