@@ -453,6 +453,7 @@ export type VProductSummary = {
 };
 
 export type ProductListItem = VProductSummary & {
+  skus: string[];
   sizes: string[];
   colors: { name: string; hex: string | null }[];
 };

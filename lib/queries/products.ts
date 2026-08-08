@@ -25,13 +25,14 @@ export async function listProducts(
     ),
     fetchAllRows<{
       product_id: string;
+      sku: string;
       size: string | null;
       color: string | null;
       color_hex: string | null;
     }>((from, to) =>
       supabase
         .from("product_variants")
-        .select("product_id, size, color, color_hex")
+        .select("product_id, sku, size, color, color_hex")
         .order("product_id")
         .range(from, to),
     ),
@@ -48,9 +49,13 @@ export async function listProducts(
 
   const sizesByProduct = new Map<string, Set<string>>();
   const colorsByProduct = new Map<string, Map<string, string | null>>();
+  const skusByProduct = new Map<string, Set<string>>();
   const stockByProduct = new Map<string, number>();
 
   for (const variant of variants) {
+    const skus = skusByProduct.get(variant.product_id) ?? new Set<string>();
+    skus.add(variant.sku);
+    skusByProduct.set(variant.product_id, skus);
     if (variant.size) {
       const sizes = sizesByProduct.get(variant.product_id) ?? new Set<string>();
       sizes.add(variant.size);
@@ -75,6 +80,7 @@ export async function listProducts(
     total_stock: branchId
       ? stockByProduct.get(product.id) ?? 0
       : product.total_stock,
+    skus: [...(skusByProduct.get(product.id) ?? [])].sort(),
     sizes: [...(sizesByProduct.get(product.id) ?? [])].sort(),
     colors: [...(colorsByProduct.get(product.id) ?? [])]
       .map(([name, hex]) => ({ name, hex }))

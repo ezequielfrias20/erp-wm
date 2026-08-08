@@ -38,6 +38,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { fmtUSD, fmtUSDShort, fmtNum, initials } from "@/lib/format";
+import { matchesProductQuery } from "@/lib/search";
 import { cn } from "@/lib/utils";
 import type { VInventory } from "@/lib/database.types";
 
@@ -123,16 +124,18 @@ export function InventarioView({
     if (brand) list = list.filter((r) => r.brand === brand);
     if (size) list = list.filter((r) => r.size === size);
     if (color) list = list.filter((r) => r.color === color);
-    const q = query.toLowerCase().trim();
-    if (q)
+    if (query.trim())
       list = list.filter(
-        (r) =>
-          r.product_name.toLowerCase().includes(q) ||
-          r.sku.toLowerCase().includes(q) ||
-          (r.category?.toLowerCase().includes(q) ?? false) ||
-          (r.brand?.toLowerCase().includes(q) ?? false) ||
-          (r.size?.toLowerCase().includes(q) ?? false) ||
-          (r.color?.toLowerCase().includes(q) ?? false),
+        (r) => matchesProductQuery([
+          r.product_name,
+          r.sku,
+          r.category,
+          r.brand,
+          r.size,
+          r.color,
+          r.branch_city,
+          r.estado,
+        ], query),
       );
     return list;
   }, [rows, tab, cat, brand, size, color, query]);
@@ -290,7 +293,7 @@ export function InventarioView({
                 setQuery(e.target.value);
                 setPage(1);
               }}
-              placeholder="Buscar por SKU o nombre…"
+              placeholder="Buscar por nombre, SKU, talla, color, modelo…"
               className="h-11 w-full rounded-[10px] border border-border bg-surface-2 pr-3 pl-[37px] text-[16px] text-foreground outline-none sm:h-[38px] sm:text-[13px]"
             />
           </div>

@@ -49,6 +49,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { fmtUSD, fmtVES, fmtByCurrency, fmtNum, initials } from "@/lib/format";
+import { matchesProductQuery } from "@/lib/search";
 import { cn } from "@/lib/utils";
 import {
   calculateTaxIncludedTotals,
@@ -258,16 +259,17 @@ export function PosView({
     if (brand) list = list.filter((p) => p.brand === brand);
     if (size) list = list.filter((p) => p.size === size);
     if (color) list = list.filter((p) => p.color === color);
-    const q = query.toLowerCase().trim();
-    if (q)
+    if (query.trim())
       list = list.filter(
-        (p) =>
-          p.product_name.toLowerCase().includes(q) ||
-          p.sku.toLowerCase().includes(q) ||
-          (p.category?.toLowerCase().includes(q) ?? false) ||
-          (p.brand?.toLowerCase().includes(q) ?? false) ||
-          (p.color?.toLowerCase().includes(q) ?? false) ||
-          (p.size?.toLowerCase().includes(q) ?? false),
+        (p) => matchesProductQuery([
+          p.product_name,
+          p.sku,
+          p.category,
+          p.brand,
+          p.color,
+          p.size,
+          variantAttributes(p).join(" "),
+        ], query),
       );
     return list;
   }, [products, cat, brand, size, color, query]);
@@ -559,7 +561,7 @@ export function PosView({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar producto por nombre o SKU…"
+              placeholder="Buscar por nombre, talla, color, modelo o SKU…"
               className="h-11 w-full rounded-[12px] border border-border bg-card pr-3 pl-[37px] text-[16px] text-foreground outline-none sm:h-[42px] sm:text-[13px]"
             />
           </div>

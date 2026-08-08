@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { fmtUSD, fmtNum, initials } from "@/lib/format";
+import { matchesProductQuery } from "@/lib/search";
 import { ProductsBulkBar } from "@/components/productos/bulk-bar";
 import type { ProductListItem } from "@/lib/database.types";
 
@@ -72,15 +73,16 @@ export function ProductsView({
     if (brand) list = list.filter((p) => p.brand === brand);
     if (size) list = list.filter((p) => p.sizes.includes(size));
     if (color) list = list.filter((p) => p.colors.some((c) => c.name === color));
-    const q = query.toLowerCase().trim();
-    if (q) {
+    if (query.trim()) {
       list = list.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          (p.brand ?? "").toLowerCase().includes(q) ||
-          (p.category ?? "").toLowerCase().includes(q) ||
-          p.sizes.some((s) => s.toLowerCase().includes(q)) ||
-          p.colors.some((c) => c.name.toLowerCase().includes(q)),
+        (p) => matchesProductQuery([
+          p.name,
+          p.skus,
+          p.brand,
+          p.category,
+          p.sizes,
+          p.colors.map((c) => c.name),
+        ], query),
       );
     }
     return list;
@@ -134,7 +136,7 @@ export function ProductsView({
                 setQuery(e.target.value);
                 setPage(1);
               }}
-              placeholder="Buscar por nombre, marca o categoría…"
+              placeholder="Buscar por nombre, talla, color, marca o categoría…"
               className="h-11 w-full rounded-[10px] border border-border bg-surface-2 pr-3 pl-[37px] text-[16px] text-foreground outline-none sm:h-[38px] sm:text-[13px]"
             />
           </div>
