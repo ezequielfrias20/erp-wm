@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSession } from "@/lib/queries/session";
-import { getActiveBranchId } from "@/lib/branch";
+import { getActiveBranchId, getProfileBranchScope } from "@/lib/branch";
 import { canView } from "@/lib/permissions";
 import { fetchBcvRate, BCV_FALLBACK } from "@/lib/bcv";
 import { fetchAllRows } from "@/lib/supabase/pagination";
@@ -15,10 +15,14 @@ export default async function VentasPage() {
   if (!canView(session.permissions, "Ventas")) redirect("/dashboard");
 
   const supabase = await createClient();
-  const activeBranchId = await getActiveBranchId(session.profile.branch_id);
+  const activeBranchId = await getActiveBranchId(
+    session.profile.branch_id,
+    session.profile.role,
+  );
+  const assignedBranchId = getProfileBranchScope(session.profile);
 
   // POS works on a concrete branch: active filter -> user's home branch -> first branch.
-  let branchId = activeBranchId ?? session.profile.branch_id;
+  let branchId = activeBranchId ?? assignedBranchId;
   if (!branchId) {
     const { data: first } = await supabase
       .from("branches")

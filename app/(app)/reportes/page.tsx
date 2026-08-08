@@ -28,7 +28,10 @@ export default async function ReportesPage({
   const from = sp.from || ymd(monthStart);
   const to = sp.to || ymd(today);
 
-  const branchId = await getActiveBranchId(session.profile.branch_id);
+  const branchId = await getActiveBranchId(
+    session.profile.branch_id,
+    session.profile.role,
+  );
   const supabase = await createClient();
 
   const [bcv, settingsRes] = await Promise.all([

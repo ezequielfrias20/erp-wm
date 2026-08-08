@@ -15,7 +15,10 @@ export default async function ProductDetailPage({
   if (!session) redirect("/login");
   if (!canView(session.permissions, "Productos")) redirect("/dashboard");
 
-  const branchId = await getActiveBranchId(session.profile.branch_id);
+  const branchId = await getActiveBranchId(
+    session.profile.branch_id,
+    session.profile.role,
+  );
   const [detail, refs] = await Promise.all([
     getProductDetail(id, branchId),
     getCatalogRefs(),
@@ -29,6 +32,8 @@ export default async function ProductDetailPage({
       byBranch={detail.byBranch}
       categories={refs.categories}
       brands={refs.brands}
+      sizes={refs.sizes}
+      colors={refs.colors}
       canEdit={canEdit(session.permissions, "Productos")}
     />
   );

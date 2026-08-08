@@ -99,7 +99,7 @@ export async function getCatalogRefs(): Promise<{
     supabase.from("categories").select("id, name, color").order("sort_order"),
     supabase.from("brands").select("id, name").order("name"),
     supabase.from("sizes").select("id, label").order("sort_order"),
-    supabase.from("colors").select("id, name, hex").order("sort_order"),
+    supabase.from("colors").select("id, name, hex").order("name"),
   ]);
   return {
     categories: c.data ?? [],

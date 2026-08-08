@@ -20,7 +20,10 @@ export default async function DashboardPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const branchId = await getActiveBranchId(session.profile.branch_id);
+  const branchId = await getActiveBranchId(
+    session.profile.branch_id,
+    session.profile.role,
+  );
   const canUseExecutiveDashboard = EXECUTIVE_DASHBOARD_ROLES.has(
     session.profile.role,
   );

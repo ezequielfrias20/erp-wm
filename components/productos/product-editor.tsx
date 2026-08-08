@@ -43,6 +43,8 @@ import { fmtUSD, fmtNum } from "@/lib/format";
 import type { Product, ProductVariant } from "@/lib/database.types";
 
 type Ref = { id: string; name: string };
+type SizeRef = { id: string; label: string };
+type ColorRef = { id: string; name: string; hex: string | null };
 type VariantWithStock = ProductVariant & { stock: number };
 
 export function ProductEditor({
@@ -51,6 +53,8 @@ export function ProductEditor({
   byBranch,
   categories,
   brands,
+  sizes,
+  colors,
   canEdit,
 }: {
   product: Product;
@@ -58,6 +62,8 @@ export function ProductEditor({
   byBranch: { city: string; qty: number }[];
   categories: Ref[];
   brands: Ref[];
+  sizes: SizeRef[];
+  colors: ColorRef[];
   canEdit: boolean;
 }) {
   const router = useRouter();
@@ -409,10 +415,13 @@ export function ProductEditor({
 
       {canEdit && (
         <VariantDialog
+          key={variantOpen ? (editingVariant?.id ?? "new") : "closed"}
           open={variantOpen}
           onOpenChange={setVariantOpen}
           productId={product.id}
           variant={editingVariant}
+          sizes={sizes}
+          colors={colors}
         />
       )}
     </form>
@@ -478,16 +487,36 @@ function VariantDialog({
   onOpenChange,
   productId,
   variant,
+  sizes,
+  colors,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   productId: string;
   variant: VariantWithStock | null;
+  sizes: SizeRef[];
+  colors: ColorRef[];
 }) {
   const [state, formAction] = useActionState<FormState, FormData>(
     saveVariant,
     null,
   );
+  const [selectedColorName, setSelectedColorName] = useState(
+    variant?.color ?? "",
+  );
+  const [selectedSize, setSelectedSize] = useState(variant?.size ?? "");
+  const hasLegacySize = Boolean(
+    selectedSize && !sizes.some((size) => size.label === selectedSize),
+  );
+  const selectedColor = colors.find((color) => color.name === selectedColorName);
+  const selectedColorHex =
+    selectedColor?.hex ??
+    (selectedColorName === variant?.color ? variant?.color_hex : null) ??
+    "";
+  const hasLegacyColor = Boolean(
+    selectedColorName && !selectedColor && variant?.color === selectedColorName,
+  );
+
   useEffect(() => {
     if (state?.ok) onOpenChange(false);
   }, [state, onOpenChange]);
@@ -501,26 +530,91 @@ function VariantDialog({
         <form action={formAction} className="flex flex-col gap-3">
           <input type="hidden" name="product_id" value={productId} />
           {variant && <input type="hidden" name="id" value={variant.id} />}
+          <div className="rounded-[10px] border border-border bg-surface-2 px-3 py-2 text-[12px] text-text-2">
+            La variante se muestra como <strong>Color / Talla</strong>. El SKU es el
+            identificador interno y puede generarse solo.
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <Fld
-              label="SKU"
+              label="SKU (opcional)"
               name="sku"
               defaultValue={variant?.sku}
               placeholder="Auto si se deja vacío"
             />
-            <Fld label="Talla" name="size" defaultValue={variant?.size ?? ""} />
+            <div className="flex flex-col gap-1.5">
+              <Label>Talla de la variante</Label>
+              <input type="hidden" name="size" value={selectedSize} />
+              <Select
+                value={selectedSize || "none"}
+                onValueChange={(value) => setSelectedSize(value === "none" ? "" : value)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecciona una talla" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin talla</SelectItem>
+                  {hasLegacySize && (
+                    <SelectItem value={selectedSize}>{selectedSize}</SelectItem>
+                  )}
+                  {sizes.map((size) => (
+                    <SelectItem key={size.id} value={size.label}>
+                      {size.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Fld label="Color" name="color" defaultValue={variant?.color ?? ""} />
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="color_hex">Color (hex)</Label>
-              <Input
-                id="color_hex"
-                name="color_hex"
-                type="color"
-                defaultValue={variant?.color_hex ?? "#0EA5E9"}
-                className="h-9 p-1"
-              />
+              <Label>Color de la variante</Label>
+              <input type="hidden" name="color" value={selectedColorName} />
+              <input type="hidden" name="color_hex" value={selectedColorHex} />
+              <Select
+                value={selectedColorName || "none"}
+                onValueChange={(value) =>
+                  setSelectedColorName(value === "none" ? "" : value)
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecciona un color" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin color</SelectItem>
+                  {hasLegacyColor && (
+                    <SelectItem value={selectedColorName}>
+                      <span
+                        className="size-3 rounded-full border border-border"
+                        style={{
+                          background: variant?.color_hex ?? "var(--surface-2)",
+                        }}
+                      />
+                      {selectedColorName}
+                    </SelectItem>
+                  )}
+                  {colors.map((color) => (
+                    <SelectItem key={color.id} value={color.name}>
+                      <span
+                        className="size-3 rounded-full border border-border"
+                        style={{ background: color.hex ?? "var(--surface-2)" }}
+                      />
+                      {color.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Muestra seleccionada</Label>
+              <div className="flex h-9 items-center gap-2 rounded-md border border-input bg-transparent px-3 text-sm">
+                <span
+                  className="size-4 rounded-full border border-border"
+                  style={{ background: selectedColorHex || "var(--surface-2)" }}
+                />
+                <span className="truncate text-text-2">
+                  {selectedColorName || "Sin color"}
+                </span>
+              </div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">

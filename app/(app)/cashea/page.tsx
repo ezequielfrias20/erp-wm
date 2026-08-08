@@ -45,7 +45,10 @@ export default async function CasheaPage({
     ? (sp.channel as CasheaChannelFilter)
     : "todos";
 
-  const branchId = await getActiveBranchId(session.profile.branch_id);
+  const branchId = await getActiveBranchId(
+    session.profile.branch_id,
+    session.profile.role,
+  );
   const [bcv, data] = await Promise.all([
     fetchBcvRate().catch(() => ({ rate: BCV_FALLBACK, updatedAt: "", source: "BCV" })),
     getCasheaOrders(branchId, { from, to, status, channel }),

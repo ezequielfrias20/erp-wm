@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/queries/session";
 import { getShellData } from "@/lib/queries/shell";
 import { getBranding } from "@/lib/queries/branding";
-import { getActiveBranchId } from "@/lib/branch";
+import { getActiveBranchId, getProfileBranchScope } from "@/lib/branch";
 import { createClient } from "@/lib/supabase/server";
 import { fetchBcvRate, BCV_FALLBACK, type BcvRate } from "@/lib/bcv";
 import { SessionProvider } from "@/context/session";
@@ -18,8 +18,11 @@ export default async function AppLayout({
   if (!session) redirect("/login");
 
   const supabase = await createClient();
-  const assignedBranchId = session.profile.branch_id;
-  const activeId = await getActiveBranchId(assignedBranchId);
+  const assignedBranchId = getProfileBranchScope(session.profile);
+  const activeId = await getActiveBranchId(
+    session.profile.branch_id,
+    session.profile.role,
+  );
   const branchesQuery = supabase
     .from("branches")
     .select("id, code, city, name, color")

@@ -14,7 +14,10 @@ export default async function ClientesPage() {
   if (!canView(session.permissions, "Clientes")) redirect("/dashboard");
 
   const supabase = await createClient();
-  const branchId = await getActiveBranchId(session.profile.branch_id);
+  const branchId = await getActiveBranchId(
+    session.profile.branch_id,
+    session.profile.role,
+  );
   let customersQ = supabase
     .from("v_customer_stats")
     .select("*")

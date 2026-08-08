@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getSession } from "@/lib/queries/session";
+import { getProfileBranchScope } from "@/lib/branch";
 import type { CustomerSegment } from "@/lib/database.types";
 
 export type CheckoutItem = {
@@ -60,7 +61,8 @@ export async function checkout(input: CheckoutInput): Promise<{
 
   const session = await getSession();
   if (!session) return { error: "Debes iniciar sesión." };
-  if (session.profile.branch_id && input.branch_id !== session.profile.branch_id) {
+  const assignedBranchId = getProfileBranchScope(session.profile);
+  if (assignedBranchId && input.branch_id !== assignedBranchId) {
     return { error: "No puedes registrar ventas en otra sucursal." };
   }
 
@@ -109,12 +111,13 @@ export async function findCustomerByDocument(
   if (!session) return null;
 
   const supabase = await createClient();
+  const assignedBranchId = getProfileBranchScope(session.profile);
   let query = supabase
     .from("customers")
     .select("id, name, document, segment, phone, email")
     .ilike("document", d)
     .limit(1);
-  if (session.profile.branch_id) query = query.eq("branch_id", session.profile.branch_id);
+  if (assignedBranchId) query = query.eq("branch_id", assignedBranchId);
   const { data } = await query.maybeSingle();
   return data ?? null;
 }
@@ -132,7 +135,7 @@ export async function createPosCustomer(input: {
   if (!name) return { error: "El nombre es obligatorio." };
   const session = await getSession();
   if (!session) return { error: "Debes iniciar sesión." };
-  const branchId = session.profile.branch_id ?? input.branch_id ?? null;
+  const branchId = getProfileBranchScope(session.profile) ?? input.branch_id ?? null;
 
   const supabase = await createClient();
   const { data, error } = await supabase

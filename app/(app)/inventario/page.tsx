@@ -15,7 +15,10 @@ export default async function InventarioPage() {
   if (!canView(session.permissions, "Inventario")) redirect("/dashboard");
 
   const supabase = await createClient();
-  const branchId = await getActiveBranchId(session.profile.branch_id);
+  const branchId = await getActiveBranchId(
+    session.profile.branch_id,
+    session.profile.role,
+  );
 
   const list = await fetchAllRows<VInventory>((from, to) => {
     let query = supabase.from("v_inventory").select("*");

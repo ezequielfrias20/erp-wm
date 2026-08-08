@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { audit } from "@/lib/audit";
 import { getSession } from "@/lib/queries/session";
 import { canEdit } from "@/lib/permissions";
+import { getProfileBranchScope } from "@/lib/branch";
 
 export type FormState = { error?: string; ok?: boolean } | null;
 
@@ -26,14 +27,15 @@ export async function updateStock(
   }
 
   const supabase = await createClient();
-  if (session.profile.branch_id) {
+  const assignedBranchId = getProfileBranchScope(session.profile);
+  if (assignedBranchId) {
     const { data: current, error: currentError } = await supabase
       .from("inventory")
       .select("branch_id")
       .eq("id", id)
       .maybeSingle();
     if (currentError) return { error: currentError.message };
-    if (!current || current.branch_id !== session.profile.branch_id) {
+    if (!current || current.branch_id !== assignedBranchId) {
       return { error: "No puedes modificar inventario de otra sucursal." };
     }
   }
@@ -72,8 +74,9 @@ export async function importInventory(rows: ImportRow[]): Promise<ImportResult> 
   const supabase = await createClient();
 
   let branchesQ = supabase.from("branches").select("id, city, code");
-  if (session.profile.branch_id) {
-    branchesQ = branchesQ.eq("id", session.profile.branch_id);
+  const assignedBranchId = getProfileBranchScope(session.profile);
+  if (assignedBranchId) {
+    branchesQ = branchesQ.eq("id", assignedBranchId);
   }
 
   const [{ data: variants }, { data: branches }] = await Promise.all([

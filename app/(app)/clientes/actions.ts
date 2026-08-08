@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { audit } from "@/lib/audit";
 import { getSession } from "@/lib/queries/session";
+import { getProfileBranchScope } from "@/lib/branch";
 import type { CustomerSegment } from "@/lib/database.types";
 
 export type FormState = { error?: string; ok?: boolean } | null;
@@ -17,7 +18,7 @@ export async function saveCustomer(
   if (!name) return { error: "El nombre es obligatorio." };
   const session = await getSession();
   if (!session) return { error: "Debes iniciar sesión." };
-  const assignedBranchId = session.profile.branch_id;
+  const assignedBranchId = getProfileBranchScope(session.profile);
   const formBranchId = String(formData.get("branch_id") ?? "").trim() || null;
 
   const values = {
@@ -71,14 +72,15 @@ export async function deleteCustomer(id: string): Promise<FormState> {
   const supabase = await createClient();
   const session = await getSession();
   if (!session) return { error: "Debes iniciar sesión." };
-  if (session.profile.branch_id) {
+  const assignedBranchId = getProfileBranchScope(session.profile);
+  if (assignedBranchId) {
     const { data: current, error: currentError } = await supabase
       .from("customers")
       .select("branch_id")
       .eq("id", id)
       .maybeSingle();
     if (currentError) return { error: currentError.message };
-    if (!current || current.branch_id !== session.profile.branch_id) {
+    if (!current || current.branch_id !== assignedBranchId) {
       return { error: "No puedes eliminar clientes de otra sucursal." };
     }
   }
@@ -97,14 +99,15 @@ export async function addNote(
   const supabase = await createClient();
   const session = await getSession();
   if (!session) return { error: "Debes iniciar sesión." };
-  if (session.profile.branch_id) {
+  const assignedBranchId = getProfileBranchScope(session.profile);
+  if (assignedBranchId) {
     const { data: current, error: currentError } = await supabase
       .from("customers")
       .select("branch_id")
       .eq("id", customerId)
       .maybeSingle();
     if (currentError) return { error: currentError.message };
-    if (!current || current.branch_id !== session.profile.branch_id) {
+    if (!current || current.branch_id !== assignedBranchId) {
       return { error: "No puedes agregar notas a clientes de otra sucursal." };
     }
   }
