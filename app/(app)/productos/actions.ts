@@ -4,10 +4,21 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { audit } from "@/lib/audit";
 import { skuPrefix, buildSku, nextSeqFromSkus } from "@/lib/sku";
+import { getSession } from "@/lib/queries/session";
+import { canEdit } from "@/lib/permissions";
 
 export type FormState = { error?: string; ok?: boolean; id?: string } | null;
 
 type DB = Awaited<ReturnType<typeof createClient>>;
+
+async function requireProductsEdit(): Promise<FormState> {
+  const session = await getSession();
+  if (!session) return { error: "Debes iniciar sesión." };
+  if (!canEdit(session.permissions, "Productos")) {
+    return { error: "No tienes permiso para editar productos." };
+  }
+  return null;
+}
 
 /** Genera un SKU [CAT]-[slug]-[0001] para una nueva variante de `productId`. */
 async function generateSku(supabase: DB, productId: string): Promise<string> {
@@ -44,6 +55,8 @@ export async function saveProduct(
   const id = String(formData.get("id") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { error: "El nombre es obligatorio." };
+  const guard = await requireProductsEdit();
+  if (guard?.error) return guard;
 
   const values = {
     name,
@@ -83,6 +96,9 @@ export async function saveProduct(
 }
 
 export async function deleteProduct(id: string): Promise<FormState> {
+  const guard = await requireProductsEdit();
+  if (guard?.error) return guard;
+
   const supabase = await createClient();
   const { error } = await supabase.from("products").delete().eq("id", id);
   if (error) return { error: error.message };
@@ -99,6 +115,8 @@ export async function saveVariant(
   const productId = String(formData.get("product_id") ?? "").trim();
   let sku = String(formData.get("sku") ?? "").trim();
   if (!productId) return { error: "El producto es obligatorio." };
+  const guard = await requireProductsEdit();
+  if (guard?.error) return guard;
 
   const supabase = await createClient();
   // SKU opcional: si no viene, se autogenera [CAT]-[slug]-[0001].
@@ -129,6 +147,9 @@ export async function deleteVariant(
   id: string,
   productId: string,
 ): Promise<FormState> {
+  const guard = await requireProductsEdit();
+  if (guard?.error) return guard;
+
   const supabase = await createClient();
   const { error } = await supabase.from("product_variants").delete().eq("id", id);
   if (error) return { error: error.message };
@@ -181,6 +202,18 @@ export async function importProducts(input: {
   products: ProductImportRow[];
   variants: VariantImportRow[];
 }): Promise<ImportProductsResult> {
+  const guard = await requireProductsEdit();
+  if (guard?.error) {
+    return {
+      productsCreated: 0,
+      productsUpdated: 0,
+      variantsCreated: 0,
+      variantsUpdated: 0,
+      skipped: input.products.length + input.variants.length,
+      errors: [guard.error],
+    };
+  }
+
   const supabase = await createClient();
   const res: ImportProductsResult = {
     productsCreated: 0,
@@ -350,6 +383,9 @@ export async function getProductsExport(): Promise<{
   products: Record<string, unknown>[];
   variants: Record<string, unknown>[];
 }> {
+  const guard = await requireProductsEdit();
+  if (guard?.error) return { products: [], variants: [] };
+
   const supabase = await createClient();
   const [{ data: products }, { data: cats }, { data: brands }, { data: variants }] =
     await Promise.all([

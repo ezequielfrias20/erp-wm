@@ -18,14 +18,18 @@ export default async function AppLayout({
   if (!session) redirect("/login");
 
   const supabase = await createClient();
-  const activeId = await getActiveBranchId();
+  const assignedBranchId = session.profile.branch_id;
+  const activeId = await getActiveBranchId(assignedBranchId);
+  const branchesQuery = supabase
+    .from("branches")
+    .select("id, code, city, name, color")
+    .order("code");
+  const scopedBranchesQuery = assignedBranchId
+    ? branchesQuery.eq("id", assignedBranchId)
+    : branchesQuery.eq("is_active", true);
 
   const [branchesRes, bcv] = await Promise.all([
-    supabase
-      .from("branches")
-      .select("id, code, city, name, color")
-      .eq("is_active", true)
-      .order("code"),
+    scopedBranchesQuery,
     fetchBcvRate().catch(
       (): BcvRate => ({
         rate: BCV_FALLBACK,
@@ -41,7 +45,11 @@ export default async function AppLayout({
 
   return (
     <SessionProvider value={session}>
-      <BranchProvider branches={branches} activeId={activeId}>
+      <BranchProvider
+        branches={branches}
+        activeId={activeId}
+        locked={Boolean(assignedBranchId)}
+      >
         <AppShell
           bcv={bcv}
           badges={{ lowStock: shell.lowStock }}

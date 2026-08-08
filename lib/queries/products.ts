@@ -7,12 +7,15 @@ import type {
   Product,
   ProductListItem,
   ProductVariant,
+  VInventory,
   VProductSummary,
 } from "@/lib/database.types";
 
-export async function listProducts(): Promise<ProductListItem[]> {
+export async function listProducts(
+  branchId?: string | null,
+): Promise<ProductListItem[]> {
   const supabase = await createClient();
-  const [products, variants] = await Promise.all([
+  const [products, variants, inventory] = await Promise.all([
     fetchAllRows<VProductSummary>((from, to) =>
       supabase
         .from("v_product_summary")
@@ -32,10 +35,20 @@ export async function listProducts(): Promise<ProductListItem[]> {
         .order("product_id")
         .range(from, to),
     ),
+    branchId
+      ? fetchAllRows<Pick<VInventory, "product_id" | "quantity">>((from, to) =>
+          supabase
+            .from("v_inventory")
+            .select("product_id, quantity")
+            .eq("branch_id", branchId)
+            .range(from, to),
+        )
+      : Promise.resolve([]),
   ]);
 
   const sizesByProduct = new Map<string, Set<string>>();
   const colorsByProduct = new Map<string, Map<string, string | null>>();
+  const stockByProduct = new Map<string, number>();
 
   for (const variant of variants) {
     if (variant.size) {
@@ -50,9 +63,18 @@ export async function listProducts(): Promise<ProductListItem[]> {
       colorsByProduct.set(variant.product_id, colors);
     }
   }
+  for (const item of inventory) {
+    stockByProduct.set(
+      item.product_id,
+      (stockByProduct.get(item.product_id) ?? 0) + item.quantity,
+    );
+  }
 
   return products.map((product) => ({
     ...product,
+    total_stock: branchId
+      ? stockByProduct.get(product.id) ?? 0
+      : product.total_stock,
     sizes: [...(sizesByProduct.get(product.id) ?? [])].sort(),
     colors: [...(colorsByProduct.get(product.id) ?? [])]
       .map(([name, hex]) => ({ name, hex }))
@@ -83,7 +105,10 @@ export async function getCatalogRefs(): Promise<{
 
 export type VariantWithStock = ProductVariant & { stock: number };
 
-export async function getProductDetail(id: string): Promise<{
+export async function getProductDetail(
+  id: string,
+  branchId?: string | null,
+): Promise<{
   product: Product | null;
   variants: VariantWithStock[];
   byBranch: { city: string; qty: number }[];
@@ -103,11 +128,15 @@ export async function getProductDetail(id: string): Promise<{
     .order("sku");
 
   const variantIds = (variants ?? []).map((v) => v.id);
+  let inventoryQuery = supabase
+    .from("v_inventory")
+    .select("variant_id, branch_city, quantity")
+    .in("variant_id", variantIds);
+  if (branchId) {
+    inventoryQuery = inventoryQuery.eq("branch_id", branchId);
+  }
   const { data: inv } = variantIds.length
-    ? await supabase
-        .from("v_inventory")
-        .select("variant_id, branch_city, quantity")
-        .in("variant_id", variantIds)
+    ? await inventoryQuery
     : { data: [] as { variant_id: string; branch_city: string; quantity: number }[] };
 
   const stockByVariant = new Map<string, number>();

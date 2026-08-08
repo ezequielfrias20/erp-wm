@@ -24,12 +24,17 @@ export async function getDashboard(branchId: string | null) {
     .gte("created_at", yearStart);
   const invQ = supabase.from("v_inventory").select("*");
 
+  const branchStatsQ = supabase
+    .from("v_branch_stats")
+    .select("id, city, month_sales")
+    .order("month_sales", { ascending: false });
+
   const [salesRes, linesRes, invRes, branchStatsRes, ordersRes, suppliersRes, activityRes, custRes] =
     await Promise.all([
       branchId ? salesQ.eq("branch_id", branchId) : salesQ,
       branchId ? linesQ.eq("branch_id", branchId) : linesQ,
       branchId ? invQ.eq("branch_id", branchId) : invQ,
-      supabase.from("v_branch_stats").select("city, month_sales").order("month_sales", { ascending: false }),
+      branchId ? branchStatsQ.eq("id", branchId) : branchStatsQ,
       supabase
         .from("purchase_orders")
         .select("code, status, expected_date, supplier_id")

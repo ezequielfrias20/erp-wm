@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/queries/session";
 import { getProductDetail, getCatalogRefs } from "@/lib/queries/products";
 import { canView, canEdit } from "@/lib/permissions";
+import { getActiveBranchId } from "@/lib/branch";
 import { ProductEditor } from "@/components/productos/product-editor";
 
 export default async function ProductDetailPage({
@@ -14,8 +15,9 @@ export default async function ProductDetailPage({
   if (!session) redirect("/login");
   if (!canView(session.permissions, "Productos")) redirect("/dashboard");
 
+  const branchId = await getActiveBranchId(session.profile.branch_id);
   const [detail, refs] = await Promise.all([
-    getProductDetail(id),
+    getProductDetail(id, branchId),
     getCatalogRefs(),
   ]);
   if (!detail?.product) notFound();

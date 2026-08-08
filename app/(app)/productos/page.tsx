@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/queries/session";
 import { listProducts, getCatalogRefs } from "@/lib/queries/products";
 import { canView, canEdit } from "@/lib/permissions";
+import { getActiveBranchId } from "@/lib/branch";
 import { ProductsView } from "@/components/productos/products-view";
 
 export const metadata = { title: "Productos · World Medics ERP" };
@@ -11,7 +12,11 @@ export default async function ProductosPage() {
   if (!session) redirect("/login");
   if (!canView(session.permissions, "Productos")) redirect("/dashboard");
 
-  const [products, refs] = await Promise.all([listProducts(), getCatalogRefs()]);
+  const branchId = await getActiveBranchId(session.profile.branch_id);
+  const [products, refs] = await Promise.all([
+    listProducts(branchId),
+    getCatalogRefs(),
+  ]);
 
   return (
     <ProductsView

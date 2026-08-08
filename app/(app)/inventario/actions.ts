@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { audit } from "@/lib/audit";
+import { getSession } from "@/lib/queries/session";
+import { canEdit } from "@/lib/permissions";
 
 export type FormState = { error?: string; ok?: boolean } | null;
 
@@ -17,7 +19,25 @@ export async function updateStock(
   const min_stock = Number(formData.get("min_stock") ?? 0);
   const sku = String(formData.get("sku") ?? "");
 
+  const session = await getSession();
+  if (!session) return { error: "Debes iniciar sesión." };
+  if (!canEdit(session.permissions, "Inventario")) {
+    return { error: "No tienes permiso para editar inventario." };
+  }
+
   const supabase = await createClient();
+  if (session.profile.branch_id) {
+    const { data: current, error: currentError } = await supabase
+      .from("inventory")
+      .select("branch_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (currentError) return { error: currentError.message };
+    if (!current || current.branch_id !== session.profile.branch_id) {
+      return { error: "No puedes modificar inventario de otra sucursal." };
+    }
+  }
+
   const { error } = await supabase
     .from("inventory")
     .update({ quantity, reserved, min_stock })
@@ -43,11 +63,22 @@ export type ImportResult = { imported?: number; skipped?: number; error?: string
 /** Bulk upsert of stock per (SKU × sucursal) from a parsed CSV. */
 export async function importInventory(rows: ImportRow[]): Promise<ImportResult> {
   if (!rows.length) return { error: "El archivo no contiene filas." };
+  const session = await getSession();
+  if (!session) return { error: "Debes iniciar sesión." };
+  if (!canEdit(session.permissions, "Inventario")) {
+    return { error: "No tienes permiso para importar inventario." };
+  }
+
   const supabase = await createClient();
+
+  let branchesQ = supabase.from("branches").select("id, city, code");
+  if (session.profile.branch_id) {
+    branchesQ = branchesQ.eq("id", session.profile.branch_id);
+  }
 
   const [{ data: variants }, { data: branches }] = await Promise.all([
     supabase.from("product_variants").select("id, sku"),
-    supabase.from("branches").select("id, city, code"),
+    branchesQ,
   ]);
   const vMap = new Map((variants ?? []).map((v) => [v.sku.toLowerCase(), v.id]));
   const bMap = new Map<string, string>();

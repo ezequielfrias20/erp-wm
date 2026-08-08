@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getSession } from "@/lib/queries/session";
 import type { CustomerSegment } from "@/lib/database.types";
 
 export type CheckoutItem = {
@@ -50,6 +51,12 @@ export async function checkout(input: CheckoutInput): Promise<{
   if (!input.customer_id) return { error: "Selecciona un cliente para cobrar la venta." };
   if (!input.payments.length) return { error: "Configura al menos un método de pago." };
 
+  const session = await getSession();
+  if (!session) return { error: "Debes iniciar sesión." };
+  if (session.profile.branch_id && input.branch_id !== session.profile.branch_id) {
+    return { error: "No puedes registrar ventas en otra sucursal." };
+  }
+
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("create_sale", {
     p_branch_id: input.branch_id,
@@ -89,13 +96,17 @@ export async function findCustomerByDocument(
 ): Promise<PosCustomerRow | null> {
   const d = doc.trim();
   if (!d) return null;
+  const session = await getSession();
+  if (!session) return null;
+
   const supabase = await createClient();
-  const { data } = await supabase
+  let query = supabase
     .from("customers")
     .select("id, name, document, segment, phone, email")
     .ilike("document", d)
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
+  if (session.profile.branch_id) query = query.eq("branch_id", session.profile.branch_id);
+  const { data } = await query.maybeSingle();
   return data ?? null;
 }
 
@@ -106,9 +117,14 @@ export async function createPosCustomer(input: {
   phone?: string;
   email?: string;
   segment?: CustomerSegment;
+  branch_id?: string | null;
 }): Promise<{ customer?: PosCustomerRow; error?: string }> {
   const name = input.name.trim();
   if (!name) return { error: "El nombre es obligatorio." };
+  const session = await getSession();
+  if (!session) return { error: "Debes iniciar sesión." };
+  const branchId = session.profile.branch_id ?? input.branch_id ?? null;
+
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("customers")
@@ -118,6 +134,7 @@ export async function createPosCustomer(input: {
       phone: input.phone?.trim() || null,
       email: input.email?.trim() || null,
       segment: input.segment ?? "Nuevo",
+      branch_id: branchId,
     })
     .select("id, name, document, segment, phone, email")
     .single();

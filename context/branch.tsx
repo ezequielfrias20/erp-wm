@@ -16,6 +16,7 @@ type BranchValue = {
   activeId: string | null;
   active: BranchOption | null;
   label: string;
+  locked: boolean;
   setBranch: (id: string) => void;
   pending: boolean;
 };
@@ -25,10 +26,12 @@ const BranchContext = createContext<BranchValue | null>(null);
 export function BranchProvider({
   branches,
   activeId,
+  locked = false,
   children,
 }: {
   branches: BranchOption[];
   activeId: string | null;
+  locked?: boolean;
   children: React.ReactNode;
 }) {
   const [pending, startTransition] = useTransition();
@@ -37,6 +40,7 @@ export function BranchProvider({
     : null;
 
   const setBranch = (id: string) => {
+    if (locked) return;
     startTransition(() => {
       void setActiveBranch(id);
     });
@@ -49,6 +53,7 @@ export function BranchProvider({
         activeId,
         active,
         label: active ? active.city : "Todas las sucursales",
+        locked,
         setBranch,
         pending,
       }}

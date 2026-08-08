@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { audit } from "@/lib/audit";
+import { getSession } from "@/lib/queries/session";
 import type { CustomerSegment } from "@/lib/database.types";
 
 export type FormState = { error?: string; ok?: boolean } | null;
@@ -14,6 +15,10 @@ export async function saveCustomer(
   const id = String(formData.get("id") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { error: "El nombre es obligatorio." };
+  const session = await getSession();
+  if (!session) return { error: "Debes iniciar sesión." };
+  const assignedBranchId = session.profile.branch_id;
+  const formBranchId = String(formData.get("branch_id") ?? "").trim() || null;
 
   const values = {
     name,
@@ -22,12 +27,23 @@ export async function saveCustomer(
     document: String(formData.get("document") ?? "").trim() || null,
     segment: (String(formData.get("segment") ?? "Nuevo") || "Nuevo") as CustomerSegment,
     city: String(formData.get("city") ?? "").trim() || null,
-    branch_id: String(formData.get("branch_id") ?? "").trim() || null,
+    branch_id: assignedBranchId ?? formBranchId,
     notes: String(formData.get("notes") ?? "").trim() || null,
   };
 
   const supabase = await createClient();
   if (id) {
+    if (assignedBranchId) {
+      const { data: current, error: currentError } = await supabase
+        .from("customers")
+        .select("branch_id")
+        .eq("id", id)
+        .maybeSingle();
+      if (currentError) return { error: currentError.message };
+      if (!current || current.branch_id !== assignedBranchId) {
+        return { error: "No puedes modificar clientes de otra sucursal." };
+      }
+    }
     const { error } = await supabase.from("customers").update(values).eq("id", id);
     if (error) return { error: error.message };
     await audit(`Editó el cliente ${name}`, "Clientes");
@@ -53,6 +69,19 @@ export async function saveCustomer(
 
 export async function deleteCustomer(id: string): Promise<FormState> {
   const supabase = await createClient();
+  const session = await getSession();
+  if (!session) return { error: "Debes iniciar sesión." };
+  if (session.profile.branch_id) {
+    const { data: current, error: currentError } = await supabase
+      .from("customers")
+      .select("branch_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (currentError) return { error: currentError.message };
+    if (!current || current.branch_id !== session.profile.branch_id) {
+      return { error: "No puedes eliminar clientes de otra sucursal." };
+    }
+  }
   const { error } = await supabase.from("customers").delete().eq("id", id);
   if (error) return { error: error.message };
   await audit("Eliminó un cliente", "Clientes", "warn");
@@ -66,6 +95,19 @@ export async function addNote(
 ): Promise<FormState> {
   if (!note.trim()) return { error: "La nota no puede estar vacía." };
   const supabase = await createClient();
+  const session = await getSession();
+  if (!session) return { error: "Debes iniciar sesión." };
+  if (session.profile.branch_id) {
+    const { data: current, error: currentError } = await supabase
+      .from("customers")
+      .select("branch_id")
+      .eq("id", customerId)
+      .maybeSingle();
+    if (currentError) return { error: currentError.message };
+    if (!current || current.branch_id !== session.profile.branch_id) {
+      return { error: "No puedes agregar notas a clientes de otra sucursal." };
+    }
+  }
   const { error } = await supabase.from("customer_events").insert({
     customer_id: customerId,
     type: "nota",

@@ -15,7 +15,7 @@ export default async function VentasPage() {
   if (!canView(session.permissions, "Ventas")) redirect("/dashboard");
 
   const supabase = await createClient();
-  const activeBranchId = await getActiveBranchId();
+  const activeBranchId = await getActiveBranchId(session.profile.branch_id);
 
   // POS works on a concrete branch: active filter -> user's home branch -> first branch.
   let branchId = activeBranchId ?? session.profile.branch_id;
@@ -44,6 +44,12 @@ export default async function VentasPage() {
     quantity: number;
   };
 
+  let customersQ = supabase
+    .from("customers")
+    .select("id, name, document, segment")
+    .order("name");
+  if (branchId) customersQ = customersQ.eq("branch_id", branchId);
+
   const [branchRes, invRows, customersRes, pmRes, settingsRes, bcv] = await Promise.all([
     branchId
       ? supabase.from("branches").select("id, city").eq("id", branchId).maybeSingle()
@@ -61,10 +67,7 @@ export default async function VentasPage() {
             .range(from, to),
         )
       : Promise.resolve([]),
-    supabase
-      .from("customers")
-      .select("id, name, document, segment")
-      .order("name"),
+    customersQ,
     supabase
       .from("payment_methods")
       .select("name, currency, requires_reference, is_financed")

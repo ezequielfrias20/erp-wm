@@ -65,7 +65,7 @@ export function Header({
   bcv: BcvRate;
   notifications: ShellNotification[];
 }) {
-  const { branches, activeId, label, setBranch } = useBranch();
+  const { branches, activeId, label, locked, setBranch } = useBranch();
   const { profile } = useSession();
 
   return (
@@ -93,39 +93,46 @@ export function Header({
       <div className="flex-1" />
 
       {/* Branch switcher */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className="iconbtn flex h-11 min-w-0 items-center gap-2 rounded-[10px] border border-border bg-card px-3 text-[13px] font-medium text-foreground lg:h-[38px] lg:px-[11px]">
-            <Store className="size-[17px] text-brand" />
-            <span className="max-w-[96px] truncate sm:max-w-[160px]">{label}</span>
-            <ChevronDown className="size-[15px] text-text-3" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-[248px]">
-          <DropdownMenuLabel className="text-[10.5px] font-bold tracking-[0.07em] text-text-3 uppercase">
-            Sucursal activa
-          </DropdownMenuLabel>
-          <DropdownMenuItem onClick={() => setBranch("all")} className="gap-2.5">
-            <span className="size-2 rounded-full bg-text-3" />
-            <span className="flex-1 text-[13px]">Todas las sucursales</span>
-            {!activeId && <Check className="size-4 text-brand" />}
-          </DropdownMenuItem>
-          {branches.map((b) => (
-            <DropdownMenuItem
-              key={b.id}
-              onClick={() => setBranch(b.id)}
-              className="gap-2.5"
-            >
-              <span
-                className="size-2 rounded-full"
-                style={{ background: b.color ?? "var(--brand)" }}
-              />
-              <span className="flex-1 text-[13px]">{b.city}</span>
-              {activeId === b.id && <Check className="size-4 text-brand" />}
+      {locked ? (
+        <div className="flex h-11 min-w-0 items-center gap-2 rounded-[10px] border border-border bg-card px-3 text-[13px] font-medium text-foreground lg:h-[38px] lg:px-[11px]">
+          <Store className="size-[17px] text-brand" />
+          <span className="max-w-[96px] truncate sm:max-w-[160px]">{label}</span>
+        </div>
+      ) : (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="iconbtn flex h-11 min-w-0 items-center gap-2 rounded-[10px] border border-border bg-card px-3 text-[13px] font-medium text-foreground lg:h-[38px] lg:px-[11px]">
+              <Store className="size-[17px] text-brand" />
+              <span className="max-w-[96px] truncate sm:max-w-[160px]">{label}</span>
+              <ChevronDown className="size-[15px] text-text-3" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-[248px]">
+            <DropdownMenuLabel className="text-[10.5px] font-bold tracking-[0.07em] text-text-3 uppercase">
+              Sucursal activa
+            </DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => setBranch("all")} className="gap-2.5">
+              <span className="size-2 rounded-full bg-text-3" />
+              <span className="flex-1 text-[13px]">Todas las sucursales</span>
+              {!activeId && <Check className="size-4 text-brand" />}
             </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+            {branches.map((b) => (
+              <DropdownMenuItem
+                key={b.id}
+                onClick={() => setBranch(b.id)}
+                className="gap-2.5"
+              >
+                <span
+                  className="size-2 rounded-full"
+                  style={{ background: b.color ?? "var(--brand)" }}
+                />
+                <span className="flex-1 text-[13px]">{b.city}</span>
+                {activeId === b.id && <Check className="size-4 text-brand" />}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
 
       {/* BCV pill */}
       <div className="hidden h-[38px] items-center gap-[9px] rounded-[10px] border border-border bg-surface-2 px-3 sm:flex">

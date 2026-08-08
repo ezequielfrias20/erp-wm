@@ -15,7 +15,7 @@ export default async function InventarioPage() {
   if (!canView(session.permissions, "Inventario")) redirect("/dashboard");
 
   const supabase = await createClient();
-  const branchId = await getActiveBranchId();
+  const branchId = await getActiveBranchId(session.profile.branch_id);
 
   const list = await fetchAllRows<VInventory>((from, to) => {
     let query = supabase.from("v_inventory").select("*");
@@ -29,13 +29,16 @@ export default async function InventarioPage() {
     ...new Set(list.map((r) => r.brand).filter(Boolean)),
   ] as string[];
 
-  // Opciones para la plantilla de carga masiva (todos los SKU y sucursales).
+  let branchesQuery = supabase.from("branches").select("city, code").order("city");
+  if (branchId) branchesQuery = branchesQuery.eq("id", branchId);
+
+  // Opciones para la plantilla de carga masiva.
   const [{ data: allVariants }, { data: allBranches }] = await Promise.all([
     supabase
       .from("product_variants")
       .select("sku, size, color, products(name)")
       .order("sku"),
-    supabase.from("branches").select("city, code").order("city"),
+    branchesQuery,
   ]);
   const skuOptions = (allVariants ?? []).map((v) => {
     const pname = (v.products as { name?: string } | null)?.name ?? "";

@@ -12,7 +12,7 @@ export default async function DashboardPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const branchId = await getActiveBranchId();
+  const branchId = await getActiveBranchId(session.profile.branch_id);
   const [data, bcv] = await Promise.all([
     getDashboard(branchId),
     fetchBcvRate().catch(() => ({

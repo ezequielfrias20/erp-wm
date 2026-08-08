@@ -1051,6 +1051,7 @@ export function PosView({
         open={custOpen}
         onOpenChange={setCustOpen}
         customers={customers}
+        branchId={branch?.id ?? null}
         onSelect={(c) => {
           setCustomer(c);
           setCustOpen(false);
@@ -1127,11 +1128,13 @@ function CustomerDialog({
   open,
   onOpenChange,
   customers,
+  branchId,
   onSelect,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   customers: PosCustomer[];
+  branchId: string | null;
   onSelect: (c: PosCustomer | null) => void;
 }) {
   const [doc, setDoc] = useState("");
@@ -1173,6 +1176,7 @@ function CustomerDialog({
       document: doc,
       phone,
       email,
+      branch_id: branchId,
     });
     setCreating(false);
     if (res.error || !res.customer) return toast.error(res.error ?? "No se pudo crear.");
