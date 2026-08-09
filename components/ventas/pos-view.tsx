@@ -23,6 +23,7 @@ import {
   Pencil,
   X,
   CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import {
   checkout,
@@ -34,10 +35,17 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   Select,
   SelectContent,
@@ -114,6 +122,11 @@ export type CasheaDraft = {
 
 type CartLine = PosProduct & { qty: number };
 type DiscountMode = "percent" | "amount";
+type PaymentMismatchDraft = {
+  total: number;
+  paidUsd: number;
+  diffCents: number;
+};
 
 const round2 = roundMoney;
 const cents = (n: number) => Math.round(roundMoney(n) * 100);
@@ -234,6 +247,8 @@ export function PosView({
   const [mixedOpen, setMixedOpen] = useState(false);
   const [cashea, setCashea] = useState<CasheaDraft | null>(null);
   const [casheaOpen, setCasheaOpen] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [paymentMismatch, setPaymentMismatch] = useState<PaymentMismatchDraft | null>(null);
 
   const drafts = useSyncExternalStore(
     subscribeDrafts,
@@ -371,9 +386,11 @@ export function PosView({
     setCashea(null);
     setSingleReference("");
     setActiveDraftId(null);
+    setCheckoutOpen(false);
+    setPaymentMismatch(null);
   }
 
-  function complete() {
+  function complete(allowPaymentMismatch = false) {
     if (!branch) return toast.error("No hay sucursal seleccionada.");
     if (lines.length === 0) return toast.error("El ticket está vacío.");
     if (!customer) {
@@ -388,13 +405,15 @@ export function PosView({
     const payments = resolved.payments;
     const paidUsd = payments.reduce((a, p) => a + p.amount_usd, 0);
     const paymentDiffCents = cents(total) - cents(paidUsd);
-    if (paymentDiffCents !== 0) {
-      return toast.error(
-        paymentDiffCents > 0
-          ? `Falta por cubrir ${fmtUSD(centsToMoney(paymentDiffCents))}.`
-          : `El pago excede el total por ${fmtUSD(centsToMoney(paymentDiffCents))}.`,
-      );
+    if (paymentDiffCents !== 0 && !allowPaymentMismatch) {
+      setPaymentMismatch({
+        total,
+        paidUsd: round2(paidUsd),
+        diffCents: paymentDiffCents,
+      });
+      return;
     }
+    setPaymentMismatch(null);
 
     const items: CheckoutItem[] = lines.map((l) => ({
       variant_id: l.variant_id,
@@ -544,262 +563,36 @@ export function PosView({
   const selectedPm = realMethods.find((m) => m.name === selectedMethod);
   const mixedPaidUsd = (mixed ?? []).reduce((a, p) => a + p.amount_usd, 0);
 
-  return (
-    <div className="flex min-h-full flex-col lg:grid lg:h-full lg:min-h-0 lg:grid-cols-[1fr_420px] lg:overflow-hidden">
-      {/* Catálogo */}
-      <div className="flex min-h-0 flex-col lg:overflow-hidden">
-        <div className="px-4 pt-4 sm:px-5 lg:px-[30px] lg:pt-[22px]">
-          <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
-            <div>
-              <h1 className="text-[22px] font-bold tracking-tight text-foreground">
-                Punto de venta
-              </h1>
-              <p className="mt-0.5 text-[12.5px] text-text-2">
-                Sucursal {branch?.city ?? "—"} · {fmtNum(filtered.length)} productos · tasa {fmtVES(rate)}
-              </p>
+  function renderCartContent(sheet = false) {
+    return (
+      <section
+        className={cn(
+          "flex min-w-0 flex-col border-b border-border bg-surface-2/60",
+          sheet
+            ? "max-h-[46dvh] min-h-[220px]"
+            : "min-h-[360px] min-[1440px]:min-h-0 min-[1440px]:border-r min-[1440px]:border-b-0",
+        )}
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-border bg-card px-4 py-3">
+          <div>
+            <div className="text-[13px] font-bold text-foreground">Productos en carrito</div>
+            <div className="text-[11.5px] text-text-3">
+              {lines.length} líneas · {count} unidades
             </div>
-            <button
-              onClick={() => setDraftsOpen(true)}
-              className="iconbtn relative flex h-11 items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-3 text-[13px] font-medium text-foreground sm:h-[38px]"
-            >
-              <Layers className="size-4 text-text-3" /> Borradores
-              {drafts.length > 0 && (
-                <span className="flex size-5 items-center justify-center rounded-full bg-brand text-[10.5px] font-bold text-white">
-                  {drafts.length}
-                </span>
-              )}
-            </button>
           </div>
-
-          <div className="relative mt-4">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-[17px] -translate-y-1/2 text-text-3" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar por nombre, talla, color, modelo o SKU…"
-              className="h-11 w-full rounded-[12px] border border-border bg-card pr-3 pl-[37px] text-[16px] text-foreground outline-none sm:h-[42px] sm:text-[13px]"
-            />
-          </div>
-
-          <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
-            {categories.map((c) => (
-              <button
-                key={c}
-                onClick={() => setCat(c)}
-                className={cn(
-                  "flex-none rounded-full px-3.5 py-2 text-[12.5px] font-medium transition sm:py-1.5",
-                  cat === c
-                    ? "bg-brand text-white"
-                    : "border border-border bg-card text-text-2 hover:bg-[var(--hover)]",
-                )}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <FilterSelect
-              value={brand}
-              onChange={setBrand}
-              placeholder="Marca"
-              options={filterOptions.brands}
-            />
-            <FilterSelect
-              value={size}
-              onChange={setSize}
-              placeholder="Talla"
-              options={filterOptions.sizes}
-            />
-            <FilterSelect
-              value={color}
-              onChange={setColor}
-              placeholder="Color"
-              options={filterOptions.colors}
-            />
-            {hasProductFilters && (
-              <button
-                type="button"
-                onClick={() => {
-                  setQuery("");
-                  setCat("Todos");
-                  setBrand("");
-                  setSize("");
-                  setColor("");
-                }}
-                className="iconbtn flex h-11 w-full items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-3 text-[13px] font-medium text-text-2 sm:h-[38px] sm:w-auto"
-              >
-                <X className="size-4" /> Limpiar
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 px-4 py-4 sm:px-5 lg:overflow-y-auto lg:px-[30px]">
-          {filtered.length === 0 ? (
-            <div className="py-16 text-center text-[13px] text-text-3">
-              No hay productos con stock en esta sucursal.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:grid-cols-3 xl:grid-cols-4">
-              {filtered.map((p) => (
-                <button
-                  key={p.variant_id}
-                  onClick={() => add(p)}
-                  title={variantDescription(p)}
-                  className="hoverlift flex min-h-[220px] flex-col overflow-hidden rounded-2xl border border-border bg-card text-left shadow-card-sm sm:min-h-[258px]"
-                >
-                  <div
-                    className="flex h-20 items-center justify-center text-[18px] font-bold text-white"
-                    style={{
-                      background: `linear-gradient(140deg, ${p.color_hex ?? "#0EA5E9"}, color-mix(in srgb, ${p.color_hex ?? "#0EA5E9"} 70%, #000))`,
-                    }}
-                  >
-                    {initials(p.product_name)}
-                  </div>
-                  <div className="flex flex-1 flex-col gap-2.5 p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 text-[10.5px] font-medium tracking-wide text-text-3 uppercase">
-                        {[p.category, p.brand].filter(Boolean).join(" · ") || "Sin categoría"}
-                      </div>
-                      <div className="flex-none text-[10.5px] font-medium text-text-3">
-                        {p.stock} disp.
-                      </div>
-                    </div>
-                    <div className="line-clamp-3 text-[13px] leading-snug font-semibold text-foreground">
-                      {p.product_name}
-                    </div>
-                    {(p.color || p.size) && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {p.color && (
-                          <span className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-surface-2 px-2 py-1 text-[11px] font-medium text-text-2">
-                            <span
-                              className="size-2.5 flex-none rounded-full border border-black/10"
-                              style={{ backgroundColor: p.color_hex ?? "#CBD5E1" }}
-                              aria-hidden="true"
-                            />
-                            <span className="truncate">{p.color}</span>
-                          </span>
-                        )}
-                        {p.size && (
-                          <span className="inline-flex rounded-md border border-border bg-surface-2 px-2 py-1 text-[11px] font-semibold text-text-2">
-                            Talla {p.size}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    <div className="mt-auto text-[10.5px] font-medium text-text-3">
-                      SKU {p.sku}
-                    </div>
-                    <div className="flex items-end justify-between">
-                      <div>
-                        <div className="text-[13px] font-bold text-foreground">
-                          {fmtUSD(p.price)}
-                        </div>
-                        <div className="text-[10.5px] text-text-3">
-                          {fmtVES(usdToVesAmount(p.price, rate))}
-                        </div>
-                      </div>
-                      <span className="flex size-7 items-center justify-center rounded-full bg-brand text-white">
-                        <Plus className="size-4" />
-                      </span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Ticket */}
-      <div className="flex min-h-[560px] flex-col overflow-hidden border-t border-border bg-card lg:min-h-0 lg:border-t-0 lg:border-l">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3.5">
-          <div className="flex items-center gap-2.5">
-            <span className="flex size-9 items-center justify-center rounded-xl bg-brand-soft text-brand">
-              <ShoppingCart className="size-[18px]" />
-            </span>
-            <div>
-              <div className="text-[14px] font-bold text-foreground">Ticket de venta</div>
-              <div className="text-[11.5px] text-text-3">
-                {count} artículos{activeDraftId ? " · borrador" : ""}
+          {lines.length > 0 ? (
+            <div className="text-right">
+              <div className="font-mono text-[15px] font-bold text-foreground">
+                {fmtUSD(subtotal)}
               </div>
+              <div className="text-[10.5px] text-text-3">subtotal</div>
             </div>
-          </div>
-          <span className="flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-[11.5px] font-medium text-text-2">
-            <Store className="size-3.5" /> {branch?.city ?? "—"}
-          </span>
+          ) : null}
         </div>
 
-        <button
-          onClick={() => setCustOpen(true)}
-          className="tr-row flex items-center gap-2.5 border-b border-border px-4 py-3 text-left"
-        >
-          <span className="flex size-9 items-center justify-center rounded-full bg-surface-2 text-[12px] font-bold text-text-2">
-            {customer ? initials(customer.name) : <UserRound className="size-4" />}
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-semibold text-foreground">
-              {customer?.name ?? "Selecciona un cliente"}
-            </div>
-            <div className="truncate text-[11.5px] text-text-3">
-              {customer?.document ?? "Requerido para cobrar"}
-            </div>
-          </div>
-          <span className="text-[12px] font-medium text-brand">Cambiar</span>
-        </button>
-
-        <div className="border-b border-border px-4 py-3">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <div className="text-[11px] font-semibold tracking-wide text-text-3 uppercase">
-              Vendedor
-            </div>
-            {selectedSeller ? (
-              <span className="truncate text-[11.5px] font-medium text-text-2">
-                {selectedSeller.full_name}
-              </span>
-            ) : null}
-          </div>
-          <div className="grid grid-cols-[1fr_112px] gap-2">
-            <Select
-              value={sellerId}
-              onValueChange={(value) => {
-                setSellerId(value);
-                setSellerCode("");
-              }}
-              disabled={sellers.length === 0}
-            >
-              <SelectTrigger className="h-10 min-w-0">
-                <SelectValue placeholder={sellers.length ? "Seleccionar" : "Sin vendedores"} />
-              </SelectTrigger>
-              <SelectContent>
-                {sellers.map((seller) => (
-                  <SelectItem key={seller.id} value={seller.id}>
-                    {seller.full_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              type="password"
-              inputMode="numeric"
-              value={sellerCode}
-              onChange={(e) => {
-                const value = e.target.value.replace(/\D/g, "").slice(0, 4);
-                setSellerCode(value);
-              }}
-              placeholder="Código"
-              className="h-10 text-center font-semibold tracking-wide"
-              maxLength={4}
-              autoComplete="off"
-              disabled={!sellerId}
-            />
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-card">
           {lines.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-2 px-6 py-12 text-center">
+            <div className="flex h-full min-h-[210px] flex-col items-center justify-center gap-2 px-6 py-12 text-center">
               <ShoppingCart className="size-8 text-text-3" />
               <div className="text-[13px] font-semibold text-foreground">Carrito vacío</div>
               <div className="text-[12px] text-text-3">Toca un producto para agregarlo</div>
@@ -845,8 +638,10 @@ export function PosView({
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button
+                    type="button"
                     onClick={() => setQty(l.variant_id, l.qty - 1)}
-                  className="iconbtn flex size-8 items-center justify-center rounded-md border border-border text-text-2 sm:size-6"
+                    aria-label={`Restar ${l.product_name}`}
+                    className="iconbtn flex size-8 items-center justify-center rounded-md border border-border text-text-2 sm:size-7"
                   >
                     <Minus className="size-3" />
                   </button>
@@ -854,8 +649,10 @@ export function PosView({
                     {l.qty}
                   </span>
                   <button
+                    type="button"
                     onClick={() => setQty(l.variant_id, l.qty + 1)}
-                  className="iconbtn flex size-8 items-center justify-center rounded-md border border-border text-text-2 sm:size-6"
+                    aria-label={`Sumar ${l.product_name}`}
+                    className="iconbtn flex size-8 items-center justify-center rounded-md border border-border text-text-2 sm:size-7"
                   >
                     <Plus className="size-3" />
                   </button>
@@ -867,8 +664,80 @@ export function PosView({
             ))
           )}
         </div>
+      </section>
+    );
+  }
 
-        <div className="flex-none border-t border-border p-4">
+  function renderCheckoutControls() {
+    return (
+      <>
+        <button
+          onClick={() => setCustOpen(true)}
+          className="tr-row flex items-center gap-2.5 border-b border-border px-4 py-3 text-left"
+        >
+          <span className="flex size-9 items-center justify-center rounded-full bg-surface-2 text-[12px] font-bold text-text-2">
+            {customer ? initials(customer.name) : <UserRound className="size-4" />}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-semibold text-foreground">
+              {customer?.name ?? "Selecciona un cliente"}
+            </div>
+            <div className="truncate text-[11.5px] text-text-3">
+              {customer?.document ?? "Requerido para cobrar"}
+            </div>
+          </div>
+          <span className="text-[12px] font-medium text-brand">Cambiar</span>
+        </button>
+
+        <div className="border-b border-border px-4 py-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div className="text-[11px] font-semibold tracking-wide text-text-3 uppercase">
+              Vendedor
+            </div>
+            {selectedSeller ? (
+              <span className="truncate text-[11.5px] font-medium text-text-2">
+                {selectedSeller.full_name}
+              </span>
+            ) : null}
+          </div>
+          <div className="grid grid-cols-[1fr_112px] gap-2 min-[1440px]:grid-cols-1 2xl:grid-cols-[1fr_112px]">
+            <Select
+              value={sellerId}
+              onValueChange={(value) => {
+                setSellerId(value);
+                setSellerCode("");
+              }}
+              disabled={sellers.length === 0}
+            >
+              <SelectTrigger className="h-10 min-w-0">
+                <SelectValue placeholder={sellers.length ? "Seleccionar" : "Sin vendedores"} />
+              </SelectTrigger>
+              <SelectContent>
+                {sellers.map((seller) => (
+                  <SelectItem key={seller.id} value={seller.id}>
+                    {seller.full_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              type="password"
+              inputMode="numeric"
+              value={sellerCode}
+              onChange={(e) => {
+                const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+                setSellerCode(value);
+              }}
+              placeholder="Código"
+              className="h-10 text-center font-semibold tracking-wide"
+              maxLength={4}
+              autoComplete="off"
+              disabled={!sellerId}
+            />
+          </div>
+        </div>
+
+        <div className="flex-none p-4">
           <div className="flex flex-col gap-1.5 text-[12.5px]">
             <Row label="Subtotal con IVA" value={fmtUSD(subtotal)} />
             <div className="rounded-[10px] border border-border bg-surface-2 p-2.5">
@@ -1004,7 +873,6 @@ export function PosView({
             )}
           </div>
 
-          {/* Referencia para método único que la requiere */}
           {!mixed && !cashea && selectedPm?.requires_reference && (
             <input
               value={singleReference}
@@ -1013,14 +881,12 @@ export function PosView({
               className="mt-2 h-9 w-full rounded-[10px] border border-border bg-surface-2 px-3 text-[12.5px] outline-none"
             />
           )}
-          {/* Conversión para método único en VES */}
           {!mixed && !cashea && selectedPm?.currency === "VES" && (
             <p className="mt-1.5 text-[11px] text-text-3">
               A cobrar: <strong className="text-foreground">{fmtVES(usdToVesAmount(total, rate))}</strong>
             </p>
           )}
 
-          {/* Resumen de pago mixto */}
           {mixed && (
             <div className="mt-2 rounded-[10px] border border-border bg-surface-2 p-2.5 text-[11.5px]">
               <div className="mb-1 flex items-center justify-between">
@@ -1053,7 +919,6 @@ export function PosView({
             </div>
           )}
 
-          {/* Resumen de pago con Cashea */}
           {cashea && (
             <div className="mt-2 rounded-[10px] border border-border bg-surface-2 p-2.5 text-[11.5px]">
               <div className="mb-1 flex items-center justify-between">
@@ -1090,7 +955,7 @@ export function PosView({
           )}
 
           <Button
-            onClick={complete}
+            onClick={() => complete()}
             disabled={pending || lines.length === 0}
             className="mt-3 h-11 w-full text-[14px] font-bold"
           >
@@ -1110,7 +975,255 @@ export function PosView({
             <Save className="size-3.5" /> Guardar borrador
           </button>
         </div>
+      </>
+    );
+  }
+
+  return (
+    <div className="flex min-h-full flex-col xl:grid xl:h-full xl:min-h-0 xl:grid-cols-[minmax(360px,1fr)_minmax(600px,680px)] xl:overflow-hidden min-[1440px]:grid-cols-[minmax(420px,1fr)_minmax(720px,800px)]">
+      {/* Catálogo */}
+      <div className="flex min-h-0 flex-col xl:overflow-hidden">
+        <div className="px-4 pt-4 sm:px-5 lg:px-[30px] lg:pt-[22px]">
+          <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
+            <div>
+              <h1 className="text-[22px] font-bold tracking-tight text-foreground">
+                Punto de venta
+              </h1>
+              <p className="mt-0.5 text-[12.5px] text-text-2">
+                Sucursal {branch?.city ?? "—"} · {fmtNum(filtered.length)} productos · tasa {fmtVES(rate)}
+              </p>
+            </div>
+            <button
+              onClick={() => setDraftsOpen(true)}
+              className="iconbtn relative flex h-11 items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-3 text-[13px] font-medium text-foreground sm:h-[38px]"
+            >
+              <Layers className="size-4 text-text-3" /> Borradores
+              {drafts.length > 0 && (
+                <span className="flex size-5 items-center justify-center rounded-full bg-brand text-[10.5px] font-bold text-white">
+                  {drafts.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          <div className="relative mt-4">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-[17px] -translate-y-1/2 text-text-3" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar por nombre, talla, color, modelo o SKU…"
+              className="h-11 w-full rounded-[12px] border border-border bg-card pr-3 pl-[37px] text-[16px] text-foreground outline-none sm:h-[42px] sm:text-[13px]"
+            />
+          </div>
+
+          <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
+            {categories.map((c) => (
+              <button
+                key={c}
+                onClick={() => setCat(c)}
+                className={cn(
+                  "flex-none rounded-full px-3.5 py-2 text-[12.5px] font-medium transition sm:py-1.5",
+                  cat === c
+                    ? "bg-brand text-white"
+                    : "border border-border bg-card text-text-2 hover:bg-[var(--hover)]",
+                )}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <FilterSelect
+              value={brand}
+              onChange={setBrand}
+              placeholder="Marca"
+              options={filterOptions.brands}
+            />
+            <FilterSelect
+              value={size}
+              onChange={setSize}
+              placeholder="Talla"
+              options={filterOptions.sizes}
+            />
+            <FilterSelect
+              value={color}
+              onChange={setColor}
+              placeholder="Color"
+              options={filterOptions.colors}
+            />
+            {hasProductFilters && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  setCat("Todos");
+                  setBrand("");
+                  setSize("");
+                  setColor("");
+                }}
+                className="iconbtn flex h-11 w-full items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-3 text-[13px] font-medium text-text-2 sm:h-[38px] sm:w-auto"
+              >
+                <X className="size-4" /> Limpiar
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div
+          className={cn(
+            "min-h-0 flex-1 px-4 pt-4 sm:px-5 xl:overflow-y-auto xl:px-[30px] xl:pb-4",
+            lines.length > 0 ? "pb-24" : "pb-4",
+          )}
+        >
+          {filtered.length === 0 ? (
+            <div className="py-16 text-center text-[13px] text-text-3">
+              No hay productos con stock en esta sucursal.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:grid-cols-3 xl:grid-cols-4">
+              {filtered.map((p) => (
+                <button
+                  key={p.variant_id}
+                  onClick={() => add(p)}
+                  title={variantDescription(p)}
+                  className="hoverlift flex min-h-[220px] flex-col overflow-hidden rounded-2xl border border-border bg-card text-left shadow-card-sm sm:min-h-[258px]"
+                >
+                  <div
+                    className="flex h-20 items-center justify-center text-[18px] font-bold text-white"
+                    style={{
+                      background: `linear-gradient(140deg, ${p.color_hex ?? "#0EA5E9"}, color-mix(in srgb, ${p.color_hex ?? "#0EA5E9"} 70%, #000))`,
+                    }}
+                  >
+                    {initials(p.product_name)}
+                  </div>
+                  <div className="flex flex-1 flex-col gap-2.5 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 text-[10.5px] font-medium tracking-wide text-text-3 uppercase">
+                        {[p.category, p.brand].filter(Boolean).join(" · ") || "Sin categoría"}
+                      </div>
+                      <div className="flex-none text-[10.5px] font-medium text-text-3">
+                        {p.stock} disp.
+                      </div>
+                    </div>
+                    <div className="line-clamp-3 text-[13px] leading-snug font-semibold text-foreground">
+                      {p.product_name}
+                    </div>
+                    {(p.color || p.size) && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {p.color && (
+                          <span className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-surface-2 px-2 py-1 text-[11px] font-medium text-text-2">
+                            <span
+                              className="size-2.5 flex-none rounded-full border border-black/10"
+                              style={{ backgroundColor: p.color_hex ?? "#CBD5E1" }}
+                              aria-hidden="true"
+                            />
+                            <span className="truncate">{p.color}</span>
+                          </span>
+                        )}
+                        {p.size && (
+                          <span className="inline-flex rounded-md border border-border bg-surface-2 px-2 py-1 text-[11px] font-semibold text-text-2">
+                            Talla {p.size}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <div className="mt-auto text-[10.5px] font-medium text-text-3">
+                      SKU {p.sku}
+                    </div>
+                    <div className="flex items-end justify-between">
+                      <div>
+                        <div className="text-[13px] font-bold text-foreground">
+                          {fmtUSD(p.price)}
+                        </div>
+                        <div className="text-[10.5px] text-text-3">
+                          {fmtVES(usdToVesAmount(p.price, rate))}
+                        </div>
+                      </div>
+                      <span className="flex size-7 items-center justify-center rounded-full bg-brand text-white">
+                        <Plus className="size-4" />
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Ticket */}
+      <div className="hidden min-h-[520px] flex-col overflow-hidden border-t border-border bg-card xl:flex xl:min-h-0 xl:border-t-0 xl:border-l">
+        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3.5">
+          <div className="flex items-center gap-2.5">
+            <span className="flex size-9 items-center justify-center rounded-xl bg-brand-soft text-brand">
+              <ShoppingCart className="size-[18px]" />
+            </span>
+            <div>
+              <div className="text-[14px] font-bold text-foreground">Ticket de venta</div>
+              <div className="text-[11.5px] text-text-3">
+                {count} artículos{activeDraftId ? " · borrador" : ""}
+              </div>
+            </div>
+          </div>
+          <div className="flex min-w-0 flex-col items-end gap-1 text-right">
+            <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-[11.5px] font-medium text-text-2">
+              <Store className="size-3.5 flex-none" />
+              <span className="truncate">{branch?.city ?? "—"}</span>
+            </span>
+            {lines.length > 0 ? (
+              <span className="text-[11.5px] font-semibold text-foreground">
+                {fmtUSD(subtotal)}
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex min-h-0 flex-1 flex-col min-[1440px]:grid min-[1440px]:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
+          {renderCartContent()}
+          <aside className="flex min-h-0 flex-col overflow-y-auto bg-card">
+            {renderCheckoutControls()}
+          </aside>
+        </div>
+      </div>
+
+      {lines.length > 0 ? (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 px-3 py-3 shadow-card-lg backdrop-blur xl:hidden">
+          <button
+            type="button"
+            onClick={() => setCheckoutOpen(true)}
+            className="flex h-12 w-full items-center justify-between gap-3 rounded-[12px] bg-brand px-4 text-left text-white shadow-card-sm transition active:translate-y-px"
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              <ShoppingCart className="size-4 flex-none" />
+              <span className="truncate text-[13px] font-bold">
+                {String(count) + " art. en carrito"}
+              </span>
+            </span>
+            <span className="flex-none text-right font-mono text-[13px] font-bold">
+              {fmtUSD(total)}
+            </span>
+          </button>
+        </div>
+      ) : null}
+
+      <Sheet open={checkoutOpen} onOpenChange={setCheckoutOpen}>
+        <SheetContent
+          side="right"
+          className="w-full max-w-none gap-0 overflow-hidden bg-card p-0 sm:w-[430px] sm:max-w-[430px] xl:hidden"
+        >
+          <SheetHeader className="border-b border-border px-4 py-3 pr-11">
+            <SheetTitle>Checkout</SheetTitle>
+            <div className="text-[11.5px] text-text-3">
+              {count} artículos · {fmtUSD(total)}
+            </div>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto bg-card pb-[calc(env(safe-area-inset-bottom)+12px)]">
+            {renderCartContent(true)}
+            {renderCheckoutControls()}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <CustomerDialog
         open={custOpen}
@@ -1151,6 +1264,14 @@ export function PosView({
         }}
       />
 
+      <PaymentMismatchDialog
+        open={paymentMismatch !== null}
+        mismatch={paymentMismatch}
+        pending={pending}
+        onBack={() => setPaymentMismatch(null)}
+        onContinue={() => complete(true)}
+      />
+
       <DraftsModal
         open={draftsOpen}
         onOpenChange={setDraftsOpen}
@@ -1184,6 +1305,83 @@ function Row({ label, value }: { label: string; value: string }) {
       <span className="text-text-2">{label}</span>
       <span className="text-foreground">{value}</span>
     </div>
+  );
+}
+
+function PaymentMismatchDialog({
+  open,
+  mismatch,
+  pending,
+  onBack,
+  onContinue,
+}: {
+  open: boolean;
+  mismatch: PaymentMismatchDraft | null;
+  pending: boolean;
+  onBack: () => void;
+  onContinue: () => void;
+}) {
+  const diffCents = mismatch?.diffCents ?? 0;
+  const missing = diffCents > 0;
+  const difference = centsToMoney(diffCents);
+
+  return (
+    <Dialog open={open} onOpenChange={(value) => !value && onBack()}>
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-[480px]">
+        <DialogHeader>
+          <div className="mb-1 flex size-11 items-center justify-center rounded-[12px] bg-warning-soft text-warning">
+            <AlertTriangle className="size-5" />
+          </div>
+          <DialogTitle>El monto cobrado no coincide</DialogTitle>
+          <DialogDescription>
+            Revisa la diferencia antes de crear la orden. Si la encargada lo autoriza,
+            puedes continuar con esta venta.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="rounded-[12px] border border-border bg-surface-2 p-3 text-[13px]">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-text-2">Total de venta</span>
+            <span className="font-mono font-bold text-foreground">
+              {fmtUSD(mismatch?.total ?? 0)}
+            </span>
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-3 border-t border-border pt-2">
+            <span className="text-text-2">Monto cobrado</span>
+            <span className="font-mono font-bold text-foreground">
+              {fmtUSD(mismatch?.paidUsd ?? 0)}
+            </span>
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-3 border-t border-border pt-2">
+            <span className="font-semibold text-foreground">
+              {missing ? "Falta por cubrir" : "Excede el total"}
+            </span>
+            <span
+              className={cn(
+                "text-right font-mono font-bold",
+                missing ? "text-warning" : "text-danger",
+              )}
+            >
+              {fmtUSD(difference)}
+            </span>
+          </div>
+        </div>
+
+        <p className="text-[12px] leading-relaxed text-text-2">
+          Al continuar, la venta se registrará con los pagos cargados actualmente.
+        </p>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onBack} disabled={pending}>
+            Regresar y revisar
+          </Button>
+          <Button type="button" onClick={onContinue} disabled={pending}>
+            {pending && <Loader2 className="size-4 animate-spin" />}
+            Continuar y crear orden
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1512,15 +1710,6 @@ function MixedPaymentForm({
       });
     }
     if (!lines.length) return toast.error("Agrega al menos un pago con monto.");
-    const sumUsd = lines.reduce((a, p) => a + p.amount_usd, 0);
-    const diffCents = cents(total) - cents(sumUsd);
-    if (diffCents !== 0) {
-      return toast.error(
-        diffCents > 0
-          ? `Falta por cubrir ${fmtUSD(centsToMoney(diffCents))}.`
-          : `El pago excede el total por ${fmtUSD(centsToMoney(diffCents))}.`,
-      );
-    }
     onConfirm(lines);
   }
 
@@ -1712,6 +1901,11 @@ function CasheaPaymentForm({
   const [channel, setChannel] = useState<"tienda" | "online">(
     initial?.channel ?? "tienda",
   );
+  const [initialInput, setInitialInput] = useState(() => {
+    if (!initial) return "";
+    const initialAmount = round2(total - initial.financed);
+    return initialAmount > 0 ? formatAmountInput(initialAmount) : "";
+  });
 
   const pmOf = (name: string) => methods.find((m) => m.name === name);
   const isValidAmount = (amount: string) => {
@@ -1725,8 +1919,12 @@ function CasheaPaymentForm({
     if (!pm) return 0;
     return round2(pm.currency === "VES" ? (rate ? roundCalc(amt / rate) : 0) : amt);
   };
-  const initialUsd = round2(rows.reduce((a, r) => a + toUsd(r), 0));
-  const financedCents = cents(total) - cents(initialUsd);
+  const validInitialInput = initialInput.trim() !== "" && moneyPattern.test(initialInput.trim());
+  const requestedInitialUsd = validInitialInput ? round2(Number(initialInput.trim())) : 0;
+  const requestedInitialVes = usdToVesAmount(requestedInitialUsd, rate);
+  const collectedInitialUsd = round2(rows.reduce((a, r) => a + toUsd(r), 0));
+  const collectedDiffCents = cents(requestedInitialUsd) - cents(collectedInitialUsd);
+  const financedCents = cents(total) - cents(requestedInitialUsd);
   const financed = centsToMoney(financedCents);
 
   function update(i: number, patch: Partial<DraftPayLine>) {
@@ -1741,6 +1939,15 @@ function CasheaPaymentForm({
 
   function confirm() {
     if (!reference.trim()) return toast.error("Ingresa el número de orden de Cashea.");
+    if (!validInitialInput) {
+      return toast.error("Ingresa el inicial indicado por Cashea en USD.");
+    }
+    if (requestedInitialUsd <= 0) {
+      return toast.error("El inicial de Cashea debe ser mayor a cero.");
+    }
+    if (financedCents <= 0) {
+      return toast.error("El inicial no puede cubrir el total; usa un método de pago normal.");
+    }
     const lines: SalePaymentInput[] = [];
     for (const r of rows) {
       const pm = pmOf(r.method);
@@ -1764,14 +1971,18 @@ function CasheaPaymentForm({
       });
     }
     const initUsd = round2(lines.reduce((a, p) => a + p.amount_usd, 0));
-    const fCents = cents(total) - cents(initUsd);
-    if (fCents < 0) return toast.error("El inicial no puede superar el total.");
-    if (fCents === 0)
-      return toast.error("El inicial cubre el total; usa un método de pago normal.");
+    const paidDiffCents = cents(requestedInitialUsd) - cents(initUsd);
+    if (paidDiffCents !== 0) {
+      return toast.error(
+        paidDiffCents > 0
+          ? `Falta registrar ${fmtUSD(centsToMoney(paidDiffCents))} del inicial.`
+          : `La inicial cobrada excede por ${fmtUSD(centsToMoney(paidDiffCents))}.`,
+      );
+    }
     onConfirm({
       initial: lines,
       reference: reference.trim(),
-      financed: centsToMoney(fCents),
+      financed: centsToMoney(financedCents),
       channel,
     });
   }
@@ -1809,8 +2020,69 @@ function CasheaPaymentForm({
           />
         </div>
 
+        <div className="rounded-[12px] border border-border bg-card p-3">
+          <Label className="text-[12px] text-text-2">
+            Inicial indicado por Cashea (USD)
+          </Label>
+          <div className="relative mt-1">
+            <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-[13px] font-semibold text-text-3">
+              $
+            </span>
+            <Input
+              type="text"
+              inputMode="decimal"
+              value={initialInput}
+              onChange={(e) => {
+                const value = e.target.value.trim();
+                if (value === "" || /^\d*(?:\.\d{0,2})?$/.test(value)) {
+                  setInitialInput(value);
+                }
+              }}
+              onBlur={() => {
+                if (validInitialInput) {
+                  setInitialInput(formatAmountInput(requestedInitialUsd));
+                }
+              }}
+              placeholder="0.00"
+              className="h-10 pl-7 font-mono font-semibold"
+            />
+          </div>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <div className="rounded-[10px] bg-surface-2 px-3 py-2">
+              <div className="text-[11px] text-text-3">Inicial solicitado</div>
+              <div className="font-mono text-[14px] font-bold text-foreground">
+                {validInitialInput ? fmtUSD(requestedInitialUsd) : fmtUSD(0)}
+              </div>
+              <div className="text-[11px] text-text-3">
+                {validInitialInput ? fmtVES(requestedInitialVes) : fmtVES(0)}
+              </div>
+            </div>
+            <div className="rounded-[10px] bg-warning-soft px-3 py-2">
+              <div className="text-[11px] text-text-2">Financia Cashea</div>
+              <div
+                className={cn(
+                  "font-mono text-[14px] font-bold",
+                  financedCents > 0 ? "text-warning" : "text-danger",
+                )}
+              >
+                {validInitialInput ? fmtUSD(financed) : fmtUSD(total)}
+              </div>
+              <div className="text-[11px] text-text-2">
+                {validInitialInput && financedCents > 0
+                  ? fmtVES(usdToVesAmount(financed, rate))
+                  : "Por cobrar a Cashea"}
+              </div>
+            </div>
+          </div>
+          {initialInput.trim() && !validInitialInput ? (
+            <div className="mt-2 text-[11px] font-medium text-danger">
+              El inicial debe tener máximo 2 decimales.
+            </div>
+          ) : null}
+        </div>
+
         <div className="text-[11px] font-semibold uppercase tracking-wide text-text-3">
-          Inicial cobrada en caja
+          Inicial cobrada: cómo pagó el cliente
         </div>
 
         {rows.map((r, i) => {
@@ -1889,8 +2161,33 @@ function CasheaPaymentForm({
 
         <div className="rounded-[10px] bg-surface-2 px-3 py-2.5 text-[13px]">
           <div className="flex items-center justify-between">
+            <span className="text-text-2">Inicial indicado</span>
+            <span className="font-semibold text-foreground">
+              {fmtUSD(requestedInitialUsd)}
+            </span>
+          </div>
+          <div className="mt-1 flex items-center justify-between border-t border-border pt-1">
             <span className="text-text-2">Inicial cobrada</span>
-            <span className="font-semibold text-foreground">{fmtUSD(initialUsd)}</span>
+            <span className="font-semibold text-foreground">{fmtUSD(collectedInitialUsd)}</span>
+          </div>
+          <div className="mt-1 flex items-center justify-between border-t border-border pt-1">
+            <span className="text-text-2">Estado de inicial</span>
+            <span
+              className={cn(
+                "font-semibold",
+                validInitialInput && collectedDiffCents === 0
+                  ? "text-success"
+                  : "text-warning",
+              )}
+            >
+              {!validInitialInput
+                ? "Ingresa inicial"
+                : collectedDiffCents === 0
+                ? "Completo"
+                : collectedDiffCents > 0
+                  ? `Falta ${fmtUSD(centsToMoney(collectedDiffCents))}`
+                  : `Excede ${fmtUSD(centsToMoney(collectedDiffCents))}`}
+            </span>
           </div>
           <div className="mt-1 flex items-center justify-between border-t border-border pt-1">
             <span className="font-semibold text-foreground">
