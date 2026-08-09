@@ -211,13 +211,13 @@ export function ProductsView({
             <tbody>
               {paginated.map((p) => (
                 <tr key={p.id} className="tr-row border-b border-border">
-                  <td className="px-[22px] py-3">
+                  <td className="px-[22px] py-3 align-top">
                     <Link href={`/productos/${p.id}`} className="flex min-w-0 items-center gap-2.5">
                       <span className="flex size-8 flex-none items-center justify-center rounded-lg bg-surface-2 text-[11px] font-bold text-text-2">
                         {initials(p.name)}
                       </span>
                       <span className="min-w-0">
-                        <span className="block truncate text-[12.5px] font-medium text-foreground">
+                        <span className="block whitespace-normal break-words text-[12.5px] leading-snug font-medium text-foreground">
                           {p.name}
                         </span>
                         <span className="block text-[11px] text-text-3">

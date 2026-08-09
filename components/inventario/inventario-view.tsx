@@ -374,13 +374,13 @@ export function InventarioView({
                 const pct = Math.min(100, Math.round((r.quantity / Math.max(r.min_stock, 1)) * 100));
                 return (
                   <tr key={r.id} className="tr-row border-b border-border">
-                    <td className="px-[22px] py-3">
+                    <td className="px-[22px] py-3 align-top">
                       <div className="flex min-w-0 items-center gap-2.5">
                         <span className="flex size-8 flex-none items-center justify-center rounded-lg bg-surface-2 text-[10.5px] font-bold text-text-2">
                           {initials(r.product_name)}
                         </span>
                         <div className="min-w-0">
-                          <div className="truncate text-[12.5px] font-medium text-foreground">
+                          <div className="whitespace-normal break-words text-[12.5px] leading-snug font-medium text-foreground">
                             {r.product_name}
                           </div>
                           <div className="font-mono text-[11px] text-text-3">{r.sku}</div>
