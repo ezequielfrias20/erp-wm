@@ -5,6 +5,7 @@ import { getActiveBranchId } from "@/lib/branch";
 import { canView, canEdit } from "@/lib/permissions";
 import { InventarioView } from "@/components/inventario/inventario-view";
 import { fetchAllRows } from "@/lib/supabase/pagination";
+import { productImageUrl } from "@/lib/product-images";
 import type { VInventory } from "@/lib/database.types";
 
 export const metadata = { title: "Inventario · World Medics ERP" };
@@ -25,6 +26,20 @@ export default async function InventarioPage() {
     if (branchId) query = query.eq("branch_id", branchId);
     return query.order("product_name").range(from, to);
   });
+  const productIds = [...new Set(list.map((row) => row.product_id))];
+  const { data: productVersions } = productIds.length
+    ? await supabase
+        .from("products")
+        .select("id, updated_at")
+        .in("id", productIds)
+    : { data: [] as { id: string; updated_at: string }[] };
+  const versionByProduct = new Map(
+    (productVersions ?? []).map((product) => [product.id, product.updated_at]),
+  );
+  const rows = list.map((row) => ({
+    ...row,
+    product_image_url: productImageUrl(row.product_id, versionByProduct.get(row.product_id)),
+  }));
   const categories = [
     ...new Set(list.map((r) => r.category).filter(Boolean)),
   ] as string[];
@@ -62,7 +77,7 @@ export default async function InventarioPage() {
 
   return (
     <InventarioView
-      rows={list}
+      rows={rows}
       categories={categories.sort()}
       brands={brands.sort()}
       skuOptions={skuOptions}

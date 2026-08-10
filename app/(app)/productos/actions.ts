@@ -6,6 +6,11 @@ import { audit } from "@/lib/audit";
 import { skuPrefix, buildSku, nextSeqFromSkus } from "@/lib/sku";
 import { getSession } from "@/lib/queries/session";
 import { canEdit } from "@/lib/permissions";
+import {
+  PRODUCT_IMAGE_ACCEPTED_TYPES,
+  PRODUCT_IMAGE_MAX_SIZE,
+  productImagePath,
+} from "@/lib/product-images";
 
 export type FormState = { error?: string; ok?: boolean; id?: string } | null;
 
@@ -105,6 +110,57 @@ export async function deleteProduct(id: string): Promise<FormState> {
   await audit("Eliminó un producto", "Productos", "warn");
   revalidatePath("/productos");
   return { ok: true };
+}
+
+export async function uploadProductImage(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const productId = String(formData.get("product_id") ?? "").trim();
+  const image = formData.get("image");
+  if (!productId) return { error: "El producto es obligatorio." };
+  if (!(image instanceof File) || image.size === 0) {
+    return { error: "Selecciona una imagen del producto." };
+  }
+  if (!PRODUCT_IMAGE_ACCEPTED_TYPES.includes(image.type)) {
+    return { error: "La foto debe ser JPG, PNG o WebP." };
+  }
+  if (image.size > PRODUCT_IMAGE_MAX_SIZE) {
+    return { error: "La foto supera los 4 MB." };
+  }
+
+  const guard = await requireProductsEdit();
+  if (guard?.error) return guard;
+
+  const supabase = await createClient();
+  const { data: product } = await supabase
+    .from("products")
+    .select("id, name")
+    .eq("id", productId)
+    .maybeSingle();
+  if (!product) return { error: "Producto no encontrado." };
+
+  const { error: uploadError } = await supabase.storage
+    .from("wm-public")
+    .upload(productImagePath(productId), image, {
+      cacheControl: "3600",
+      contentType: image.type,
+      upsert: true,
+    });
+  if (uploadError) return { error: uploadError.message };
+
+  const { error: touchError } = await supabase
+    .from("products")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", productId);
+  if (touchError) return { error: touchError.message };
+
+  await audit(`Actualizó la foto del producto ${product.name}`, "Productos");
+  revalidatePath(`/productos/${productId}`);
+  revalidatePath("/productos");
+  revalidatePath("/inventario");
+  revalidatePath("/ventas");
+  return { ok: true, id: productId };
 }
 
 export async function saveVariant(

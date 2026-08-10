@@ -29,7 +29,7 @@ export default async function ProductDetailPage({
   return (
     <ProductEditor
       product={detail.product}
-      productImageUrl={productImageUrl(detail.product.id)}
+      productImageUrl={productImageUrl(detail.product.id, detail.product.updated_at)}
       variants={detail.variants}
       byBranch={detail.byBranch}
       categories={refs.categories}

@@ -42,6 +42,8 @@ import { matchesProductQuery } from "@/lib/search";
 import { cn } from "@/lib/utils";
 import type { VInventory } from "@/lib/database.types";
 
+type InventoryRow = VInventory & { product_image_url: string | null };
+
 const ESTADO_STYLE: Record<string, { bg: string; color: string }> = {
   "En stock": { bg: "var(--success-soft)", color: "var(--success)" },
   "Stock bajo": { bg: "var(--warning-soft)", color: "var(--warning)" },
@@ -74,7 +76,7 @@ export function InventarioView({
   branchLabel,
   canEdit,
 }: {
-  rows: VInventory[];
+  rows: InventoryRow[];
   categories: string[];
   brands: string[];
   skuOptions: string[];
@@ -92,6 +94,7 @@ export function InventarioView({
   const [importOpen, setImportOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [failedProductImages, setFailedProductImages] = useState<Record<string, true>>({});
 
   const kpis = useMemo(
     () => ({
@@ -376,9 +379,26 @@ export function InventarioView({
                   <tr key={r.id} className="tr-row border-b border-border">
                     <td className="px-[22px] py-3 align-top">
                       <div className="flex min-w-0 items-center gap-2.5">
-                        <span className="flex size-8 flex-none items-center justify-center rounded-lg bg-surface-2 text-[10.5px] font-bold text-text-2">
-                          {initials(r.product_name)}
-                        </span>
+                        {r.product_image_url && !failedProductImages[r.product_id] ? (
+                          <span className="flex size-8 flex-none items-center justify-center overflow-hidden rounded-lg bg-surface-2">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={r.product_image_url}
+                              alt={r.product_name}
+                              className="h-full w-full object-cover"
+                              onError={() =>
+                                setFailedProductImages((current) => ({
+                                  ...current,
+                                  [r.product_id]: true,
+                                }))
+                              }
+                            />
+                          </span>
+                        ) : (
+                          <span className="flex size-8 flex-none items-center justify-center rounded-lg bg-surface-2 text-[10.5px] font-bold text-text-2">
+                            {initials(r.product_name)}
+                          </span>
+                        )}
                         <div className="min-w-0">
                           <div className="whitespace-normal break-words text-[12.5px] leading-snug font-medium text-foreground">
                             {r.product_name}

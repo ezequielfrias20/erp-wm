@@ -55,6 +55,7 @@ export function ProductsView({
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [failedProductImages, setFailedProductImages] = useState<Record<string, true>>({});
 
   const filterOptions = useMemo(
     () => ({
@@ -213,9 +214,26 @@ export function ProductsView({
                 <tr key={p.id} className="tr-row border-b border-border">
                   <td className="px-[22px] py-3 align-top">
                     <Link href={`/productos/${p.id}`} className="flex min-w-0 items-center gap-2.5">
-                      <span className="flex size-8 flex-none items-center justify-center rounded-lg bg-surface-2 text-[11px] font-bold text-text-2">
-                        {initials(p.name)}
-                      </span>
+                      {p.product_image_url && !failedProductImages[p.id] ? (
+                        <span className="flex size-8 flex-none items-center justify-center overflow-hidden rounded-lg bg-surface-2">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={p.product_image_url}
+                            alt={p.name}
+                            className="h-full w-full object-cover"
+                            onError={() =>
+                              setFailedProductImages((current) => ({
+                                ...current,
+                                [p.id]: true,
+                              }))
+                            }
+                          />
+                        </span>
+                      ) : (
+                        <span className="flex size-8 flex-none items-center justify-center rounded-lg bg-surface-2 text-[11px] font-bold text-text-2">
+                          {initials(p.name)}
+                        </span>
+                      )}
                       <span className="min-w-0">
                         <span className="block whitespace-normal break-words text-[12.5px] leading-snug font-medium text-foreground">
                           {p.name}

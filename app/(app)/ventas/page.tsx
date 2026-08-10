@@ -99,10 +99,21 @@ export default async function VentasPage() {
     .not("employee_code", "is", null)
     .order("full_name");
 
+  const productIds = [...new Set(invRows.map((row) => row.product_id))];
+  const { data: productVersions } = productIds.length
+    ? await supabase
+        .from("products")
+        .select("id, updated_at")
+        .in("id", productIds)
+    : { data: [] as { id: string; updated_at: string }[] };
+  const versionByProduct = new Map(
+    (productVersions ?? []).map((product) => [product.id, product.updated_at]),
+  );
+
   const products: PosProduct[] = invRows.map((r) => ({
     product_id: r.product_id,
     variant_id: r.variant_id,
-    product_image_url: productImageUrl(r.product_id),
+    product_image_url: productImageUrl(r.product_id, versionByProduct.get(r.product_id)),
     sku: r.sku,
     product_name: r.product_name,
     category: r.category,

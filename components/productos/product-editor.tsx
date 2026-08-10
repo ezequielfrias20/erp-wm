@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
@@ -12,12 +12,14 @@ import {
   Pencil,
   Trash2,
   ImageIcon,
+  Upload,
 } from "lucide-react";
 import {
   saveProduct,
   saveVariant,
   deleteVariant,
   deleteProduct,
+  uploadProductImage,
   type FormState,
 } from "@/app/(app)/productos/actions";
 import {
@@ -40,6 +42,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { fmtUSD, fmtNum } from "@/lib/format";
+import { PRODUCT_IMAGE_ACCEPTED_TYPES } from "@/lib/product-images";
 import type { Product, ProductVariant } from "@/lib/database.types";
 
 type Ref = { id: string; name: string };
@@ -75,9 +78,10 @@ export function ProductEditor({
   const [editingVariant, setEditingVariant] = useState<VariantWithStock | null>(
     null,
   );
-  const [failedImageProductId, setFailedImageProductId] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
-  const imageFailed = failedImageProductId === product.id;
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [pending, startTransition] = useTransition();
+  const imageFailed = Boolean(productImageUrl && failedImageUrl === productImageUrl);
 
   const [state, formAction] = useActionState<FormState, FormData>(
     saveProduct,
@@ -119,6 +123,22 @@ export function ProductEditor({
       else toast.success("Variante eliminada");
     });
   }
+  function onImageSelected(file: File | null | undefined) {
+    if (!file) return;
+    const formData = new FormData();
+    formData.set("product_id", product.id);
+    formData.set("image", file);
+    startTransition(async () => {
+      const res = await uploadProductImage(null, formData);
+      if (res?.error) {
+        toast.error(res.error);
+        return;
+      }
+      setFailedImageUrl(null);
+      toast.success("Foto del producto actualizada");
+      router.refresh();
+    });
+  }
 
   return (
     <form
@@ -131,6 +151,16 @@ export function ProductEditor({
         type="hidden"
         name="visible_in_catalog"
         value={visible ? "true" : "false"}
+      />
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept={PRODUCT_IMAGE_ACCEPTED_TYPES.join(",")}
+        hidden
+        onChange={(event) => {
+          onImageSelected(event.target.files?.[0]);
+          event.target.value = "";
+        }}
       />
 
       <div className="fadeup mb-[22px] flex flex-wrap items-center justify-between gap-4">
@@ -189,12 +219,29 @@ export function ProductEditor({
                     src={productImageUrl}
                     alt={product.name}
                     className="h-full w-full object-cover"
-                    onError={() => setFailedImageProductId(product.id)}
+                    onError={() => setFailedImageUrl(productImageUrl)}
                   />
                 ) : (
                   <ImageIcon className="size-6" />
                 )}
               </div>
+              <button
+                type="button"
+                onClick={() => imageInputRef.current?.click()}
+                disabled={!canEdit || pending}
+                className="iconbtn flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border text-text-3 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {pending ? (
+                  <Loader2 className="size-5 animate-spin" />
+                ) : productImageUrl && !imageFailed ? (
+                  <Upload className="size-5" />
+                ) : (
+                  <Plus className="size-5" />
+                )}
+                <span className="text-[11px]">
+                  {productImageUrl && !imageFailed ? "Cambiar" : "Agregar"}
+                </span>
+              </button>
               {[1, 2].map((i) => (
                 <div
                   key={i}
@@ -203,10 +250,6 @@ export function ProductEditor({
                   <ImageIcon className="size-6" />
                 </div>
               ))}
-              <div className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border text-text-3">
-                <Plus className="size-5" />
-                <span className="text-[11px]">Agregar</span>
-              </div>
             </div>
           </Card>
 

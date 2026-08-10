@@ -10,12 +10,13 @@ import type {
   VInventory,
   VProductSummary,
 } from "@/lib/database.types";
+import { productImageUrl } from "@/lib/product-images";
 
 export async function listProducts(
   branchId?: string | null,
 ): Promise<ProductListItem[]> {
   const supabase = await createClient();
-  const [products, variants, inventory] = await Promise.all([
+  const [products, variants, inventory, productVersions] = await Promise.all([
     fetchAllRows<VProductSummary>((from, to) =>
       supabase
         .from("v_product_summary")
@@ -45,12 +46,22 @@ export async function listProducts(
             .range(from, to),
         )
       : Promise.resolve([]),
+    fetchAllRows<Pick<Product, "id" | "updated_at">>((from, to) =>
+      supabase
+        .from("products")
+        .select("id, updated_at")
+        .order("id")
+        .range(from, to),
+    ),
   ]);
 
   const sizesByProduct = new Map<string, Set<string>>();
   const colorsByProduct = new Map<string, Map<string, string | null>>();
   const skusByProduct = new Map<string, Set<string>>();
   const stockByProduct = new Map<string, number>();
+  const versionByProduct = new Map(
+    productVersions.map((product) => [product.id, product.updated_at]),
+  );
 
   for (const variant of variants) {
     const skus = skusByProduct.get(variant.product_id) ?? new Set<string>();
@@ -77,6 +88,10 @@ export async function listProducts(
 
   return products.map((product) => ({
     ...product,
+    product_image_url: productImageUrl(
+      product.id,
+      versionByProduct.get(product.id),
+    ),
     total_stock: branchId
       ? stockByProduct.get(product.id) ?? 0
       : product.total_stock,
