@@ -11,7 +11,9 @@ export type PosDraftCustomer = {
 } | null;
 
 export type PosDraftLine = {
+  product_id?: string;
   variant_id: string;
+  product_image_url?: string | null;
   sku: string;
   product_name: string;
   category: string | null;

@@ -83,7 +83,9 @@ import {
 } from "@/lib/pos-drafts";
 
 export type PosProduct = {
+  product_id: string;
   variant_id: string;
+  product_image_url: string | null;
   sku: string;
   product_name: string;
   category: string | null;
@@ -171,6 +173,88 @@ function uniqueSorted(values: Array<string | null | undefined>) {
   );
 }
 
+function ProductThumb({
+  imageUrl,
+  imageFailed,
+  onImageError,
+  name,
+  colorHex,
+  className,
+}: {
+  imageUrl: string | null;
+  imageFailed: boolean;
+  onImageError: () => void;
+  name: string;
+  colorHex: string | null;
+  className?: string;
+}) {
+  if (imageUrl && !imageFailed) {
+    return (
+      <span
+        className={cn(
+          "flex flex-none items-center justify-center overflow-hidden bg-surface-2",
+          className,
+        )}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={imageUrl}
+          alt={name}
+          className="h-full w-full object-cover"
+          onError={onImageError}
+        />
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className={cn(
+        "flex flex-none items-center justify-center font-bold text-white",
+        className,
+      )}
+      style={{ background: colorHex ?? "#0EA5E9" }}
+    >
+      {initials(name)}
+    </span>
+  );
+}
+
+function ProductHero({
+  product,
+  imageFailed,
+  onImageError,
+}: {
+  product: PosProduct;
+  imageFailed: boolean;
+  onImageError: () => void;
+}) {
+  if (product.product_image_url && !imageFailed) {
+    return (
+      <div className="h-24 overflow-hidden bg-surface-2 sm:h-[116px]">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={product.product_image_url}
+          alt={product.product_name}
+          className="h-full w-full object-cover"
+          onError={onImageError}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="flex h-20 items-center justify-center text-[18px] font-bold text-white"
+      style={{
+        background: `linear-gradient(140deg, ${product.color_hex ?? "#0EA5E9"}, color-mix(in srgb, ${product.color_hex ?? "#0EA5E9"} 70%, #000))`,
+      }}
+    >
+      {initials(product.product_name)}
+    </div>
+  );
+}
+
 function FilterSelect({
   value,
   onChange,
@@ -218,7 +302,7 @@ export function PosView({
   cashier: string | null;
 }) {
   const [query, setQuery] = useState("");
-  const [cat, setCat] = useState("Todos");
+  const [cat, setCat] = useState("");
   const [brand, setBrand] = useState("");
   const [size, setSize] = useState("");
   const [color, setColor] = useState("");
@@ -249,6 +333,7 @@ export function PosView({
   const [casheaOpen, setCasheaOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [paymentMismatch, setPaymentMismatch] = useState<PaymentMismatchDraft | null>(null);
+  const [failedProductImages, setFailedProductImages] = useState<Record<string, true>>({});
 
   const drafts = useSyncExternalStore(
     subscribeDrafts,
@@ -263,7 +348,8 @@ export function PosView({
   const [saleCompleteOpen, setSaleCompleteOpen] = useState(false);
 
   const categories = useMemo(
-    () => ["Todos", ...new Set(products.map((p) => p.category).filter(Boolean) as string[])],
+    () =>
+      uniqueSorted(products.map((p) => p.category)),
     [products],
   );
   const filterOptions = useMemo(
@@ -274,11 +360,11 @@ export function PosView({
     }),
     [products],
   );
-  const hasProductFilters = Boolean(query.trim() || cat !== "Todos" || brand || size || color);
+  const hasProductFilters = Boolean(query.trim() || cat || brand || size || color);
 
   const filtered = useMemo(() => {
     let list = products;
-    if (cat !== "Todos") list = list.filter((p) => p.category === cat);
+    if (cat) list = list.filter((p) => p.category === cat);
     if (brand) list = list.filter((p) => p.brand === brand);
     if (size) list = list.filter((p) => p.size === size);
     if (color) list = list.filter((p) => p.color === color);
@@ -296,6 +382,10 @@ export function PosView({
       );
     return list;
   }, [products, cat, brand, size, color, query]);
+  const productsByVariant = useMemo(
+    () => new Map(products.map((product) => [product.variant_id, product])),
+    [products],
+  );
 
   const lines = Object.values(cart);
   const selectedSeller = sellers.find((s) => s.id === sellerId) ?? null;
@@ -537,8 +627,11 @@ export function PosView({
   function restoreDraft(d: PosDraft) {
     const newCart: Record<string, CartLine> = {};
     for (const l of d.lines) {
+      const current = productsByVariant.get(l.variant_id);
       newCart[l.variant_id] = {
         ...l,
+        product_id: current?.product_id ?? l.product_id ?? l.variant_id,
+        product_image_url: current?.product_image_url ?? l.product_image_url ?? null,
         brand: l.brand ?? null,
         color: l.color ?? null,
         size: l.size ?? null,
@@ -603,12 +696,19 @@ export function PosView({
                 key={l.variant_id}
                 className="flex flex-wrap items-center gap-2.5 border-b border-border px-4 py-2.5 min-[420px]:flex-nowrap"
               >
-                <span
-                  className="flex size-8 flex-none items-center justify-center rounded-lg text-[10px] font-bold text-white"
-                  style={{ background: l.color_hex ?? "#0EA5E9" }}
-                >
-                  {initials(l.product_name)}
-                </span>
+                <ProductThumb
+                  imageUrl={l.product_image_url}
+                  imageFailed={Boolean(failedProductImages[l.product_id])}
+                  onImageError={() =>
+                    setFailedProductImages((current) => ({
+                      ...current,
+                      [l.product_id]: true,
+                    }))
+                  }
+                  name={l.product_name}
+                  colorHex={l.color_hex}
+                  className="size-8 rounded-lg text-[10px]"
+                />
                 <div className="min-w-0 flex-1">
                   <div className="whitespace-normal break-words text-[12.5px] leading-snug font-medium text-foreground">
                     {l.product_name}
@@ -1016,24 +1116,13 @@ export function PosView({
             />
           </div>
 
-          <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
-            {categories.map((c) => (
-              <button
-                key={c}
-                onClick={() => setCat(c)}
-                className={cn(
-                  "flex-none rounded-full px-3.5 py-2 text-[12.5px] font-medium transition sm:py-1.5",
-                  cat === c
-                    ? "bg-brand text-white"
-                    : "border border-border bg-card text-text-2 hover:bg-[var(--hover)]",
-                )}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <FilterSelect
+              value={cat}
+              onChange={setCat}
+              placeholder="Categoría"
+              options={categories}
+            />
             <FilterSelect
               value={brand}
               onChange={setBrand}
@@ -1057,7 +1146,7 @@ export function PosView({
                 type="button"
                 onClick={() => {
                   setQuery("");
-                  setCat("Todos");
+                  setCat("");
                   setBrand("");
                   setSize("");
                   setColor("");
@@ -1089,14 +1178,16 @@ export function PosView({
                   title={variantDescription(p)}
                   className="hoverlift flex min-h-[220px] flex-col overflow-hidden rounded-2xl border border-border bg-card text-left shadow-card-sm sm:min-h-[258px]"
                 >
-                  <div
-                    className="flex h-20 items-center justify-center text-[18px] font-bold text-white"
-                    style={{
-                      background: `linear-gradient(140deg, ${p.color_hex ?? "#0EA5E9"}, color-mix(in srgb, ${p.color_hex ?? "#0EA5E9"} 70%, #000))`,
-                    }}
-                  >
-                    {initials(p.product_name)}
-                  </div>
+                  <ProductHero
+                    product={p}
+                    imageFailed={Boolean(failedProductImages[p.product_id])}
+                    onImageError={() =>
+                      setFailedProductImages((current) => ({
+                        ...current,
+                        [p.product_id]: true,
+                      }))
+                    }
+                  />
                   <div className="flex flex-1 flex-col gap-2.5 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 text-[10.5px] font-medium tracking-wide text-text-3 uppercase">

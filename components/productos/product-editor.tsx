@@ -56,8 +56,10 @@ export function ProductEditor({
   sizes,
   colors,
   canEdit,
+  productImageUrl,
 }: {
   product: Product;
+  productImageUrl: string | null;
   variants: VariantWithStock[];
   byBranch: { city: string; qty: number }[];
   categories: Ref[];
@@ -73,7 +75,9 @@ export function ProductEditor({
   const [editingVariant, setEditingVariant] = useState<VariantWithStock | null>(
     null,
   );
+  const [failedImageProductId, setFailedImageProductId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+  const imageFailed = failedImageProductId === product.id;
 
   const [state, formAction] = useActionState<FormState, FormData>(
     saveProduct,
@@ -178,7 +182,20 @@ export function ProductEditor({
         <div className="flex flex-col gap-[18px]">
           <Card title="Galería del producto">
             <div className="grid grid-cols-4 gap-3">
-              {[0, 1, 2].map((i) => (
+              <div className="flex aspect-square items-center justify-center overflow-hidden rounded-xl border border-border bg-surface-2 text-text-3">
+                {productImageUrl && !imageFailed ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={productImageUrl}
+                    alt={product.name}
+                    className="h-full w-full object-cover"
+                    onError={() => setFailedImageProductId(product.id)}
+                  />
+                ) : (
+                  <ImageIcon className="size-6" />
+                )}
+              </div>
+              {[1, 2].map((i) => (
                 <div
                   key={i}
                   className="flex aspect-square items-center justify-center rounded-xl border border-border bg-surface-2 text-text-3"

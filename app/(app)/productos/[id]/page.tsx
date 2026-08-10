@@ -4,6 +4,7 @@ import { getProductDetail, getCatalogRefs } from "@/lib/queries/products";
 import { canView, canEdit } from "@/lib/permissions";
 import { getActiveBranchId } from "@/lib/branch";
 import { ProductEditor } from "@/components/productos/product-editor";
+import { productImageUrl } from "@/lib/product-images";
 
 export default async function ProductDetailPage({
   params,
@@ -28,6 +29,7 @@ export default async function ProductDetailPage({
   return (
     <ProductEditor
       product={detail.product}
+      productImageUrl={productImageUrl(detail.product.id)}
       variants={detail.variants}
       byBranch={detail.byBranch}
       categories={refs.categories}

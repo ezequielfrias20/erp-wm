@@ -6,6 +6,7 @@ import { canView } from "@/lib/permissions";
 import { fetchBcvRate, BCV_FALLBACK } from "@/lib/bcv";
 import { fetchAllRows } from "@/lib/supabase/pagination";
 import { PosView, type PosProduct } from "@/components/ventas/pos-view";
+import { productImageUrl } from "@/lib/product-images";
 
 export const metadata = { title: "Punto de venta · World Medics ERP" };
 
@@ -35,6 +36,7 @@ export default async function VentasPage() {
   }
 
   type PosInventoryRow = {
+    product_id: string;
     variant_id: string;
     sku: string;
     product_name: string;
@@ -63,7 +65,7 @@ export default async function VentasPage() {
           supabase
             .from("v_inventory")
             .select(
-              "variant_id, sku, product_name, category, brand, price, cost, color, color_hex, size, quantity",
+              "product_id, variant_id, sku, product_name, category, brand, price, cost, color, color_hex, size, quantity",
             )
             .eq("branch_id", branchId)
             .gt("quantity", 0)
@@ -98,7 +100,9 @@ export default async function VentasPage() {
     .order("full_name");
 
   const products: PosProduct[] = invRows.map((r) => ({
+    product_id: r.product_id,
     variant_id: r.variant_id,
+    product_image_url: productImageUrl(r.product_id),
     sku: r.sku,
     product_name: r.product_name,
     category: r.category,

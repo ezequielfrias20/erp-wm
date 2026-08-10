@@ -8,13 +8,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <claude-mem-context>
 # Memory Context
 
-# [erp] recent context, 2026-08-09 11:44am GMT-4
+# [erp] recent context, 2026-08-10 2:11pm GMT-4
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision 🚨security_alert 🔐security_note
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (19,576t read) | 554,154t work | 96% savings
+Stats: 50 obs (19,605t read) | 552,516t work | 96% savings
 
 ### Jun 22, 2026
 S735 CRM SaaS — Brand settings expansion: delete logo/favicon, dark/light logo variants, fix favicon in browser tab (Jun 22 at 9:27 PM)
@@ -31,8 +31,7 @@ S945 CRM SaaS — .env.local points to deleted/invalid Supabase project yxwedegs
 ### Jul 12, 2026
 S947 CRM SaaS — DNS ENOTFOUND for yxwedegszxtujplffaac.supabase.co, diagnosing stale .env.local Supabase credentials (Jul 12 at 3:48 PM)
 ### Aug 8, 2026
-2046 11:21a ⚖️ frontend-reimpet USD/VES rate — dual-endpoint fetch with most-recent-date selection logic
-2047 " 🔵 frontend-reimpet BCV rate — full call graph and lib/bcv.ts structure discovered
+2047 11:21a 🔵 frontend-reimpet BCV rate — full call graph and lib/bcv.ts structure discovered
 2049 11:22a 🟣 frontend-reimpet BCV rate — dual-endpoint fetch with most-recent-date reconciliation implemented
 2050 " 🟣 frontend-reimpet BCV rate — vitest unit tests added for resolveBcvRate()
 2051 " ✅ frontend-reimpet BCV rate — all 5 vitest tests pass for resolveBcvRate()
@@ -81,6 +80,8 @@ S947 CRM SaaS — DNS ENOTFOUND for yxwedegszxtujplffaac.supabase.co, diagnosing
 2105 5:36p 🔴 frontend-reimpet — Production Build Passes Clean After Middleware Auth Fix
 2106 5:37p 🔵 frontend-reimpet — Full Route Inventory Confirmed in Production Build
 2107 " 🔴 frontend-reimpet — session.ts system_access Guard Uses Strict Equality to Avoid Null Coercion Bug
+### Aug 10, 2026
+2150 11:39a ⚖️ frontend-reimpet Ventas/Inventario/Productos — add attribute filters and fix "Todas las sucursales" product visibility bug
 
-Access 554k tokens of past work via get_observations([IDs]) or mem-search skill.
+Access 553k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>
