@@ -68,14 +68,21 @@ import {
 } from "@/components/ui/select";
 import { fmtByCurrency, fmtDate, fmtUSD, fmtVES, initials } from "@/lib/format";
 import { buildProjectTicketEmailHtml } from "@/lib/project-ticket-email";
+import { CourseSchedulePanel } from "@/components/proyectos/course-schedule-panel";
 import { cn } from "@/lib/utils";
 import type {
   Project,
+  ProjectCheckin,
+  ProjectGroup,
+  ProjectOrder,
   ProjectPaymentMethod,
   ProjectRegistration,
+  ProjectRegistrationView,
   ProjectRegistrationStatus,
+  ProjectSession,
   ProjectTicketStatus,
   ProjectStatus,
+  ProjectType,
 } from "@/lib/database.types";
 
 const PROJECT_STATUSES: ProjectStatus[] = ["Borrador", "Abierto", "Cerrado", "Cancelado"];
@@ -123,11 +130,19 @@ const SCAN_RESULT_STYLE: Record<TicketScanResult["status"], { bg: string; color:
 export function ProyectosView({
   projects,
   registrations,
+  groups,
+  sessions,
+  orders,
+  checkins,
   rate,
   canEdit,
 }: {
   projects: Project[];
-  registrations: ProjectRegistration[];
+  registrations: ProjectRegistrationView[];
+  groups: ProjectGroup[];
+  sessions: ProjectSession[];
+  orders: ProjectOrder[];
+  checkins: ProjectCheckin[];
   rate: number;
   canEdit: boolean;
 }) {
@@ -140,9 +155,9 @@ export function ProyectosView({
   const [registrationFormOpen, setRegistrationFormOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [editingRegistration, setEditingRegistration] =
-    useState<ProjectRegistration | null>(null);
+    useState<ProjectRegistrationView | null>(null);
   const [previewRegistration, setPreviewRegistration] =
-    useState<ProjectRegistration | null>(null);
+    useState<ProjectRegistrationView | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -381,6 +396,9 @@ export function ProyectosView({
                         {selected.name}
                       </h2>
                       <StatusBadge status={selected.status} />
+                      {selected.project_type === "Curso" ? (
+                        <span className="rounded-md bg-brand-soft px-2 py-0.5 text-[10.5px] font-semibold text-brand">Curso</span>
+                      ) : null}
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-text-2">
                       <span className="inline-flex items-center gap-1.5">
@@ -396,13 +414,15 @@ export function ProyectosView({
                 </div>
                 {canEdit && (
                   <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setScannerOpen(true)}
-                    >
-                      <ScanLine className="size-3.5" /> Escanear QR
-                    </Button>
+                    {selected.project_type !== "Curso" ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setScannerOpen(true)}
+                      >
+                        <ScanLine className="size-3.5" /> Escanear QR
+                      </Button>
+                    ) : null}
                     <Button
                       variant="outline"
                       size="sm"
@@ -428,6 +448,24 @@ export function ProyectosView({
                 <Stat label="Recaudado" value={fmtUSD(selectedStats.total)} />
               </div>
             </div>
+
+            {selected.project_type === "Curso" ? (
+              <CourseSchedulePanel
+                project={selected}
+                groups={groups.filter((group) => group.project_id === selected.id)}
+                sessions={sessions.filter((session) =>
+                  groups.some(
+                    (group) => group.project_id === selected.id && group.id === session.group_id,
+                  ),
+                )}
+                registrations={registrations.filter(
+                  (registration) => registration.project_id === selected.id,
+                )}
+                orders={orders.filter((order) => order.project_id === selected.id)}
+                checkins={checkins}
+                canEdit={canEdit}
+              />
+            ) : null}
 
             <div className="grid grid-cols-1 gap-[18px] lg:grid-cols-[1fr_300px]">
               <div className="fadeup rounded-2xl border border-border bg-card p-5 shadow-card-sm">
@@ -559,7 +597,7 @@ export function ProyectosView({
                       <span className="flex items-center justify-end gap-1">
                         {registration.receipt_url ? (
                           <a
-                            href={registration.receipt_url}
+                            href={registration.receipt_access_url ?? registration.receipt_url ?? "#"}
                             target="_blank"
                             rel="noreferrer"
                             className="iconbtn flex size-8 items-center justify-center rounded-lg text-text-2"
@@ -611,6 +649,7 @@ export function ProyectosView({
       {canEdit && (
         <>
           <ProjectForm
+            key={editingProject?.id ?? "new-project"}
             open={projectFormOpen}
             onOpenChange={setProjectFormOpen}
             project={editingProject}
@@ -623,6 +662,7 @@ export function ProyectosView({
             project={selected}
             registration={editingRegistration}
             rate={rate}
+            groups={groups.filter((group) => group.project_id === selected?.id)}
             onDelete={
               editingRegistration ? () => onDeleteRegistration(editingRegistration) : undefined
             }
@@ -663,6 +703,22 @@ function formatPaymentAmount(registration: ProjectRegistration) {
   return registration.exchange_rate
     ? `${usd} · ${fmtVES(Number(registration.amount) * Number(registration.exchange_rate))}`
     : usd;
+}
+
+function dateTimeLocalValue(value: string | null) {
+  if (!value) return "";
+  const parts = new Intl.DateTimeFormat("sv-SE", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "America/Caracas",
+  }).formatToParts(new Date(value));
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}`;
 }
 
 function FilterPill({
@@ -765,14 +821,28 @@ type WindowWithBarcodeDetector = Window & {
   BarcodeDetector?: BarcodeDetectorConstructor;
 };
 
-function QrScannerDialog({
+export type ScannerResult = {
+  ok: boolean;
+  status: TicketScanResult["status"];
+  title: string;
+  message: string;
+  registration?: { fullName: string; document: string; usedAt?: string | null };
+  project?: { name: string };
+  session?: { title: string };
+};
+
+export function QrScannerDialog({
   open,
   onOpenChange,
   onValidated,
+  scanAction = scanProjectTicket,
+  title = "Lector de entradas",
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onValidated: () => void;
+  scanAction?: (rawValue: string) => Promise<ScannerResult>;
+  title?: string;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -781,7 +851,7 @@ function QrScannerDialog({
   const [manualValue, setManualValue] = useState("");
   const [cameraError, setCameraError] = useState("");
   const [scanning, setScanning] = useState(false);
-  const [result, setResult] = useState<TicketScanResult | null>(null);
+  const [result, setResult] = useState<ScannerResult | null>(null);
   const [pending, startTransition] = useTransition();
 
   const releaseCamera = useCallback(() => {
@@ -804,9 +874,9 @@ function QrScannerDialog({
       processingRef.current = true;
       stopCamera();
       startTransition(async () => {
-        let res: TicketScanResult;
+        let res: ScannerResult;
         try {
-          res = await scanProjectTicket(value);
+          res = await scanAction(value);
         } catch {
           res = {
             ok: false,
@@ -825,7 +895,7 @@ function QrScannerDialog({
         }
       });
     },
-    [onValidated, stopCamera],
+    [onValidated, scanAction, stopCamera],
   );
 
   const startCamera = useCallback(async () => {
@@ -902,7 +972,7 @@ function QrScannerDialog({
       <DialogContent className="max-w-[760px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <ScanLine className="size-4 text-brand" /> Lector de entradas
+            <ScanLine className="size-4 text-brand" /> {title}
           </DialogTitle>
         </DialogHeader>
 
@@ -998,6 +1068,7 @@ function QrScannerDialog({
                     <div className="mt-1 text-text-2">
                       CI {result.registration.document}
                       {result.project ? ` · ${result.project.name}` : ""}
+                      {result.session ? ` · ${result.session.title}` : ""}
                     </div>
                     {result.registration.usedAt ? (
                       <div className="mt-1 text-text-3">
@@ -1042,7 +1113,7 @@ function TicketPreviewDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   project: Project | null;
-  registration: ProjectRegistration | null;
+  registration: ProjectRegistrationView | null;
 }) {
   const html = useMemo(() => {
     if (!project || !registration) return "";
@@ -1106,6 +1177,7 @@ function ProjectForm({
   onDelete?: () => void;
 }) {
   const [state, formAction] = useActionState<FormState, FormData>(saveProject, null);
+  const [projectType, setProjectType] = useState<ProjectType>(project?.project_type ?? "Evento");
 
   useEffect(() => {
     if (state?.ok) onOpenChange(false);
@@ -1121,6 +1193,20 @@ function ProjectForm({
           {project && <input type="hidden" name="id" value={project.id} />}
           <input type="hidden" name="existing_logo_url" value={project?.logo_url ?? ""} />
           <Fld label="Nombre del proyecto" name="name" defaultValue={project?.name} required />
+          <div className="flex flex-col gap-1.5">
+            <Label>Tipo de proyecto</Label>
+            <Select
+              name="project_type"
+              value={projectType}
+              onValueChange={(value) => setProjectType(value as ProjectType)}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Evento">Evento o conferencia</SelectItem>
+                <SelectItem value="Curso">Curso con horarios</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Fld
               label="Fecha del evento"
@@ -1130,6 +1216,58 @@ function ProjectForm({
             />
             <Fld label="Ubicación" name="location" defaultValue={project?.location ?? ""} />
           </div>
+          {projectType === "Curso" ? (
+            <div className="rounded-xl border border-border bg-surface-2 p-3">
+              <div className="mb-3 text-[13px] font-bold text-foreground">Inscripcion del curso</div>
+              <input type="hidden" name="timezone" value="America/Caracas" />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Fld
+                  label="Enlace publico"
+                  name="public_slug"
+                  defaultValue={project?.public_slug ?? ""}
+                  placeholder="curso-ecografia-agosto"
+                />
+                <Fld
+                  label="Precio base USD"
+                  name="default_price_usd"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  defaultValue={project?.default_price_usd ?? ""}
+                />
+                <Fld
+                  label="Inscripciones desde"
+                  name="registration_opens_at"
+                  type="datetime-local"
+                  defaultValue={dateTimeLocalValue(project?.registration_opens_at ?? null)}
+                />
+                <Fld
+                  label="Inscripciones hasta"
+                  name="registration_closes_at"
+                  type="datetime-local"
+                  defaultValue={dateTimeLocalValue(project?.registration_closes_at ?? null)}
+                />
+              </div>
+              <label className="mt-3 inline-flex items-center gap-2 text-[12.5px] font-medium text-foreground">
+                <input
+                  name="public_registration_enabled"
+                  type="checkbox"
+                  defaultChecked={project?.public_registration_enabled ?? false}
+                  className="size-4"
+                />
+                Inscripcion publica activa
+              </label>
+              <div className="mt-3 flex flex-col gap-1.5">
+                <Label htmlFor="registration-payment-instructions">Datos e instrucciones de pago</Label>
+                <Textarea
+                  id="registration-payment-instructions"
+                  name="registration_payment_instructions"
+                  rows={3}
+                  defaultValue={project?.registration_payment_instructions ?? ""}
+                />
+              </div>
+            </div>
+          ) : null}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label>Estado</Label>
@@ -1298,13 +1436,15 @@ function RegistrationForm({
   project,
   registration,
   rate,
+  groups,
   onDelete,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   project: Project | null;
-  registration: ProjectRegistration | null;
+  registration: ProjectRegistrationView | null;
   rate: number;
+  groups: ProjectGroup[];
   onDelete?: () => void;
 }) {
   const [state, formAction] = useActionState<FormState, FormData>(
@@ -1335,10 +1475,29 @@ function RegistrationForm({
             name="existing_receipt_url"
             value={registration?.receipt_url ?? ""}
           />
+          <input
+            type="hidden"
+            name="existing_receipt_storage_path"
+            value={registration?.receipt_storage_path ?? ""}
+          />
 
           <div className="rounded-xl bg-surface-2 px-3 py-2 text-[12.5px] text-text-2">
             Proyecto: <span className="font-semibold text-foreground">{project?.name ?? "—"}</span>
           </div>
+
+          {project?.project_type === "Curso" ? (
+            <div className="flex flex-col gap-1.5">
+              <Label>Grupo u horario</Label>
+              <Select name="group_id" defaultValue={registration?.group_id ?? groups[0]?.id}>
+                <SelectTrigger><SelectValue placeholder="Selecciona un grupo" /></SelectTrigger>
+                <SelectContent>
+                  {groups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Fld
@@ -1450,9 +1609,9 @@ function RegistrationForm({
                   accept="image/png,image/jpeg,image/webp,application/pdf"
                   className="h-[38px] rounded-[10px] border border-border bg-card px-3 py-1.5 text-[12.5px] text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-2.5 file:py-1 file:text-[12px] file:font-medium file:text-foreground"
                 />
-                {registration?.receipt_url ? (
+                {registration?.receipt_access_url || registration?.receipt_url ? (
                   <a
-                    href={registration.receipt_url}
+                    href={registration.receipt_access_url ?? registration.receipt_url ?? "#"}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1.5 text-[12px] font-medium text-brand hover:underline"

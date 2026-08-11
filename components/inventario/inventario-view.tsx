@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import {
   updateStock,
+  createStockEntry,
   importInventory,
   type FormState,
   type ImportRow,
@@ -43,6 +44,24 @@ import { cn } from "@/lib/utils";
 import type { VInventory } from "@/lib/database.types";
 
 type InventoryRow = VInventory & { product_image_url: string | null };
+
+export type InventoryVariantOption = {
+  id: string;
+  product_id: string;
+  sku: string;
+  product_name: string;
+  category: string | null;
+  brand: string | null;
+  size: string | null;
+  color: string | null;
+  color_hex: string | null;
+};
+
+export type InventoryBranchOption = {
+  id: string;
+  city: string;
+  code: string;
+};
 
 const ESTADO_STYLE: Record<string, { bg: string; color: string }> = {
   "En stock": { bg: "var(--success-soft)", color: "var(--success)" },
@@ -73,6 +92,8 @@ export function InventarioView({
   brands,
   skuOptions,
   branchOptions,
+  variantOptions,
+  inventoryBranches,
   branchLabel,
   canEdit,
 }: {
@@ -81,6 +102,8 @@ export function InventarioView({
   brands: string[];
   skuOptions: string[];
   branchOptions: string[];
+  variantOptions: InventoryVariantOption[];
+  inventoryBranches: InventoryBranchOption[];
   branchLabel: string;
   canEdit: boolean;
 }) {
@@ -91,6 +114,7 @@ export function InventarioView({
   const [size, setSize] = useState("");
   const [color, setColor] = useState("");
   const [editing, setEditing] = useState<VInventory | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -228,6 +252,14 @@ export function InventarioView({
         <div className="flex flex-wrap items-center gap-2.5">
           {canEdit && (
             <button
+              onClick={() => setAddOpen(true)}
+              className="hoverlift flex h-11 flex-1 items-center justify-center gap-2 rounded-[10px] bg-brand px-[15px] text-[13px] font-semibold text-white sm:h-[38px] sm:flex-none"
+            >
+              <Plus className="size-4" /> Agregar inventario
+            </button>
+          )}
+          {canEdit && (
+            <button
               onClick={downloadTemplate}
               className="iconbtn flex h-11 flex-1 items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-[13px] text-[13px] font-medium text-foreground sm:h-[38px] sm:flex-none"
             >
@@ -251,7 +283,7 @@ export function InventarioView({
           {canEdit && (
             <Link
               href="/productos"
-              className="hoverlift flex h-11 flex-1 items-center justify-center gap-2 rounded-[10px] bg-brand px-[15px] text-[13px] font-semibold text-white sm:h-[38px] sm:flex-none"
+              className="iconbtn flex h-11 flex-1 items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-[13px] text-[13px] font-medium text-foreground sm:h-[38px] sm:flex-none"
             >
               <Plus className="size-4" /> Nuevo producto
             </Link>
@@ -483,6 +515,7 @@ export function InventarioView({
                 <tr>
                   <td colSpan={11} className="px-[22px] py-10 text-center text-[13px] text-text-3">
                     No hay productos en esta vista.
+                    {canEdit ? " Si el producto es nuevo, usa Agregar inventario." : ""}
                   </td>
                 </tr>
               )}
@@ -503,6 +536,15 @@ export function InventarioView({
 
       {canEdit && (
         <StockDialog row={editing} onClose={() => setEditing(null)} />
+      )}
+      {canEdit && (
+        <AddStockDialog
+          key={addOpen ? "open" : "closed"}
+          open={addOpen}
+          onOpenChange={setAddOpen}
+          variants={variantOptions}
+          branches={inventoryBranches}
+        />
       )}
       {canEdit && (
         <ImportDialog open={importOpen} onOpenChange={setImportOpen} />
@@ -752,6 +794,185 @@ function SaveBtn() {
     <Button type="submit" disabled={pending} className="font-semibold">
       {pending && <Loader2 className="size-4 animate-spin" />}
       Guardar
+    </Button>
+  );
+}
+
+function AddStockDialog({
+  open,
+  onOpenChange,
+  variants,
+  branches,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  variants: InventoryVariantOption[];
+  branches: InventoryBranchOption[];
+}) {
+  const [state, formAction] = useActionState<FormState, FormData>(
+    createStockEntry,
+    null,
+  );
+  const [query, setQuery] = useState("");
+  const [variantId, setVariantId] = useState("");
+  const [branchId, setBranchId] = useState(branches[0]?.id ?? "");
+  const selected = variants.find((variant) => variant.id === variantId) ?? null;
+  const filtered = useMemo(() => {
+    const needle = query.trim();
+    const list = needle
+      ? variants.filter((variant) =>
+          matchesProductQuery(
+            [
+              variant.product_name,
+              variant.sku,
+              variant.category,
+              variant.brand,
+              variant.size,
+              variant.color,
+            ],
+            needle,
+          ),
+        )
+      : variants;
+    return list.slice(0, 12);
+  }, [variants, query]);
+
+  useEffect(() => {
+    if (state?.ok) {
+      toast.success("Inventario registrado");
+      onOpenChange(false);
+    }
+  }, [state, onOpenChange]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90dvh] max-w-[620px] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Agregar inventario</DialogTitle>
+        </DialogHeader>
+        <form action={formAction} className="flex flex-col gap-4">
+          <input type="hidden" name="variant_id" value={variantId} />
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="inventory-product-search">Producto o SKU</Label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute top-1/2 left-3 size-[17px] -translate-y-1/2 text-text-3" />
+              <Input
+                id="inventory-product-search"
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setVariantId("");
+                }}
+                placeholder="Buscar producto nuevo por nombre, SKU, talla o color"
+                className="pl-[37px]"
+              />
+            </div>
+            <div className="max-h-56 overflow-y-auto rounded-[10px] border border-border bg-card">
+              {variants.length === 0 ? (
+                <div className="px-3 py-6 text-center text-[12.5px] text-text-3">
+                  No hay variantes activas. Crea una variante/SKU desde Productos.
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="px-3 py-6 text-center text-[12.5px] text-text-3">
+                  No hay variantes que coincidan.
+                </div>
+              ) : (
+                filtered.map((variant) => (
+                  <button
+                    key={variant.id}
+                    type="button"
+                    onClick={() => {
+                      setVariantId(variant.id);
+                      setQuery(
+                        `${variant.sku} — ${variant.product_name}${[variant.size, variant.color].filter(Boolean).length ? ` ${[variant.size, variant.color].filter(Boolean).join(" ")}` : ""}`,
+                      );
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-2.5 border-b border-border px-3 py-2.5 text-left last:border-b-0 hover:bg-[var(--hover)]",
+                      variant.id === variantId && "bg-brand-soft",
+                    )}
+                  >
+                    <span
+                      className="size-3 flex-none rounded-full border border-border"
+                      style={{ background: variant.color_hex ?? "var(--surface-2)" }}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[12.5px] font-medium text-foreground">
+                        {variant.product_name}
+                      </span>
+                      <span className="block truncate font-mono text-[11px] text-text-3">
+                        {variant.sku}
+                        {[variant.size, variant.color].filter(Boolean).length
+                          ? ` · ${[variant.size, variant.color].filter(Boolean).join(" / ")}`
+                          : ""}
+                      </span>
+                    </span>
+                    <span className="hidden max-w-[120px] truncate text-[11.5px] text-text-3 sm:block">
+                      {variant.category ?? variant.brand ?? "Sin categoría"}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="branch_id">Sucursal</Label>
+              <select
+                id="branch_id"
+                name="branch_id"
+                value={branchId}
+                onChange={(event) => setBranchId(event.target.value)}
+                className="h-9 rounded-md border border-input bg-transparent px-3 text-sm text-foreground outline-none"
+              >
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.city} ({branch.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Fld label="Stock inicial" name="quantity" type="number" min={0} defaultValue={0} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Fld label="Reservado" name="reserved" type="number" min={0} defaultValue={0} />
+            <Fld label="Mínimo" name="min_stock" type="number" min={0} defaultValue={0} />
+          </div>
+          {selected && (
+            <div className="rounded-lg bg-surface-2 px-3 py-2 text-[12.5px]">
+              <div className="font-medium text-foreground">{selected.product_name}</div>
+              <div className="text-text-3">
+                {selected.sku}
+                {[selected.size, selected.color].filter(Boolean).length
+                  ? ` · ${[selected.size, selected.color].filter(Boolean).join(" / ")}`
+                  : ""}
+              </div>
+            </div>
+          )}
+          {state?.error && (
+            <p className="rounded-lg bg-danger-soft px-3 py-2 text-[12.5px] text-danger">
+              {state.error}
+            </p>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <AddStockSaveBtn disabled={!variantId || !branchId} />
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AddStockSaveBtn({ disabled }: { disabled: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" disabled={pending || disabled} className="font-semibold">
+      {pending && <Loader2 className="size-4 animate-spin" />}
+      Guardar inventario
     </Button>
   );
 }

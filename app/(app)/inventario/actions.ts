@@ -9,6 +9,79 @@ import { getProfileBranchScope } from "@/lib/branch";
 
 export type FormState = { error?: string; ok?: boolean } | null;
 
+function stockNumber(value: FormDataEntryValue | null): number {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0;
+}
+
+export async function createStockEntry(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const variantId = String(formData.get("variant_id") ?? "").trim();
+  const branchId = String(formData.get("branch_id") ?? "").trim();
+  if (!variantId) return { error: "Selecciona un producto." };
+  if (!branchId) return { error: "Selecciona una sucursal." };
+
+  const quantity = stockNumber(formData.get("quantity"));
+  const reserved = stockNumber(formData.get("reserved"));
+  const min_stock = stockNumber(formData.get("min_stock"));
+
+  const session = await getSession();
+  if (!session) return { error: "Debes iniciar sesión." };
+  if (!canEdit(session.permissions, "Inventario")) {
+    return { error: "No tienes permiso para editar inventario." };
+  }
+
+  const assignedBranchId = getProfileBranchScope(session.profile);
+  if (assignedBranchId && branchId !== assignedBranchId) {
+    return { error: "No puedes crear inventario en otra sucursal." };
+  }
+
+  const supabase = await createClient();
+  const [{ data: variant, error: variantError }, { data: branch, error: branchError }] =
+    await Promise.all([
+      supabase
+        .from("product_variants")
+        .select("id, sku, product_id")
+        .eq("id", variantId)
+        .maybeSingle(),
+      supabase
+        .from("branches")
+        .select("id, city")
+        .eq("id", branchId)
+        .maybeSingle(),
+    ]);
+
+  if (variantError) return { error: variantError.message };
+  if (branchError) return { error: branchError.message };
+  if (!variant) return { error: "La variante seleccionada no existe." };
+  if (!branch) return { error: "La sucursal seleccionada no existe." };
+
+  const { error } = await supabase.from("inventory").upsert(
+    {
+      variant_id: variantId,
+      branch_id: branchId,
+      quantity,
+      reserved,
+      min_stock,
+    },
+    { onConflict: "variant_id,branch_id" },
+  );
+  if (error) return { error: error.message };
+
+  await audit(
+    `Registró inventario ${variant.sku} (${quantity} uds) en ${branch.city}`,
+    "Inventario",
+  );
+  revalidatePath("/inventario");
+  revalidatePath("/ventas");
+  revalidatePath("/productos");
+  revalidatePath(`/productos/${variant.product_id}`);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 export async function updateStock(
   _prev: FormState,
   formData: FormData,

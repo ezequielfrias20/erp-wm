@@ -23,6 +23,12 @@ export type UserStatus = "Activo" | "Inactivo";
 export type AuditSeverity = "ok" | "edit" | "sys" | "warn";
 export type EventType = "compra" | "pago" | "nota" | "registro";
 export type ProjectStatus = "Borrador" | "Abierto" | "Cerrado" | "Cancelado";
+export type ProjectType = "Evento" | "Curso";
+export type ProjectOrderStatus =
+  | "Por validar"
+  | "Confirmado"
+  | "Cancelado"
+  | "Vencido";
 export type ProjectPaymentMethod =
   | "Pago móvil"
   | "Efectivo USD"
@@ -210,6 +216,14 @@ export type Project = {
   organizer_name: string | null;
   organizer_email: string | null;
   organizer_phone: string | null;
+  project_type: ProjectType;
+  public_slug: string | null;
+  public_registration_enabled: boolean;
+  registration_opens_at: string | null;
+  registration_closes_at: string | null;
+  default_price_usd: number | null;
+  registration_payment_instructions: string | null;
+  timezone: string;
   status: ProjectStatus;
   goal: number | null;
   notes: string | null;
@@ -220,6 +234,8 @@ export type Project = {
 export type ProjectRegistration = {
   id: string;
   project_id: string;
+  group_id: string | null;
+  order_id: string | null;
   first_name: string;
   last_name: string;
   document: string;
@@ -233,6 +249,7 @@ export type ProjectRegistration = {
   paid_at: string;
   payment_reference: string | null;
   receipt_url: string | null;
+  receipt_storage_path: string | null;
   status: ProjectRegistrationStatus;
   ticket_hash: string | null;
   ticket_payload: string | null;
@@ -245,6 +262,71 @@ export type ProjectRegistration = {
   notes: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export type ProjectRegistrationView = ProjectRegistration & {
+  receipt_access_url: string | null;
+}
+
+export type ProjectGroup = {
+  id: string;
+  project_id: string;
+  name: string;
+  slug: string;
+  capacity: number;
+  price_usd: number;
+  status: ProjectStatus;
+  registration_opens_at: string | null;
+  registration_closes_at: string | null;
+  location: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ProjectSession = {
+  id: string;
+  group_id: string;
+  title: string | null;
+  starts_at: string;
+  ends_at: string;
+  location: string | null;
+  instructor: string | null;
+  notes: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ProjectOrder = {
+  id: string;
+  project_id: string;
+  group_id: string;
+  code: string;
+  quantity: number;
+  currency: "USD" | "VES";
+  amount: number;
+  amount_usd: number;
+  exchange_rate: number | null;
+  payment_method: ProjectPaymentMethod;
+  payment_reference: string | null;
+  receipt_url: string | null;
+  receipt_storage_path: string | null;
+  status: ProjectOrderStatus;
+  reservation_expires_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ProjectCheckin = {
+  id: string;
+  registration_id: string;
+  session_id: string;
+  checked_in_at: string;
+  checked_in_by: string | null;
+  notes: string | null;
+  created_at: string;
 }
 
 export type Sale = {
@@ -521,7 +603,11 @@ export type Database = {
       customers: Tbl<Customer>;
       customer_events: Tbl<CustomerEvent>;
       projects: Tbl<Project>;
+      project_groups: Tbl<ProjectGroup>;
+      project_sessions: Tbl<ProjectSession>;
+      project_orders: Tbl<ProjectOrder>;
       project_registrations: Tbl<ProjectRegistration>;
+      project_checkins: Tbl<ProjectCheckin>;
       sales: Tbl<Sale>;
       sale_items: Tbl<SaleItem>;
       sale_payments: Tbl<SalePayment>;
@@ -574,6 +660,30 @@ export type Database = {
           p_seller_code?: string | null;
         };
         Returns: Sale;
+      };
+      create_course_order: {
+        Args: {
+          p_project_id: string;
+          p_group_id: string;
+          p_code: string;
+          p_currency: "USD" | "VES";
+          p_amount: number;
+          p_amount_usd: number;
+          p_exchange_rate: number | null;
+          p_payment_method: ProjectPaymentMethod;
+          p_payment_reference: string | null;
+          p_receipt_storage_path: string | null;
+          p_attendees: unknown;
+          p_notes?: string | null;
+        };
+        Returns: {
+          id: string;
+          code: string;
+          status: ProjectOrderStatus;
+          quantity: number;
+          registrationIds: string[];
+          reservationExpiresAt: string | null;
+        };
       };
     };
     Enums: Record<string, never>;

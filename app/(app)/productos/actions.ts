@@ -94,8 +94,16 @@ export async function saveProduct(
       .select("id")
       .single();
     if (error) return { error: error.message };
+    if (formData.get("create_default_variant") === "true") {
+      const sku = await generateSku(supabase, data.id);
+      await supabase.from("product_variants").insert({
+        product_id: data.id,
+        sku,
+      });
+    }
     await audit(`Creó el producto ${name}`, "Productos");
     revalidatePath("/productos");
+    revalidatePath("/inventario");
     return { ok: true, id: data.id };
   }
 }

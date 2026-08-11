@@ -13,10 +13,13 @@ import {
 } from "@/lib/project-ticket-email";
 import type {
   Project,
+  ProjectGroup,
   ProjectPaymentMethod,
   ProjectRegistration,
   ProjectRegistrationStatus,
+  ProjectSession,
   ProjectStatus,
+  ProjectType,
 } from "@/lib/database.types";
 
 export type FormState = { error?: string; ok?: boolean } | null;
@@ -62,6 +65,12 @@ function numberOrNull(value: string) {
   return Number.isFinite(n) ? n : null;
 }
 
+function caracasDateTime(value: string) {
+  if (!value) return null;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return `${value}:00-04:00`;
+  return value;
+}
+
 function round2(n: number) {
   return Math.round(n * 100) / 100;
 }
@@ -72,6 +81,12 @@ function currencyFor(method: ProjectPaymentMethod): "USD" | "VES" {
 
 function cleanHexColor(value: string) {
   return /^#[0-9a-fA-F]{6}$/.test(value) ? value : "#0ea5e9";
+}
+
+function publicSlug(value: string) {
+  if (!value) return null;
+  const slug = value.toLowerCase();
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) ? slug : null;
 }
 
 function ticketHash() {
@@ -261,6 +276,8 @@ async function sendTicketEmail({
   registration,
   hash,
   qrBase64,
+  courseGroup,
+  courseSessions,
 }: {
   to: string;
   projectName: string;
@@ -268,6 +285,8 @@ async function sendTicketEmail({
   registration: ProjectRegistration;
   hash: string;
   qrBase64: string;
+  courseGroup?: ProjectGroup | null;
+  courseSessions?: ProjectSession[];
 }) {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM;
@@ -280,6 +299,8 @@ async function sendTicketEmail({
     registration,
     qrSrc: "cid:ticket-qr",
     code: hash,
+    courseGroup,
+    courseSessions,
   });
 
   const res = await fetch("https://api.resend.com/emails", {
@@ -293,7 +314,13 @@ async function sendTicketEmail({
       to: [to],
       subject: `Entrada confirmada · ${projectName}`,
       html,
-      text: buildProjectTicketEmailText({ project, registration, code: hash }),
+      text: buildProjectTicketEmailText({
+        project,
+        registration,
+        code: hash,
+        courseGroup,
+        courseSessions,
+      }),
       attachments: [
         {
           content: qrBase64,
@@ -402,6 +429,20 @@ async function issueAndSendTicket(
 
   const project = await getProject(supabase, registration.project_id);
   if (!project) return { error: "No se encontró el proyecto para enviar la entrada." };
+  let courseGroup: ProjectGroup | null = null;
+  let courseSessions: ProjectSession[] = [];
+  if (registration.group_id) {
+    const [groupResult, sessionsResult] = await Promise.all([
+      supabase.from("project_groups").select("*").eq("id", registration.group_id).maybeSingle(),
+      supabase
+        .from("project_sessions")
+        .select("*")
+        .eq("group_id", registration.group_id)
+        .order("starts_at", { ascending: true }),
+    ]);
+    courseGroup = groupResult.data;
+    courseSessions = sessionsResult.data ?? [];
+  }
   try {
     const emailId = await sendTicketEmail({
       to: registration.email,
@@ -416,6 +457,8 @@ async function issueAndSendTicket(
       },
       hash,
       qrBase64,
+      courseGroup,
+      courseSessions,
     });
     const { error } = await supabase
       .from("project_registrations")
@@ -471,7 +514,17 @@ export async function saveProject(
   const existingLogoUrl = text(formData, "existing_logo_url") || null;
   const logoFile = fileFrom(formData, "logo");
   const removeLogo = text(formData, "remove_logo") === "on";
+  const projectType = (text(formData, "project_type") || "Evento") as ProjectType;
+  const requestedPublicSlug = text(formData, "public_slug");
+  const normalizedPublicSlug = publicSlug(requestedPublicSlug);
+  const publicRegistrationEnabled = text(formData, "public_registration_enabled") === "on";
   if (!name) return { error: "El nombre del proyecto es obligatorio." };
+  if (requestedPublicSlug && !normalizedPublicSlug) {
+    return { error: "El enlace publico solo puede usar letras minusculas, numeros y guiones." };
+  }
+  if (projectType === "Curso" && publicRegistrationEnabled && !normalizedPublicSlug) {
+    return { error: "Define un enlace publico para habilitar las inscripciones del curso." };
+  }
 
   let logoUrl = removeLogo ? null : existingLogoUrl;
   try {
@@ -495,6 +548,19 @@ export async function saveProject(
     organizer_name: text(formData, "organizer_name") || null,
     organizer_email: text(formData, "organizer_email") || null,
     organizer_phone: text(formData, "organizer_phone") || null,
+    project_type: projectType,
+    public_slug: projectType === "Curso" ? normalizedPublicSlug : null,
+    public_registration_enabled:
+      projectType === "Curso" ? publicRegistrationEnabled : false,
+    registration_opens_at:
+      projectType === "Curso" ? caracasDateTime(text(formData, "registration_opens_at")) : null,
+    registration_closes_at:
+      projectType === "Curso" ? caracasDateTime(text(formData, "registration_closes_at")) : null,
+    default_price_usd:
+      projectType === "Curso" ? numberOrNull(text(formData, "default_price_usd")) : null,
+    registration_payment_instructions:
+      projectType === "Curso" ? text(formData, "registration_payment_instructions") || null : null,
+    timezone: projectType === "Curso" ? text(formData, "timezone") || "America/Caracas" : "America/Caracas",
     status: (text(formData, "status") || "Abierto") as ProjectStatus,
     goal: numberOrNull(text(formData, "goal")),
     notes: text(formData, "notes") || null,
@@ -534,7 +600,7 @@ export async function deleteProject(id: string): Promise<FormState> {
     .maybeSingle();
   const { data: files } = await supabase
     .from("project_registrations")
-    .select("receipt_url, ticket_qr_url")
+    .select("receipt_url, receipt_storage_path, ticket_qr_url")
     .eq("project_id", id);
 
   const { error } = await supabase.from("projects").delete().eq("id", id);
@@ -556,6 +622,20 @@ export async function deleteProject(id: string): Promise<FormState> {
       // El proyecto ya fue eliminado; la limpieza de archivos es best-effort.
     }
   }
+  const privatePaths = [
+    ...new Set(
+      (files ?? [])
+        .map((registration) => registration.receipt_storage_path)
+        .filter((path): path is string => Boolean(path)),
+    ),
+  ];
+  if (privatePaths.length) {
+    try {
+      await supabase.storage.from("wm-private").remove(privatePaths);
+    } catch {
+      // El proyecto ya fue eliminado; la limpieza privada es best-effort.
+    }
+  }
 
   await audit("Eliminó un proyecto", "Proyectos", "warn");
   revalidatePath("/proyectos");
@@ -569,6 +649,7 @@ export async function saveRegistration(
 ): Promise<FormState> {
   const id = text(formData, "id");
   const projectId = text(formData, "project_id");
+  const requestedGroupId = text(formData, "group_id") || null;
   const firstName = text(formData, "first_name");
   const lastName = text(formData, "last_name");
   const document = text(formData, "document");
@@ -577,6 +658,8 @@ export async function saveRegistration(
   const paymentMethod = (text(formData, "payment_method") || "Pago móvil") as ProjectPaymentMethod;
   const paymentReference = text(formData, "payment_reference") || null;
   const existingReceiptUrl = text(formData, "existing_receipt_url") || null;
+  const existingReceiptStoragePath =
+    text(formData, "existing_receipt_storage_path") || null;
   const receiptFile = fileFrom(formData, "receipt");
   const currency = currencyFor(paymentMethod);
   const amount = numberOrNull(text(formData, "amount"));
@@ -599,12 +682,34 @@ export async function saveRegistration(
   if (NON_CASH_METHODS.has(paymentMethod) && paymentReference && !PAYMENT_REFERENCE_RE.test(paymentReference)) {
     return { error: "Introduce una referencia de pago válida." };
   }
-  if (NON_CASH_METHODS.has(paymentMethod) && !receiptFile && !existingReceiptUrl) {
+  if (
+    NON_CASH_METHODS.has(paymentMethod) &&
+    !receiptFile &&
+    !existingReceiptUrl &&
+    !existingReceiptStoragePath
+  ) {
     return { error: "El comprobante es obligatorio para este método de pago." };
   }
 
   const supabase = await createClient();
   const existing = id ? await getRegistration(supabase, id).catch(() => null) : null;
+  const project = await getProject(supabase, projectId);
+  if (!project) return { error: "No se encontro el proyecto." };
+
+  const groupId = requestedGroupId ?? existing?.group_id ?? null;
+  if (project.project_type === "Curso" && !groupId) {
+    return { error: "Selecciona el grupo u horario del curso." };
+  }
+  if (groupId) {
+    const { data: group, error: groupError } = await supabase
+      .from("project_groups")
+      .select("id")
+      .eq("id", groupId)
+      .eq("project_id", projectId)
+      .maybeSingle();
+    if (groupError) return { error: groupError.message };
+    if (!group) return { error: "El grupo seleccionado no pertenece a este curso." };
+  }
   if (paymentReference) {
     let duplicateQuery = supabase
       .from("project_registrations")
@@ -646,14 +751,20 @@ export async function saveRegistration(
   }
 
   let receiptUrl = existingReceiptUrl;
+  let receiptStoragePath = existingReceiptStoragePath;
   try {
-    if (receiptFile) receiptUrl = await uploadReceipt(receiptFile, projectId);
+    if (receiptFile) {
+      receiptUrl = await uploadReceipt(receiptFile, projectId);
+      receiptStoragePath = null;
+    }
   } catch (e) {
     return { error: e instanceof Error ? e.message : "No se pudo subir el comprobante." };
   }
 
   const values = {
     project_id: projectId,
+    group_id: groupId,
+    order_id: existing?.order_id ?? null,
     first_name: firstName,
     last_name: lastName,
     document,
@@ -667,6 +778,8 @@ export async function saveRegistration(
     paid_at: paidAt,
     payment_reference: paymentMethod === "Efectivo USD" ? null : paymentReference,
     receipt_url: paymentMethod === "Efectivo USD" ? null : receiptUrl,
+    receipt_storage_path:
+      paymentMethod === "Efectivo USD" ? null : receiptStoragePath,
     status: (text(formData, "status") || "Por validar") as ProjectRegistrationStatus,
     notes: text(formData, "notes") || null,
   };
@@ -728,6 +841,24 @@ export async function saveRegistration(
     }
   }
 
+  if (existing?.order_id) {
+    const { data: orderRegistrations } = await supabase
+      .from("project_registrations")
+      .select("status")
+      .eq("order_id", existing.order_id);
+    const statuses = orderRegistrations?.map((registration) => registration.status) ?? [];
+    const orderStatus =
+      statuses.length > 0 && statuses.every((status) => status === "Confirmado")
+        ? "Confirmado"
+        : statuses.length > 0 && statuses.every((status) => status === "Cancelado")
+          ? "Cancelado"
+          : "Por validar";
+    await supabase
+      .from("project_orders")
+      .update({ status: orderStatus })
+      .eq("id", existing.order_id);
+  }
+
   revalidatePath("/proyectos");
   return { ok: true };
 }
@@ -736,7 +867,7 @@ export async function deleteRegistration(id: string): Promise<FormState> {
   const supabase = await createClient();
   const { data: current } = await supabase
     .from("project_registrations")
-    .select("receipt_url")
+    .select("receipt_url, receipt_storage_path, order_id")
     .eq("id", id)
     .maybeSingle();
 
@@ -754,6 +885,24 @@ export async function deleteRegistration(id: string): Promise<FormState> {
       await supabase.storage.from("wm-public").remove([path]);
     } catch {
       // Best-effort: la inscripción ya fue eliminada.
+    }
+  }
+  let removePrivateReceipt = Boolean(current?.receipt_storage_path);
+  if (current?.order_id) {
+    const { count } = await supabase
+      .from("project_registrations")
+      .select("id", { count: "exact", head: true })
+      .eq("order_id", current.order_id);
+    removePrivateReceipt = (count ?? 0) === 0;
+    if (removePrivateReceipt) {
+      await supabase.from("project_orders").delete().eq("id", current.order_id);
+    }
+  }
+  if (current?.receipt_storage_path && removePrivateReceipt) {
+    try {
+      await supabase.storage.from("wm-private").remove([current.receipt_storage_path]);
+    } catch {
+      // Best-effort: la inscripcion ya fue eliminada.
     }
   }
 

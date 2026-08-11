@@ -444,6 +444,7 @@ function CreateDialog({
         <form action={formAction} className="flex flex-col gap-4">
           <input type="hidden" name="is_active" value="true" />
           <input type="hidden" name="visible_in_catalog" value="true" />
+          <input type="hidden" name="create_default_variant" value="true" />
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="name">Nombre del producto</Label>
             <Input id="name" name="name" placeholder="Ej. Scrub Set Cherokee Workwear" required />

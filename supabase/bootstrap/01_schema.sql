@@ -972,4 +972,8 @@ create policy "wm_authenticated_update" on storage.objects
 create policy "wm_authenticated_delete" on storage.objects
   for delete to authenticated using (bucket_id = 'wm-public');
 
+-- Ampliacion aditiva de Proyectos para cursos, grupos, jornadas y asistencia.
+-- \ir resuelve la ruta respecto de este archivo cuando se ejecuta con psql.
+\ir ../projects_courses.sql
+
 notify pgrst, 'reload schema';

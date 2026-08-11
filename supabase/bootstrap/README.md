@@ -5,7 +5,7 @@ crean toda la estructura, cargan la data mínima para operar y dan de alta al ow
 
 | Archivo | Qué hace | Idempotente |
 |---|---|---|
-| `01_schema.sql` | Estructura completa (estado final): esquema `wm`, tablas, funciones, RLS, vistas, RPC `create_sale`, bucket de storage. **Sin datos.** | Asume BD vacía (usa `create table`; re-correr falla si ya existe) |
+| `01_schema.sql` | Estructura completa (estado final): esquema `wm`, tablas, funciones, RLS, vistas, RPC, storage y ampliación de cursos. **Sin datos.** | Asume BD vacía (usa `create table`; re-correr falla si ya existe) |
 | `02_seed.sql` | Seed mínimo: 6 roles, matriz de 54 permisos, 10 métodos de pago, 1 sucursal "Principal", fila `settings`. | Sí (`on conflict`) |
 | `03_owner.sql` | Primer usuario: crea el usuario de Auth + perfil **Super Admin**. | Sí (no duplica ni cambia contraseña existente) |
 

@@ -1,10 +1,17 @@
-import type { Project, ProjectRegistration } from "@/lib/database.types";
+import type {
+  Project,
+  ProjectGroup,
+  ProjectRegistration,
+  ProjectSession,
+} from "@/lib/database.types";
 
 type TicketEmailInput = {
   project: Project;
   registration: ProjectRegistration;
   qrSrc: string;
   code: string;
+  courseGroup?: ProjectGroup | null;
+  courseSessions?: ProjectSession[];
 };
 
 const DEFAULT_ACCENT = "#0ea5e9";
@@ -47,6 +54,21 @@ function fmtMoney(value: number | null | undefined, currency: "USD" | "VES") {
   });
 }
 
+function fmtSession(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Por confirmar";
+  return new Intl.DateTimeFormat("es-VE", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "America/Caracas",
+  }).format(date);
+}
+
 function normalizeAccent(value: string | null | undefined) {
   const color = String(value ?? "").trim();
   return /^#[0-9a-fA-F]{6}$/.test(color) ? color : DEFAULT_ACCENT;
@@ -66,6 +88,8 @@ export function buildProjectTicketEmailHtml({
   registration,
   qrSrc,
   code,
+  courseGroup,
+  courseSessions = [],
 }: TicketEmailInput) {
   const accent = normalizeAccent(project.ticket_accent_color);
   const fullName = `${registration.first_name} ${registration.last_name}`.trim();
@@ -135,6 +159,7 @@ export function buildProjectTicketEmailHtml({
 
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:18px;border:1px solid #e5e7eb;border-radius:12px;border-collapse:separate;border-spacing:0;overflow:hidden">
             ${detailRow("Evento", escapeHtml(project.name))}
+            ${courseGroup ? detailRow("Grupo / horario", escapeHtml(courseGroup.name)) : ""}
             ${detailRow("Fecha", escapeHtml(fmtDate(project.event_date)))}
             ${detailRow("Lugar", escapeHtml(project.location || "Por confirmar"))}
             ${detailRow("Organizador", escapeHtml(project.organizer_name || "World Medics"))}
@@ -144,6 +169,20 @@ export function buildProjectTicketEmailHtml({
             ${detailRow("Tasa usada", escapeHtml(rate))}
             ${detailRow("Estado de entrada", escapeHtml(registration.ticket_status))}
           </table>
+
+          ${
+            courseSessions.length > 0
+              ? `<div style="margin-top:18px;border:1px solid #e5e7eb;border-radius:12px;padding:14px">
+                  <p style="margin:0 0 10px;color:#0f172a;font-size:13px;font-weight:800">Jornadas del curso</p>
+                  ${courseSessions
+                    .map(
+                      (session) =>
+                        `<p style="margin:6px 0;color:#475569;font-size:13px;line-height:1.5"><strong>${escapeHtml(session.title || "Jornada")}</strong><br/>${escapeHtml(fmtSession(session.starts_at))}${session.location ? ` · ${escapeHtml(session.location)}` : ""}</p>`,
+                    )
+                    .join("")}
+                </div>`
+              : ""
+          }
 
           ${
             project.ticket_details
@@ -179,6 +218,8 @@ export function buildProjectTicketEmailText({
   project,
   registration,
   code,
+  courseGroup,
+  courseSessions = [],
 }: Omit<TicketEmailInput, "qrSrc">) {
   const fullName = `${registration.first_name} ${registration.last_name}`.trim();
   const title = project.ticket_title || project.name;
@@ -186,11 +227,16 @@ export function buildProjectTicketEmailText({
     "Entrada confirmada",
     "",
     `Evento: ${title}`,
+    ...(courseGroup ? [`Grupo / horario: ${courseGroup.name}`] : []),
     `Titular: ${fullName}`,
     `Cédula: ${registration.document}`,
     `Fecha: ${fmtDate(project.event_date)}`,
     `Lugar: ${project.location || "Por confirmar"}`,
     `Código QR: ${code}`,
+    ...courseSessions.map(
+      (session) =>
+        `${session.title || "Jornada"}: ${fmtSession(session.starts_at)}${session.location ? ` · ${session.location}` : ""}`,
+    ),
     "",
     project.ticket_instructions || "Presenta este correo al ingresar.",
   ].join("\n");
