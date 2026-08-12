@@ -102,6 +102,7 @@ export function CourseSchedulePanel({
   checkins,
   orders,
   canEdit,
+  onAddRegistration,
 }: {
   project: Project;
   groups: ProjectGroup[];
@@ -110,6 +111,7 @@ export function CourseSchedulePanel({
   checkins: ProjectCheckin[];
   orders: ProjectOrder[];
   canEdit: boolean;
+  onAddRegistration?: (group: ProjectGroup) => void;
 }) {
   const [groupDialog, setGroupDialog] = useState<ProjectGroup | "new" | null>(null);
   const [sessionDialog, setSessionDialog] = useState<{
@@ -164,18 +166,18 @@ export function CourseSchedulePanel({
             <CalendarClock className="size-4 text-brand" /> Programacion del curso
           </div>
           <p className="mt-1 text-[12px] text-text-3">
-            Grupos, jornadas, cupos y asistencia independiente por cada fecha.
+            Horarios, jornadas, cupos y asistencia independiente por cada fecha.
           </p>
         </div>
         {canEdit ? (
           <Button size="sm" onClick={() => setGroupDialog("new")}>
-            <Plus className="size-4" /> Nuevo grupo
+            <Plus className="size-4" /> Nuevo horario
           </Button>
         ) : null}
       </div>
 
       <div className="grid grid-cols-3 border-b border-border bg-surface-2 px-5 py-3 text-center">
-        <div><div className="text-[11px] text-text-3">Grupos</div><div className="text-[14px] font-bold text-foreground">{groups.length}</div></div>
+        <div><div className="text-[11px] text-text-3">Horarios</div><div className="text-[14px] font-bold text-foreground">{groups.length}</div></div>
         <div><div className="text-[11px] text-text-3">Ordenes pendientes</div><div className="text-[14px] font-bold text-foreground">{orders.filter((order) => order.status === "Por validar").length}</div></div>
         <div><div className="text-[11px] text-text-3">Jornadas</div><div className="text-[14px] font-bold text-foreground">{sessions.length}</div></div>
       </div>
@@ -218,6 +220,9 @@ export function CourseSchedulePanel({
                   <div className="flex gap-1">
                     <Button variant="outline" size="sm" onClick={() => setGroupDialog(group)}>
                       <Pencil className="size-3.5" /> Editar
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => onAddRegistration?.(group)}>
+                      <Plus className="size-3.5" /> Agregar inscrito
                     </Button>
                     <Button variant="outline" size="icon-sm" title="Eliminar grupo" onClick={() => removeGroup(group)}>
                       <Trash2 className="size-3.5" />
@@ -280,7 +285,7 @@ export function CourseSchedulePanel({
                 })}
                 {groupSessions.length === 0 ? (
                   <div className="px-3 py-5 text-center text-[12px] text-text-3">
-                    Todavia no hay jornadas para este grupo.
+                    Todavia no hay jornadas para este horario.
                   </div>
                 ) : null}
               </div>
@@ -296,7 +301,7 @@ export function CourseSchedulePanel({
 
         {groups.length === 0 ? (
           <div className="px-5 py-10 text-center text-[12.5px] text-text-3">
-            Crea el primer grupo para definir cupos, precio y jornadas del curso.
+            Crea el primer horario para definir cupos, precio y jornadas del curso.
           </div>
         ) : null}
       </div>
@@ -343,12 +348,12 @@ function GroupDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[660px]">
-        <DialogHeader><DialogTitle>{group ? "Editar grupo" : "Nuevo grupo"}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{group ? "Editar horario" : "Nuevo horario"}</DialogTitle></DialogHeader>
         <form action={action} className="flex flex-col gap-3">
           {group ? <input type="hidden" name="id" value={group.id} /> : null}
           <input type="hidden" name="project_id" value={project.id} />
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Nombre del grupo" name="name" defaultValue={group?.name ?? ""} required />
+            <Field label="Nombre del horario" name="name" defaultValue={group?.name ?? ""} required />
             <Field label="Enlace corto" name="slug" defaultValue={group?.slug ?? ""} placeholder="grupo-agosto" />
             <Field label="Capacidad" name="capacity" type="number" min="1" step="1" defaultValue={group?.capacity ?? 20} required />
             <Field label="Precio USD" name="price_usd" type="number" min="0.01" step="0.01" defaultValue={group?.price_usd ?? project.default_price_usd ?? ""} required />
@@ -394,7 +399,7 @@ function SessionDialog({
         <form action={action} className="flex flex-col gap-3">
           {session ? <input type="hidden" name="id" value={session.id} /> : null}
           <input type="hidden" name="group_id" value={group?.id ?? ""} />
-          <div className="rounded-lg bg-surface-2 px-3 py-2 text-[12.5px] text-text-2">Grupo: <strong className="text-foreground">{group?.name}</strong></div>
+          <div className="rounded-lg bg-surface-2 px-3 py-2 text-[12.5px] text-text-2">Horario: <strong className="text-foreground">{group?.name}</strong></div>
           <Field label="Nombre de la jornada" name="title" defaultValue={session?.title ?? ""} placeholder="Dia 1" />
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Inicio" name="starts_at" type="datetime-local" defaultValue={inputDateTime(session?.starts_at ?? null)} required />

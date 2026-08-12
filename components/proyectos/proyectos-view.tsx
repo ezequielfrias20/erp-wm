@@ -42,6 +42,7 @@ import {
 import {
   deleteProject,
   deleteRegistration,
+  confirmProjectOrder,
   saveProject,
   saveRegistration,
   scanProjectTicket,
@@ -153,6 +154,7 @@ export function ProyectosView({
   const [selectedId, setSelectedId] = useState<string | null>(projects[0]?.id ?? null);
   const [projectFormOpen, setProjectFormOpen] = useState(false);
   const [registrationFormOpen, setRegistrationFormOpen] = useState(false);
+  const [registrationGroupId, setRegistrationGroupId] = useState<string | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [editingRegistration, setEditingRegistration] =
     useState<ProjectRegistrationView | null>(null);
@@ -249,8 +251,9 @@ export function ProyectosView({
     setProjectFormOpen(true);
   }
 
-  function openNewRegistration() {
+  function openNewRegistration(groupId?: string | null) {
     setEditingRegistration(null);
+    setRegistrationGroupId(groupId ?? null);
     setRegistrationFormOpen(true);
   }
 
@@ -274,6 +277,16 @@ export function ProyectosView({
       const res = await deleteRegistration(registration.id);
       if (res?.error) toast.error(res.error);
       else toast.success("Inscrito eliminado");
+    });
+  }
+
+  function onConfirmOrder(registration: ProjectRegistration) {
+    if (!registration.order_id) return;
+    if (!confirm("¿Confirmar este pago y enviar los QR de todos los inscritos de la orden?")) return;
+    startTransition(async () => {
+      const res = await confirmProjectOrder(registration.order_id ?? "");
+      if (res?.error) toast.error(res.error);
+      else toast.success("Pago confirmado y QR enviados");
     });
   }
 
@@ -433,7 +446,7 @@ export function ProyectosView({
                     >
                       <Pencil className="size-3.5" /> Editar
                     </Button>
-                    <Button size="sm" onClick={openNewRegistration} className="font-semibold">
+                    <Button size="sm" onClick={() => openNewRegistration()} className="font-semibold">
                       <Plus className="size-3.5" /> Agregar inscrito
                     </Button>
                   </div>
@@ -464,6 +477,7 @@ export function ProyectosView({
                 orders={orders.filter((order) => order.project_id === selected.id)}
                 checkins={checkins}
                 canEdit={canEdit}
+                onAddRegistration={(group) => openNewRegistration(group.id)}
               />
             ) : null}
 
@@ -595,7 +609,17 @@ export function ProyectosView({
                         ) : null}
                       </span>
                       <span className="flex items-center justify-end gap-1">
-                        {registration.receipt_url ? (
+                        {registration.status === "Por validar" && registration.order_id ? (
+                          <button
+                            type="button"
+                            onClick={() => onConfirmOrder(registration)}
+                            className="iconbtn flex size-8 items-center justify-center rounded-lg text-success"
+                            title="Confirmar pago y enviar QR"
+                          >
+                            <CheckCircle2 className="size-4" />
+                          </button>
+                        ) : null}
+                        {registration.receipt_access_url || registration.receipt_url ? (
                           <a
                             href={registration.receipt_access_url ?? registration.receipt_url ?? "#"}
                             target="_blank"
@@ -611,6 +635,7 @@ export function ProyectosView({
                             type="button"
                             onClick={() => {
                               setEditingRegistration(registration);
+                              setRegistrationGroupId(null);
                               setRegistrationFormOpen(true);
                             }}
                             className="iconbtn flex size-8 items-center justify-center rounded-lg text-text-2"
@@ -656,13 +681,14 @@ export function ProyectosView({
             onDelete={editingProject ? () => onDeleteProject(editingProject) : undefined}
           />
           <RegistrationForm
-            key={editingRegistration?.id ?? selected?.id ?? "registration-form"}
+            key={`${editingRegistration?.id ?? selected?.id ?? "registration-form"}-${registrationGroupId ?? "no-group"}`}
             open={registrationFormOpen}
             onOpenChange={setRegistrationFormOpen}
             project={selected}
             registration={editingRegistration}
             rate={rate}
             groups={groups.filter((group) => group.project_id === selected?.id)}
+            initialGroupId={registrationGroupId}
             onDelete={
               editingRegistration ? () => onDeleteRegistration(editingRegistration) : undefined
             }
@@ -1437,6 +1463,7 @@ function RegistrationForm({
   registration,
   rate,
   groups,
+  initialGroupId,
   onDelete,
 }: {
   open: boolean;
@@ -1445,6 +1472,7 @@ function RegistrationForm({
   registration: ProjectRegistrationView | null;
   rate: number;
   groups: ProjectGroup[];
+  initialGroupId?: string | null;
   onDelete?: () => void;
 }) {
   const [state, formAction] = useActionState<FormState, FormData>(
@@ -1454,8 +1482,19 @@ function RegistrationForm({
   const [method, setMethod] = useState<ProjectPaymentMethod>(
     registration?.payment_method ?? "Pago móvil",
   );
+  const [groupId, setGroupId] = useState(
+    registration?.group_id ?? initialGroupId ?? groups[0]?.id ?? "",
+  );
   const requiresReceipt = method !== "Efectivo USD";
   const currency = method === "Pago móvil" ? "VES" : "USD";
+  const selectedGroup = groups.find((group) => group.id === groupId) ?? null;
+  const isNewCourseRegistration = !registration && project?.project_type === "Curso";
+  const courseAmount =
+    isNewCourseRegistration && selectedGroup
+      ? currency === "VES"
+        ? Number(selectedGroup.price_usd) * rate
+        : Number(selectedGroup.price_usd)
+      : null;
 
   useEffect(() => {
     if (state?.ok) onOpenChange(false);
@@ -1487,9 +1526,9 @@ function RegistrationForm({
 
           {project?.project_type === "Curso" ? (
             <div className="flex flex-col gap-1.5">
-              <Label>Grupo u horario</Label>
-              <Select name="group_id" defaultValue={registration?.group_id ?? groups[0]?.id}>
-                <SelectTrigger><SelectValue placeholder="Selecciona un grupo" /></SelectTrigger>
+              <Label>Horario del curso</Label>
+              <Select name="group_id" value={groupId} onValueChange={setGroupId}>
+                <SelectTrigger><SelectValue placeholder="Selecciona un horario" /></SelectTrigger>
                 <SelectContent>
                   {groups.map((group) => (
                     <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
@@ -1551,7 +1590,13 @@ function RegistrationForm({
               type="number"
               min="0"
               step="0.01"
-              defaultValue={registration?.amount ?? ""}
+              value={
+                courseAmount == null
+                  ? undefined
+                  : courseAmount.toFixed(currency === "VES" ? 2 : 2)
+              }
+              readOnly={courseAmount != null}
+              defaultValue={courseAmount == null ? registration?.amount ?? "" : undefined}
               required
             />
             <div className="flex flex-col gap-1.5">
@@ -1591,6 +1636,19 @@ function RegistrationForm({
               required
             />
           </div>
+
+          {isNewCourseRegistration && selectedGroup ? (
+            <div className="rounded-lg bg-surface-2 px-3 py-2 text-[12.5px] text-text-2">
+              Precio del horario:{" "}
+              <strong className="text-foreground">{fmtUSD(Number(selectedGroup.price_usd))}</strong>
+              {currency === "VES"
+                ? ` · Bs. ${(Number(selectedGroup.price_usd) * rate).toLocaleString("es-VE", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}`
+                : ""}
+            </div>
+          ) : null}
 
           {requiresReceipt && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

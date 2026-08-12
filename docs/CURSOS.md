@@ -20,13 +20,18 @@ inscripciones existentes.
 
 1. En `Proyectos`, crear o editar un proyecto y elegir `Curso con horarios`.
 2. Definir el enlace publico, las instrucciones de pago y activar la inscripcion publica.
-3. Crear al menos un grupo abierto con precio y capacidad.
-4. Agregar las jornadas con sus fechas y horas.
+3. Crear al menos un horario abierto con precio y capacidad.
+4. Agregar las jornadas con sus fechas y horas. Si un mismo dia tiene varios bloques
+   (por ejemplo mañana y tarde), cada bloque se registra como una jornada dentro del mismo horario.
 5. Compartir `/cursos/<enlace-publico>` con los estudiantes.
 
 Cuando un pago cambia a `Confirmado`, el flujo existente genera el QR y envia el correo. En los
-cursos, el correo incluye el grupo y todas sus jornadas. El lector de cada jornada registra una
+cursos, el correo incluye el horario y todas sus jornadas. El lector de cada jornada registra una
 asistencia independiente sin marcar el QR como usado para el resto del curso.
+
+La inscripcion publica acepta hasta 10 estudiantes con un solo comprobante. El ERP crea una orden
+`Por validar` y una inscripcion por estudiante; al confirmar cada inscripcion se envia su QR al
+correo correspondiente.
 
 ## Integracion con otra web
 

@@ -4,6 +4,8 @@ import QRCode from "qrcode";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { audit } from "@/lib/audit";
+import { getSession } from "@/lib/queries/session";
+import { canEdit } from "@/lib/permissions";
 import { storagePathFromPublicUrl } from "@/lib/storage-path";
 import {
   buildProjectPaymentRejectedEmailHtml,
@@ -859,6 +861,52 @@ export async function saveRegistration(
       .eq("id", existing.order_id);
   }
 
+  revalidatePath("/proyectos");
+  return { ok: true };
+}
+
+export async function confirmProjectOrder(orderId: string): Promise<FormState> {
+  const id = String(orderId ?? "").trim();
+  if (!id) return { error: "Orden inválida." };
+
+  const session = await getSession();
+  if (!session) return { error: "Debes iniciar sesión." };
+  if (!canEdit(session.permissions, "Proyectos")) {
+    return { error: "No tienes permiso para confirmar pagos." };
+  }
+
+  const supabase = await createClient();
+  const { data: registrations, error: registrationsError } = await supabase
+    .from("project_registrations")
+    .select("id, first_name, last_name, status")
+    .eq("order_id", id)
+    .order("created_at", { ascending: true });
+  if (registrationsError) return { error: registrationsError.message };
+  if (!registrations?.length) return { error: "No hay inscritos asociados a esta orden." };
+
+  const { error: updateError } = await supabase
+    .from("project_registrations")
+    .update({ status: "Confirmado" })
+    .eq("order_id", id)
+    .neq("status", "Cancelado");
+  if (updateError) return { error: updateError.message };
+
+  const { error: orderError } = await supabase
+    .from("project_orders")
+    .update({ status: "Confirmado" })
+    .eq("id", id);
+  if (orderError) return { error: orderError.message };
+
+  for (const registration of registrations) {
+    if (registration.status === "Cancelado") continue;
+    const ticket = await issueAndSendTicket(supabase, registration.id);
+    if (ticket?.error) {
+      revalidatePath("/proyectos");
+      return ticket;
+    }
+  }
+
+  await audit(`Confirmó orden de curso con ${registrations.length} inscrito(s)`, "Proyectos");
   revalidatePath("/proyectos");
   return { ok: true };
 }

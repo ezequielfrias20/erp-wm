@@ -9,6 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { ProjectPaymentMethod } from "@/lib/database.types";
 
+type AttendeeDraft = {
+  nombre: string;
+  apellido: string;
+  documento: string;
+  email: string;
+  telefono: string;
+};
+
 type Course = {
   slug: string;
   name: string;
@@ -64,8 +72,31 @@ export function CourseRegistrationForm({ course, bcvRate }: { course: Course; bc
   const [state, formAction, pending] = useActionState<PublicCourseFormState, FormData>(action, null);
   const [groupId, setGroupId] = useState(course.groups.find((group) => group.available > 0)?.id ?? "");
   const [method, setMethod] = useState<ProjectPaymentMethod>("Pago móvil");
+  const [quantity, setQuantity] = useState(1);
+  const [attendees, setAttendees] = useState<AttendeeDraft[]>(
+    Array.from({ length: 10 }, () => ({
+      nombre: "",
+      apellido: "",
+      documento: "",
+      email: "",
+      telefono: "",
+    })),
+  );
   const selectedGroup = course.groups.find((group) => group.id === groupId);
   const requiresReceipt = method !== "Efectivo USD";
+  const maxQuantity = Math.min(10, selectedGroup?.available ?? 1);
+  const safeQuantity = Math.min(quantity, Math.max(1, maxQuantity));
+  const activeAttendees = attendees.slice(0, safeQuantity);
+  const attendeesJson = JSON.stringify(activeAttendees);
+  const totalUsd = (selectedGroup?.priceUsd ?? 0) * safeQuantity;
+
+  function updateAttendee(index: number, key: keyof AttendeeDraft, value: string) {
+    setAttendees((current) =>
+      current.map((attendee, itemIndex) =>
+        itemIndex === index ? { ...attendee, [key]: value } : attendee,
+      ),
+    );
+  }
 
   if (state?.ok) {
     return (
@@ -104,7 +135,7 @@ export function CourseRegistrationForm({ course, bcvRate }: { course: Course; bc
       <div className="mx-auto grid max-w-[1120px] gap-8 px-4 py-7 sm:px-6 lg:grid-cols-[1fr_420px] lg:py-10">
         <section className="min-w-0">
           {course.description ? <p className="max-w-[68ch] text-[14px] leading-6 text-text-2">{course.description}</p> : null}
-          <h2 className="mt-6 text-[16px] font-bold text-foreground">Selecciona tu grupo</h2>
+          <h2 className="mt-6 text-[16px] font-bold text-foreground">Selecciona el horario</h2>
           <div className="mt-3 flex flex-col gap-3">
             {course.groups.map((group) => {
               const disabled = group.available === 0;
@@ -139,21 +170,90 @@ export function CourseRegistrationForm({ course, bcvRate }: { course: Course; bc
         </section>
 
         <section className="self-start rounded-xl border border-border bg-card p-5 shadow-card-sm sm:p-6">
-          <div className="flex items-center gap-2"><UserRound className="size-4 text-brand" /><h2 className="text-[16px] font-bold text-foreground">Datos del estudiante</h2></div>
+          <div className="flex items-center gap-2"><UserRound className="size-4 text-brand" /><h2 className="text-[16px] font-bold text-foreground">Datos de inscripción</h2></div>
           <form action={formAction} encType="multipart/form-data" className="mt-5 flex flex-col gap-4">
             <input type="hidden" name="groupId" value={groupId} />
+            <input type="hidden" name="cantidad" value={safeQuantity} />
+            <input type="hidden" name="asistentes" value={attendeesJson} />
             <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-              <Field label="Nombre" name="firstName" autoComplete="given-name" required />
-              <Field label="Apellido" name="lastName" autoComplete="family-name" required />
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="course-quantity">Cantidad de estudiantes</Label>
+              <Select
+                value={String(safeQuantity)}
+                onValueChange={(value) => setQuantity(Number(value))}
+                disabled={!selectedGroup}
+              >
+                <SelectTrigger id="course-quantity">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: maxQuantity }, (_, index) => index + 1).map((item) => (
+                    <SelectItem key={item} value={String(item)}>
+                      {item} estudiante{item > 1 ? "s" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <Field label="Cedula o documento" name="document" autoComplete="off" required />
-            <Field label="Correo" name="email" type="email" autoComplete="email" required />
-            <Field label="Telefono" name="phone" type="tel" autoComplete="tel" required />
+            <div className="flex flex-col gap-4">
+              {activeAttendees.map((attendee, index) => (
+                <div key={index} className="rounded-lg border border-border bg-surface-2 p-3">
+                  <div className="mb-3 text-[12.5px] font-bold text-foreground">
+                    Estudiante {index + 1}
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                    <Field
+                      label="Nombre"
+                      name={`attendee-${index}-first-name`}
+                      value={attendee.nombre}
+                      onChange={(event) => updateAttendee(index, "nombre", event.target.value)}
+                      autoComplete="given-name"
+                      required
+                    />
+                    <Field
+                      label="Apellido"
+                      name={`attendee-${index}-last-name`}
+                      value={attendee.apellido}
+                      onChange={(event) => updateAttendee(index, "apellido", event.target.value)}
+                      autoComplete="family-name"
+                      required
+                    />
+                  </div>
+                  <div className="mt-3 flex flex-col gap-3">
+                    <Field
+                      label="Cedula o documento"
+                      name={`attendee-${index}-document`}
+                      value={attendee.documento}
+                      onChange={(event) => updateAttendee(index, "documento", event.target.value)}
+                      autoComplete="off"
+                      required
+                    />
+                    <Field
+                      label="Correo"
+                      name={`attendee-${index}-email`}
+                      type="email"
+                      value={attendee.email}
+                      onChange={(event) => updateAttendee(index, "email", event.target.value)}
+                      autoComplete="email"
+                      required
+                    />
+                    <Field
+                      label="Telefono"
+                      name={`attendee-${index}-phone`}
+                      type="tel"
+                      value={attendee.telefono}
+                      onChange={(event) => updateAttendee(index, "telefono", event.target.value)}
+                      autoComplete="tel"
+                      required
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
 
             <div className="border-t border-border pt-4">
               <div className="flex items-center gap-2"><ReceiptText className="size-4 text-brand" /><h3 className="text-[14px] font-bold text-foreground">Pago</h3></div>
-              {selectedGroup ? <div className="mt-3 rounded-lg bg-surface-2 px-3 py-2.5 text-[12.5px] text-text-2">Total: <strong className="text-foreground">${selectedGroup.priceUsd.toFixed(2)}</strong>{method === "Pago móvil" ? ` · Bs. ${(selectedGroup.priceUsd * bcvRate).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ""}</div> : null}
+              {selectedGroup ? <div className="mt-3 rounded-lg bg-surface-2 px-3 py-2.5 text-[12.5px] text-text-2">Total: <strong className="text-foreground">${totalUsd.toFixed(2)}</strong>{method === "Pago móvil" ? ` · Bs. ${(totalUsd * bcvRate).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ""}</div> : null}
               {course.paymentInstructions ? <p className="mt-3 whitespace-pre-line text-[12.5px] leading-5 text-text-2">{course.paymentInstructions}</p> : null}
               <div className="mt-3 flex flex-col gap-1.5"><Label>Metodo de pago</Label><Select name="metodoPago" value={method} onValueChange={(value) => setMethod(value as ProjectPaymentMethod)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{METHODS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select></div>
               {requiresReceipt ? (

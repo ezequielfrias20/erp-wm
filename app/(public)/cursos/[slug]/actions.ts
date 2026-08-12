@@ -17,14 +17,16 @@ export async function registerForCourse(
     return { error: "No se pudo procesar la inscripcion." };
   }
 
-  formData.set("cantidad", "1");
-  formData.set("asistentes", JSON.stringify([{
-    nombre: String(formData.get("firstName") ?? ""),
-    apellido: String(formData.get("lastName") ?? ""),
-    documento: String(formData.get("document") ?? ""),
-    email: String(formData.get("email") ?? ""),
-    telefono: String(formData.get("phone") ?? ""),
-  }]));
+  if (!String(formData.get("asistentes") ?? "").trim()) {
+    formData.set("cantidad", "1");
+    formData.set("asistentes", JSON.stringify([{
+      nombre: String(formData.get("firstName") ?? ""),
+      apellido: String(formData.get("lastName") ?? ""),
+      documento: String(formData.get("document") ?? ""),
+      email: String(formData.get("email") ?? ""),
+      telefono: String(formData.get("phone") ?? ""),
+    }]));
+  }
 
   try {
     const order = await registerPublicCourse(slug, formData);
