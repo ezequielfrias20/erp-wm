@@ -1,4 +1,4 @@
--- Sales commissions: employee codes, seller attribution and 2% monthly reporting.
+-- Sales commissions: employee codes, seller attribution and editable monthly reporting.
 -- Apply on an existing WM ERP database, then deploy the matching app changes.
 
 alter table wm.profiles
@@ -6,7 +6,21 @@ alter table wm.profiles
 
 alter table wm.profiles
   add column if not exists employee_code text,
-  add column if not exists system_access boolean not null default true;
+  add column if not exists system_access boolean not null default true,
+  add column if not exists commission_pct numeric(5,2) default 2;
+
+update wm.profiles
+   set commission_pct = 2
+ where commission_pct is null;
+
+alter table wm.profiles
+  alter column commission_pct set default 2,
+  alter column commission_pct set not null;
+
+alter table wm.profiles
+  drop constraint if exists profiles_commission_pct_chk,
+  add constraint profiles_commission_pct_chk
+    check (commission_pct >= 0 and commission_pct <= 100);
 
 update wm.profiles
    set employee_code = null
@@ -33,7 +47,27 @@ create unique index if not exists profiles_employee_code_key
   where employee_code is not null;
 
 alter table wm.sales
-  add column if not exists seller_id uuid references wm.profiles(id) on delete set null;
+  add column if not exists seller_id uuid references wm.profiles(id) on delete set null,
+  add column if not exists seller_commission_pct numeric(5,2) default 2;
+
+alter table wm.sales
+  drop constraint if exists sales_seller_commission_pct_chk,
+  add constraint sales_seller_commission_pct_chk
+    check (seller_commission_pct >= 0 and seller_commission_pct <= 100);
+
+update wm.sales s
+   set seller_commission_pct = p.commission_pct
+  from wm.profiles p
+ where s.seller_id = p.id
+   and s.seller_id is not null;
+
+update wm.sales
+   set seller_commission_pct = 2
+ where seller_commission_pct is null;
+
+alter table wm.sales
+  alter column seller_commission_pct set default 2,
+  alter column seller_commission_pct set not null;
 
 create index if not exists sales_seller_id_idx on wm.sales(seller_id);
 
@@ -129,6 +163,7 @@ declare
   v_sale wm.sales;
   v_method text;
   v_seller uuid;
+  v_seller_commission_pct numeric := 2;
   v_npay int := coalesce(jsonb_array_length(p_payments), 0);
   it jsonb;
   pay jsonb;
@@ -143,7 +178,7 @@ begin
     raise exception 'Selecciona el vendedor e ingresa su código de 4 dígitos';
   end if;
 
-  select id into v_seller
+  select id, commission_pct into v_seller, v_seller_commission_pct
     from wm.profiles
    where id = p_seller_id
      and role = 'Vendedor'
@@ -173,11 +208,11 @@ begin
   end if;
 
   insert into wm.sales (
-    customer_id, branch_id, user_id, seller_id, payment_method,
+    customer_id, branch_id, user_id, seller_id, seller_commission_pct, payment_method,
     subtotal, discount, discount_pct, tax, total,
     exchange_rate, total_ves, status
   ) values (
-    p_customer_id, p_branch_id, v_profile, v_seller, v_method,
+    p_customer_id, p_branch_id, v_profile, v_seller, coalesce(v_seller_commission_pct, 2), v_method,
     round(v_subtotal, 2), v_discount, coalesce(p_discount_pct, 0), v_tax, v_total,
     p_rate, round(v_total * coalesce(p_rate, 0), 2), coalesce(p_status, 'Pagada')
   )

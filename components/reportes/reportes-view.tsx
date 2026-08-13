@@ -362,7 +362,7 @@ export function ReportesView({
               Comisiones vendedores
             </div>
             <div className="text-[12.5px] text-text-3">
-              {Math.round(data.commissionRate * 100)}% sobre ventas pagadas del período
+              Porcentaje editable por vendedor sobre ventas pagadas
             </div>
           </div>
           <div className="rounded-lg bg-brand-soft px-3 py-2 text-right">
@@ -372,8 +372,9 @@ export function ReportesView({
             <div className="text-[15px] font-bold text-brand">{fmtUSD(commissionTotal)}</div>
           </div>
         </div>
-        <div className="grid min-w-[620px] grid-cols-[1.6fr_0.8fr_1fr_1fr] border-y border-border px-5 py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
+        <div className="grid min-w-[700px] grid-cols-[1.6fr_0.7fr_0.8fr_1fr_1fr] border-y border-border px-5 py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
           <span>Vendedor</span>
+          <span className="text-right">%</span>
           <span className="text-right">Ventas</span>
           <span className="text-right">Vendido</span>
           <span className="text-right">Comisión</span>
@@ -381,9 +382,10 @@ export function ReportesView({
         {data.commissions.map((row) => (
           <div
             key={row.seller_id}
-            className="grid min-w-[620px] grid-cols-[1.6fr_0.8fr_1fr_1fr] items-center border-b border-border px-5 py-2.5 text-[12.5px] last:border-b-0"
+            className="grid min-w-[700px] grid-cols-[1.6fr_0.7fr_0.8fr_1fr_1fr] items-center border-b border-border px-5 py-2.5 text-[12.5px] last:border-b-0"
           >
             <span className="font-medium text-foreground">{row.seller}</span>
+            <span className="text-right text-text-2">{row.commission_pct.toFixed(2)}%</span>
             <span className="text-right text-text-2">{row.sales_count}</span>
             <span className="text-right text-foreground">{fmtUSD(row.sales_total)}</span>
             <span className="text-right font-semibold text-success">

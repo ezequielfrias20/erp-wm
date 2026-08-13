@@ -3,7 +3,7 @@
 import { useMemo, useState, useActionState, useEffect, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
-import { Plus, Search, Check, Loader2, Trash2, Mail, Phone, Store, Send, KeyRound } from "lucide-react";
+import { Plus, Search, Check, Loader2, Trash2, Mail, Phone, Store, Send, KeyRound, Percent } from "lucide-react";
 import {
   saveUser,
   deleteUser,
@@ -405,15 +405,26 @@ export function UsuariosView({
                 <span className="flex items-center gap-2"><Store className="size-4 text-text-3" />Sucursal: {drawerUser.branch_city ?? "Todas"}</span>
                 <span>Acceso: {drawerUser.system_access ? "Puede iniciar sesión" : "Solo comisiones"}</span>
                 {drawerUser.role === "Vendedor" && (
-                  <span className="flex items-center justify-between gap-3 rounded-[10px] border border-border bg-surface-2 px-3 py-2">
-                    <span className="flex items-center gap-2">
-                      <KeyRound className="size-4 text-text-3" />
-                      Código de comisión
+                  <div className="grid gap-2">
+                    <span className="flex items-center justify-between gap-3 rounded-[10px] border border-border bg-surface-2 px-3 py-2">
+                      <span className="flex items-center gap-2">
+                        <KeyRound className="size-4 text-text-3" />
+                        Código de comisión
+                      </span>
+                      <span className="font-mono text-[14px] font-bold tracking-[0.18em] text-foreground">
+                        {drawerUser.employee_code ?? "----"}
+                      </span>
                     </span>
-                    <span className="font-mono text-[14px] font-bold tracking-[0.18em] text-foreground">
-                      {drawerUser.employee_code ?? "----"}
+                    <span className="flex items-center justify-between gap-3 rounded-[10px] border border-border bg-surface-2 px-3 py-2">
+                      <span className="flex items-center gap-2">
+                        <Percent className="size-4 text-text-3" />
+                        Comisión
+                      </span>
+                      <span className="text-[14px] font-bold text-foreground">
+                        {Number(drawerUser.commission_pct).toFixed(2)}%
+                      </span>
                     </span>
-                  </span>
+                  </div>
                 )}
               </div>
               <div className="text-[12px] font-semibold tracking-wide text-text-3 uppercase">
@@ -588,6 +599,18 @@ function UserForm({
             <p className="rounded-lg bg-warning-soft px-3 py-2 text-[12px] text-warning">
               El sistema generará un código secreto de 4 dígitos al guardar.
             </p>
+          )}
+          {role === "Vendedor" && (
+            <Fld
+              label="Comisión (%)"
+              name="commission_pct"
+              type="number"
+              min={0}
+              max={100}
+              step="0.01"
+              defaultValue={user?.commission_pct ?? 2}
+              required
+            />
           )}
           <div className="flex items-center justify-between gap-3 rounded-[10px] border border-border bg-surface-2 px-3 py-2.5">
             <div>

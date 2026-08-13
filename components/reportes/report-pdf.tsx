@@ -210,33 +210,39 @@ function ReportPDFDoc({
 
         <Text style={s.sectionTitle}>Comisiones vendedores</Text>
         <View style={s.trow}>
-          <Td w="50%">Total comisiones ({Math.round(data.commissionRate * 100)}%)</Td>
+          <Td w="50%">Total comisiones por vendedor</Td>
           <Td w="50%" right>
             {fmtUSD(commissionTotal)}
           </Td>
         </View>
         <View style={s.trow}>
-          <Th w="42%">Vendedor</Th>
-          <Th w="16%" right>
+          <Th w="34%">Vendedor</Th>
+          <Th w="12%" right>
+            %
+          </Th>
+          <Th w="15%" right>
             Ventas
           </Th>
-          <Th w="21%" right>
+          <Th w="19%" right>
             Vendido
           </Th>
-          <Th w="21%" right>
+          <Th w="20%" right>
             Comisión
           </Th>
         </View>
         {data.commissions.map((row) => (
           <View style={s.trow} key={row.seller_id}>
-            <Td w="42%">{row.seller}</Td>
-            <Td w="16%" right>
+            <Td w="34%">{row.seller}</Td>
+            <Td w="12%" right>
+              {row.commission_pct.toFixed(2)}%
+            </Td>
+            <Td w="15%" right>
               {row.sales_count}
             </Td>
-            <Td w="21%" right>
+            <Td w="19%" right>
               {fmtUSD(row.sales_total)}
             </Td>
-            <Td w="21%" right>
+            <Td w="20%" right>
               {fmtUSD(row.commission_total)}
             </Td>
           </View>

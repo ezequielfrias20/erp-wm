@@ -166,6 +166,7 @@ export type Profile = {
   phone: string | null;
   employee_code: string | null;
   system_access: boolean;
+  commission_pct: number;
   role: Role;
   branch_id: string | null;
   status: UserStatus;
@@ -336,6 +337,7 @@ export type Sale = {
   branch_id: string;
   user_id: string | null;
   seller_id: string | null;
+  seller_commission_pct: number;
   payment_method: string | null;
   subtotal: number;
   discount: number;

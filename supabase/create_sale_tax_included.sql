@@ -29,6 +29,7 @@ declare
   v_sale wm.sales;
   v_method text;
   v_seller uuid;
+  v_seller_commission_pct numeric := 2;
   v_npay int := coalesce(jsonb_array_length(p_payments), 0);
   it jsonb;
   pay jsonb;
@@ -43,7 +44,7 @@ begin
     raise exception 'Selecciona el vendedor e ingresa su código de 4 dígitos';
   end if;
 
-  select id into v_seller
+  select id, commission_pct into v_seller, v_seller_commission_pct
     from wm.profiles
    where id = p_seller_id
      and role = 'Vendedor'
@@ -73,11 +74,11 @@ begin
   end if;
 
   insert into wm.sales (
-    customer_id, branch_id, user_id, seller_id, payment_method,
+    customer_id, branch_id, user_id, seller_id, seller_commission_pct, payment_method,
     subtotal, discount, discount_pct, tax, total,
     exchange_rate, total_ves, status
   ) values (
-    p_customer_id, p_branch_id, v_profile, v_seller, v_method,
+    p_customer_id, p_branch_id, v_profile, v_seller, coalesce(v_seller_commission_pct, 2), v_method,
     round(v_subtotal, 2), v_discount, coalesce(p_discount_pct, 0), v_tax, v_total,
     p_rate, round(v_total * coalesce(p_rate, 0), 2), coalesce(p_status, 'Pagada')
   )

@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 
 const MONTHS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 const COLORS = ["#0EA5E9", "#6366F1", "#10B981", "#F59E0B", "#F43F5E", "#64748B", "#8B5CF6", "#14B8A6"];
-const COMMISSION_RATE = 0.02;
+const DEFAULT_SELLER_COMMISSION_PCT = 2;
 
 export type ReportData = Awaited<ReturnType<typeof getReports>>;
 
@@ -16,6 +16,7 @@ export type SaleRow = {
   payment_method: string | null;
   total: number;
   total_ves: number | null;
+  commission_pct: number;
   commission: number;
   status: string;
 };
@@ -23,6 +24,7 @@ export type SaleRow = {
 export type SellerCommissionRow = {
   seller_id: string;
   seller: string;
+  commission_pct: number;
   sales_count: number;
   sales_total: number;
   commission_total: number;
@@ -88,7 +90,7 @@ export async function getReports(
   const salesQ = supabase
     .from("sales")
     .select(
-      "id, invoice_number, total, total_ves, status, payment_method, exchange_rate, created_at, branch_id, seller_id, customers(name)",
+      "id, invoice_number, total, total_ves, status, payment_method, exchange_rate, created_at, branch_id, seller_id, seller_commission_pct, customers(name)",
     )
     .gte("created_at", fromIso)
     .lte("created_at", toIso)
@@ -112,9 +114,9 @@ export async function getReports(
   const { data: sellerProfiles } = sellerIds.length
     ? await supabase
         .from("profiles")
-        .select("id, full_name")
+        .select("id, full_name, commission_pct")
         .in("id", sellerIds)
-    : { data: [] as { id: string; full_name: string }[] };
+    : { data: [] as { id: string; full_name: string; commission_pct: number }[] };
   const sellersById = new Map((sellerProfiles ?? []).map((s) => [s.id, s]));
   const pmCurrency = new Map(
     (pmRes.data ?? []).map((p) => [p.name, (p.currency ?? "VES") as "USD" | "VES"]),
@@ -209,18 +211,25 @@ export async function getReports(
     .map(([name, value], i) => ({ name, value: Math.round(value), color: COLORS[i % COLORS.length] }));
 
   // Tabla de ventas del período.
-  const salesList: SaleRow[] = sales.map((s) => ({
-    id: s.id,
-    invoice_number: s.invoice_number,
-    created_at: s.created_at,
-    customer: (s.customers as { name?: string } | null)?.name ?? null,
-    seller: s.seller_id ? (sellersById.get(s.seller_id)?.full_name ?? null) : null,
-    payment_method: s.payment_method,
-    total: Number(s.total),
-    total_ves: s.total_ves != null ? Number(s.total_ves) : null,
-    commission: r2(Number(s.total) * COMMISSION_RATE),
-    status: s.status,
-  }));
+  const salesList: SaleRow[] = sales.map((s) => {
+    const seller = s.seller_id ? sellersById.get(s.seller_id) : null;
+    const commissionPct = s.seller_id
+      ? Number(s.seller_commission_pct ?? seller?.commission_pct ?? DEFAULT_SELLER_COMMISSION_PCT)
+      : 0;
+    return {
+      id: s.id,
+      invoice_number: s.invoice_number,
+      created_at: s.created_at,
+      customer: (s.customers as { name?: string } | null)?.name ?? null,
+      seller: seller?.full_name ?? null,
+      payment_method: s.payment_method,
+      total: Number(s.total),
+      total_ves: s.total_ves != null ? Number(s.total_ves) : null,
+      commission_pct: commissionPct,
+      commission: r2((Number(s.total) * commissionPct) / 100),
+      status: s.status,
+    };
+  });
 
   const commissionMap = new Map<string, SellerCommissionRow>();
   for (const sale of salesList) {
@@ -229,6 +238,7 @@ export async function getReports(
     const current = commissionMap.get(sellerId) ?? {
       seller_id: sellerId,
       seller: sale.seller ?? "Vendedor no asignado",
+      commission_pct: 0,
       sales_count: 0,
       sales_total: 0,
       commission_total: 0,
@@ -236,6 +246,8 @@ export async function getReports(
     current.sales_count += 1;
     current.sales_total = r2(current.sales_total + sale.total);
     current.commission_total = r2(current.commission_total + sale.commission);
+    current.commission_pct =
+      current.sales_total > 0 ? r2((current.commission_total / current.sales_total) * 100) : 0;
     commissionMap.set(sellerId, current);
   }
   const commissions = [...commissionMap.values()].sort(
@@ -306,7 +318,7 @@ export async function getReports(
     byCategory,
     byPayment,
     commissions,
-    commissionRate: COMMISSION_RATE,
+    commissionRate: DEFAULT_SELLER_COMMISSION_PCT / 100,
     cashea,
     efectivoCobrado,
     sales: salesList,

@@ -534,8 +534,12 @@ export function InventarioView({
         />
       </div>
 
-      {canEdit && (
-        <StockDialog row={editing} onClose={() => setEditing(null)} />
+      {canEdit && editing && (
+        <StockDialog
+          key={editing.id}
+          row={editing}
+          onClose={() => setEditing(null)}
+        />
       )}
       {canEdit && (
         <AddStockDialog
@@ -981,7 +985,7 @@ function StockDialog({
   row,
   onClose,
 }: {
-  row: VInventory | null;
+  row: VInventory;
   onClose: () => void;
 }) {
   const [state, formAction] = useActionState<FormState, FormData>(
@@ -993,39 +997,37 @@ function StockDialog({
   }, [state, onClose]);
 
   return (
-    <Dialog open={!!row} onOpenChange={(v) => !v && onClose()}>
+    <Dialog open={true} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-[440px]">
         <DialogHeader>
           <DialogTitle>Ajustar inventario</DialogTitle>
         </DialogHeader>
-        {row && (
-          <form action={formAction} className="flex flex-col gap-3">
-            <input type="hidden" name="id" value={row.id} />
-            <input type="hidden" name="sku" value={row.sku} />
-            <div className="rounded-lg bg-surface-2 px-3 py-2 text-[12.5px]">
-              <div className="font-medium text-foreground">{row.product_name}</div>
-              <div className="text-text-3">
-                {row.sku} · {row.branch_city}
-              </div>
+        <form action={formAction} className="flex flex-col gap-3">
+          <input type="hidden" name="id" value={row.id} />
+          <input type="hidden" name="sku" value={row.sku} />
+          <div className="rounded-lg bg-surface-2 px-3 py-2 text-[12.5px]">
+            <div className="font-medium text-foreground">{row.product_name}</div>
+            <div className="text-text-3">
+              {row.sku} · {row.branch_city}
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <Fld label="Stock" name="quantity" type="number" defaultValue={row.quantity} />
-              <Fld label="Reservado" name="reserved" type="number" defaultValue={row.reserved} />
-              <Fld label="Mínimo" name="min_stock" type="number" defaultValue={row.min_stock} />
-            </div>
-            {state?.error && (
-              <p className="rounded-lg bg-danger-soft px-3 py-2 text-[12.5px] text-danger">
-                {state.error}
-              </p>
-            )}
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={onClose}>
-                Cancelar
-              </Button>
-              <SaveBtn />
-            </DialogFooter>
-          </form>
-        )}
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <Fld label="Stock" name="quantity" type="number" defaultValue={row.quantity} />
+            <Fld label="Reservado" name="reserved" type="number" defaultValue={row.reserved} />
+            <Fld label="Mínimo" name="min_stock" type="number" defaultValue={row.min_stock} />
+          </div>
+          {state?.error && (
+            <p className="rounded-lg bg-danger-soft px-3 py-2 text-[12.5px] text-danger">
+              {state.error}
+            </p>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
+            <SaveBtn />
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

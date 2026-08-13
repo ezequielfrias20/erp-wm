@@ -135,7 +135,7 @@ async function generateUniqueEmployeeCode(
       .limit(1)
       .maybeSingle();
     if (error) {
-      if (isMissingEmployeeCodeColumn(error)) {
+      if (isMissingSalesCommissionColumn(error)) {
         throw new Error(employeeCodeMigrationMessage);
       }
       throw error;
@@ -148,18 +148,20 @@ async function generateUniqueEmployeeCode(
 const employeeCodeMigrationMessage =
   "Falta aplicar la actualización de comisiones en Supabase. Ejecuta supabase/sales_commissions.sql y vuelve a intentar.";
 
-function isMissingEmployeeCodeColumn(error: unknown) {
+function isMissingSalesCommissionColumn(error: unknown) {
   if (!error || typeof error !== "object") return false;
   const candidate = error as { code?: unknown; message?: unknown };
+  if (candidate.code !== "42703" || typeof candidate.message !== "string") return false;
+  const message = candidate.message;
   return (
-    candidate.code === "42703" &&
-    typeof candidate.message === "string" &&
-    candidate.message.includes("employee_code")
+    ["employee_code", "system_access", "commission_pct", "seller_commission_pct"].some((column) =>
+      message.includes(column),
+    )
   );
 }
 
 function databaseErrorMessage(error: unknown) {
-  if (isMissingEmployeeCodeColumn(error)) return employeeCodeMigrationMessage;
+  if (isMissingSalesCommissionColumn(error)) return employeeCodeMigrationMessage;
   if (error instanceof Error) return error.message;
   if (error && typeof error === "object" && "message" in error) {
     const message = (error as { message?: unknown }).message;
@@ -170,6 +172,13 @@ function databaseErrorMessage(error: unknown) {
 
 function isFourDigitCode(value: string | null | undefined) {
   return /^\d{4}$/.test(value ?? "");
+}
+
+function parseCommissionPct(value: FormDataEntryValue | null) {
+  const normalized = String(value ?? "2").trim().replace(",", ".");
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) return null;
+  return Math.round(parsed * 100) / 100;
 }
 
 export async function saveUser(
@@ -195,6 +204,11 @@ export async function saveUser(
   if (role === "Super Admin" && access.session.profile.role !== "Super Admin") {
     return { error: "Solo un Super Admin puede crear o asignar otro Super Admin." };
   }
+  const commission_pct =
+    role === "Vendedor" ? parseCommissionPct(formData.get("commission_pct")) : 0;
+  if (commission_pct == null) {
+    return { error: "La comisión del vendedor debe estar entre 0% y 100%." };
+  }
   const supabase = await createClient();
 
   const baseValues = {
@@ -202,6 +216,7 @@ export async function saveUser(
     email: email || null,
     phone: String(formData.get("phone") ?? "").trim() || null,
     system_access,
+    commission_pct,
     role,
     branch_id: branchVal && branchVal !== "none" ? branchVal : null,
     status: (String(formData.get("status") ?? "Activo") || "Activo") as UserStatus,
