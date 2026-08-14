@@ -5,13 +5,10 @@ import { getReports } from "@/lib/queries/reports";
 import { getActiveBranchId } from "@/lib/branch";
 import { canView } from "@/lib/permissions";
 import { fetchBcvRate, BCV_FALLBACK } from "@/lib/bcv";
+import { normalizeReportRange } from "@/lib/report-dates";
 import { ReportesView } from "@/components/reportes/reportes-view";
 
 export const metadata = { title: "Reportes · World Medics ERP" };
-
-function ymd(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
 
 export default async function ReportesPage({
   searchParams,
@@ -23,10 +20,7 @@ export default async function ReportesPage({
   if (!canView(session.permissions, "Reportes")) redirect("/dashboard");
 
   const sp = await searchParams;
-  const today = new Date();
-  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-  const from = sp.from || ymd(monthStart);
-  const to = sp.to || ymd(today);
+  const { from, to } = normalizeReportRange(sp);
 
   const branchId = await getActiveBranchId(
     session.profile.branch_id,

@@ -1,7 +1,11 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import {
+  enumerateReportMonths,
+  getReportDateParts,
+  reportRangeToIso,
+} from "@/lib/report-dates";
 
-const MONTHS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 const COLORS = ["#0EA5E9", "#6366F1", "#10B981", "#F59E0B", "#F43F5E", "#64748B", "#8B5CF6", "#14B8A6"];
 const DEFAULT_SELLER_COMMISSION_PCT = 2;
 
@@ -94,26 +98,6 @@ function assertQueryOk(error: unknown, context: string) {
   throw new Error(`${context}: ${message}`);
 }
 
-/** Enumera los meses (year-month) incluidos en el rango [from, to]. */
-function enumerateMonths(from: Date, to: Date) {
-  const out: { key: string; label: string; y: number; m: number }[] = [];
-  const multiYear = from.getFullYear() !== to.getFullYear();
-  const d = new Date(from.getFullYear(), from.getMonth(), 1);
-  const end = new Date(to.getFullYear(), to.getMonth(), 1);
-  while (d <= end) {
-    const y = d.getFullYear();
-    const m = d.getMonth();
-    out.push({
-      key: `${y}-${m}`,
-      label: multiYear ? `${MONTHS[m]} '${String(y).slice(2)}` : MONTHS[m],
-      y,
-      m,
-    });
-    d.setMonth(d.getMonth() + 1);
-  }
-  return out;
-}
-
 async function fetchReportSales(
   supabase: Awaited<ReturnType<typeof createClient>>,
   branchId: string | null,
@@ -180,8 +164,8 @@ export async function getReports(
   rate: number,
 ) {
   const supabase = await createClient();
-  const fromIso = new Date(from + "T00:00:00").toISOString();
-  const toIso = new Date(to + "T23:59:59.999").toISOString();
+  const range = reportRangeToIso(from, to);
+  const { fromIso, toIso } = range;
   const r2 = (n: number) => Math.round(n * 100) / 100;
 
   const linesQ = supabase
@@ -256,11 +240,11 @@ export async function getReports(
     }));
 
   // Desglose mensual dentro del rango.
-  const months = enumerateMonths(new Date(from), new Date(to));
+  const months = enumerateReportMonths(range.from, range.to);
   const monthly = months.map(({ label, y, m }) => {
     const inMonth = (d: string) => {
-      const dt = new Date(d);
-      return dt.getFullYear() === y && dt.getMonth() === m;
+      const dt = getReportDateParts(d);
+      return dt.year === y && dt.month === m;
     };
     const mSales = sales.filter((s) => inMonth(s.created_at));
     const mLines = lines.filter((l) => inMonth(l.created_at));
@@ -412,7 +396,7 @@ export async function getReports(
     cashea,
     efectivoCobrado,
     sales: salesList,
-    range: { from, to },
+    range: { from: range.from, to: range.to },
     rate,
   };
 }

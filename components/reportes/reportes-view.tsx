@@ -12,10 +12,19 @@ import {
   Percent,
   Receipt,
   Loader2,
+  CalendarDays,
+  CalendarRange,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { fmtUSD, fmtUSDShort, fmtVES, fmtDate } from "@/lib/format";
+import {
+  addReportDays,
+  formatReportRangeLabel,
+  normalizeReportRange,
+  reportMonthStartYmd,
+  reportYmdFromDate,
+} from "@/lib/report-dates";
 import { cn } from "@/lib/utils";
 import type { ReportData, SaleDetail } from "@/lib/queries/reports";
 import { loadSaleDetail } from "@/app/(app)/reportes/actions";
@@ -58,11 +67,32 @@ export function ReportesView({
       ? data.byPayment.map((p) => ({ name: p.name, value: p.usd, color: p.color }))
       : data.byCategory;
   const breakTotal = breakdown.reduce((a, b) => a + b.value, 0);
+  const today = reportYmdFromDate();
+  const yesterday = addReportDays(today, -1);
+  const monthStart = reportMonthStartYmd();
+  const rangeLabel = formatReportRangeLabel(from, to);
 
   function applyRange() {
+    const next = normalizeReportRange({ from, to });
+    const params = new URLSearchParams(next);
     startApply(() => {
-      router.push(`/reportes?from=${from}&to=${to}`);
+      router.push(`/reportes?${params.toString()}`);
     });
+  }
+
+  function setFromDate(value: string) {
+    setFrom(value);
+    if (value && to && value > to) setTo(value);
+  }
+
+  function setToDate(value: string) {
+    setTo(value);
+    if (value && from && value < from) setFrom(value);
+  }
+
+  function setRange(nextFrom: string, nextTo = nextFrom) {
+    setFrom(nextFrom);
+    setTo(nextTo);
   }
 
   function exportCsv() {
@@ -127,27 +157,57 @@ export function ReportesView({
       </div>
 
       {/* Filtros: rango de fechas + sucursal */}
-      <div className="fadeup mb-[18px] flex flex-col gap-2.5 rounded-2xl border border-border bg-card p-3 shadow-card-sm sm:flex-row sm:flex-wrap sm:items-center">
-        <div className="flex flex-col gap-1.5 text-[12.5px] text-text-2 sm:flex-row sm:items-center">
-          <span className="font-semibold">Desde</span>
-          <input
-            type="date"
-            value={from}
-            max={to}
-            onChange={(e) => setFrom(e.target.value)}
-            className="h-11 rounded-[10px] border border-border bg-surface-2 px-2.5 text-[16px] text-foreground outline-none sm:h-9 sm:text-[12.5px]"
+      <div className="fadeup mb-[18px] flex flex-col gap-3 rounded-2xl border border-border bg-card p-3 shadow-card-sm xl:flex-row xl:flex-wrap xl:items-center">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <QuickRangeButton
+            active={from === today && to === today}
+            icon={CalendarDays}
+            label="Hoy"
+            onClick={() => setRange(today)}
+          />
+          <QuickRangeButton
+            active={from === yesterday && to === yesterday}
+            icon={CalendarDays}
+            label="Ayer"
+            onClick={() => setRange(yesterday)}
+          />
+          <QuickRangeButton
+            active={from === monthStart && to === today}
+            icon={CalendarRange}
+            label="Este mes"
+            onClick={() => setRange(monthStart, today)}
+          />
+          <QuickRangeButton
+            active={from === to}
+            icon={CalendarDays}
+            label="Solo día"
+            onClick={() => setRange(from || today)}
           />
         </div>
-        <div className="flex flex-col gap-1.5 text-[12.5px] text-text-2 sm:flex-row sm:items-center">
-          <span className="font-semibold">Hasta</span>
-          <input
-            type="date"
-            value={to}
-            min={from}
-            onChange={(e) => setTo(e.target.value)}
-            className="h-11 rounded-[10px] border border-border bg-surface-2 px-2.5 text-[16px] text-foreground outline-none sm:h-9 sm:text-[12.5px]"
-          />
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <label className="flex flex-col gap-1.5 text-[12.5px] text-text-2 sm:flex-row sm:items-center">
+            <span className="font-semibold">Desde</span>
+            <input
+              type="date"
+              value={from}
+              max={to}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="h-11 rounded-[10px] border border-border bg-surface-2 px-2.5 text-[16px] text-foreground outline-none sm:h-9 sm:text-[12.5px]"
+            />
+          </label>
+          <label className="flex flex-col gap-1.5 text-[12.5px] text-text-2 sm:flex-row sm:items-center">
+            <span className="font-semibold">Hasta</span>
+            <input
+              type="date"
+              value={to}
+              min={from}
+              onChange={(e) => setToDate(e.target.value)}
+              className="h-11 rounded-[10px] border border-border bg-surface-2 px-2.5 text-[16px] text-foreground outline-none sm:h-9 sm:text-[12.5px]"
+            />
+          </label>
         </div>
+
         <button
           onClick={applyRange}
           disabled={applying}
@@ -155,9 +215,14 @@ export function ReportesView({
         >
           {applying && <Loader2 className="size-4 animate-spin" />} Aplicar
         </button>
-        <span className="flex h-9 items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 text-[12px] font-medium text-text-2">
-          <Store className="size-3.5 text-text-3" /> Sucursal: {branchLabel}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="flex h-9 items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 text-[12px] font-medium text-text-2">
+            <CalendarRange className="size-3.5 text-text-3" /> {rangeLabel}
+          </span>
+          <span className="flex h-9 items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 text-[12px] font-medium text-text-2">
+            <Store className="size-3.5 text-text-3" /> Sucursal: {branchLabel}
+          </span>
+        </div>
       </div>
 
       {/* Report type cards */}
@@ -638,6 +703,30 @@ function ExportBtn({
       className="iconbtn flex h-11 flex-1 items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-[13px] text-[13px] font-medium text-foreground sm:h-[38px] sm:flex-none"
     >
       <Icon className={cn("size-4 text-text-3", spin && "animate-spin")} /> {label}
+    </button>
+  );
+}
+
+function QuickRangeButton({
+  icon: Icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-active={active}
+      className="iconbtn flex h-9 items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 text-[12px] font-semibold text-text-2 transition-colors hover:bg-surface-2 data-[active=true]:border-brand data-[active=true]:bg-brand-soft data-[active=true]:text-brand"
+    >
+      <Icon className="size-3.5" />
+      {label}
     </button>
   );
 }
