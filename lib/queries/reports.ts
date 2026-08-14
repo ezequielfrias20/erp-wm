@@ -56,6 +56,44 @@ export type CasheaSummary = {
   online: CasheaChannelTotals; // desglose canal marketplace
 };
 
+type QueryError = { code?: string; message?: string };
+
+type ReportSaleRecord = {
+  id: string;
+  invoice_number: string;
+  total: number;
+  total_ves: number | null;
+  status: string;
+  payment_method: string | null;
+  exchange_rate: number | null;
+  created_at: string;
+  branch_id: string;
+  seller_id: string | null;
+  seller_commission_pct?: number | null;
+  customers: { name?: string } | null;
+};
+
+type SellerProfileRecord = {
+  id: string;
+  full_name: string;
+  commission_pct?: number | null;
+};
+
+function isMissingColumn(error: unknown, column: string) {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as QueryError;
+  return candidate.code === "42703" && Boolean(candidate.message?.includes(column));
+}
+
+function assertQueryOk(error: unknown, context: string) {
+  if (!error) return;
+  const message =
+    error && typeof error === "object" && "message" in error
+      ? String((error as { message?: unknown }).message)
+      : "Error desconocido";
+  throw new Error(`${context}: ${message}`);
+}
+
 /** Enumera los meses (year-month) incluidos en el rango [from, to]. */
 function enumerateMonths(from: Date, to: Date) {
   const out: { key: string; label: string; y: number; m: number }[] = [];
@@ -76,6 +114,65 @@ function enumerateMonths(from: Date, to: Date) {
   return out;
 }
 
+async function fetchReportSales(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  branchId: string | null,
+  fromIso: string,
+  toIso: string,
+) {
+  const baseSelect =
+    "id, invoice_number, total, total_ves, status, payment_method, exchange_rate, created_at, branch_id, seller_id, customers(name)";
+
+  const run = (select: string) => {
+    const query = supabase
+      .from("sales")
+      .select(select)
+      .gte("created_at", fromIso)
+      .lte("created_at", toIso)
+      .eq("status", "Pagada")
+      .order("created_at", { ascending: false });
+    return branchId ? query.eq("branch_id", branchId) : query;
+  };
+
+  const withCommission = await run(`${baseSelect}, seller_commission_pct`);
+  if (!withCommission.error) return (withCommission.data ?? []) as unknown as ReportSaleRecord[];
+
+  if (isMissingColumn(withCommission.error, "seller_commission_pct")) {
+    const fallback = await run(baseSelect);
+    assertQueryOk(fallback.error, "No se pudieron cargar las ventas del reporte");
+    return (fallback.data ?? []) as unknown as ReportSaleRecord[];
+  }
+
+  assertQueryOk(withCommission.error, "No se pudieron cargar las ventas del reporte");
+  return [];
+}
+
+async function fetchSellerProfiles(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  sellerIds: string[],
+) {
+  if (!sellerIds.length) return [] as SellerProfileRecord[];
+
+  const withCommission = await supabase
+    .from("profiles")
+    .select("id, full_name, commission_pct")
+    .in("id", sellerIds);
+
+  if (!withCommission.error) return (withCommission.data ?? []) as SellerProfileRecord[];
+
+  if (isMissingColumn(withCommission.error, "commission_pct")) {
+    const fallback = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", sellerIds);
+    assertQueryOk(fallback.error, "No se pudieron cargar los vendedores del reporte");
+    return (fallback.data ?? []) as SellerProfileRecord[];
+  }
+
+  assertQueryOk(withCommission.error, "No se pudieron cargar los vendedores del reporte");
+  return [];
+}
+
 export async function getReports(
   branchId: string | null,
   from: string,
@@ -87,15 +184,6 @@ export async function getReports(
   const toIso = new Date(to + "T23:59:59.999").toISOString();
   const r2 = (n: number) => Math.round(n * 100) / 100;
 
-  const salesQ = supabase
-    .from("sales")
-    .select(
-      "id, invoice_number, total, total_ves, status, payment_method, exchange_rate, created_at, branch_id, seller_id, seller_commission_pct, customers(name)",
-    )
-    .gte("created_at", fromIso)
-    .lte("created_at", toIso)
-    .eq("status", "Pagada")
-    .order("created_at", { ascending: false });
   const linesQ = supabase
     .from("v_sale_lines")
     .select("created_at, quantity, line_total, cost, category, status, branch_id")
@@ -103,20 +191,17 @@ export async function getReports(
     .gte("created_at", fromIso)
     .lte("created_at", toIso);
 
-  const [salesRes, linesRes, pmRes] = await Promise.all([
-    branchId ? salesQ.eq("branch_id", branchId) : salesQ,
+  const [sales, linesRes, pmRes] = await Promise.all([
+    fetchReportSales(supabase, branchId, fromIso, toIso),
     branchId ? linesQ.eq("branch_id", branchId) : linesQ,
     supabase.from("payment_methods").select("name, currency, is_financed"),
   ]);
-  const sales = salesRes.data ?? [];
+  assertQueryOk(linesRes.error, "No se pudieron cargar las líneas de venta del reporte");
+  assertQueryOk(pmRes.error, "No se pudieron cargar los métodos de pago del reporte");
+
   const lines = linesRes.data ?? [];
   const sellerIds = [...new Set(sales.map((s) => s.seller_id).filter(Boolean))] as string[];
-  const { data: sellerProfiles } = sellerIds.length
-    ? await supabase
-        .from("profiles")
-        .select("id, full_name, commission_pct")
-        .in("id", sellerIds)
-    : { data: [] as { id: string; full_name: string; commission_pct: number }[] };
+  const sellerProfiles = await fetchSellerProfiles(supabase, sellerIds);
   const sellersById = new Map((sellerProfiles ?? []).map((s) => [s.id, s]));
   const pmCurrency = new Map(
     (pmRes.data ?? []).map((p) => [p.name, (p.currency ?? "VES") as "USD" | "VES"]),
@@ -127,12 +212,17 @@ export async function getReports(
 
   // Desglose de pagos por método (desde wm.sale_payments cuando existe).
   const saleIds = sales.map((s) => s.id);
-  const { data: payments } = saleIds.length
+  const paymentsRes = saleIds.length
     ? await supabase
         .from("sale_payments")
         .select("sale_id, method, currency, amount, amount_usd")
         .in("sale_id", saleIds)
     : { data: [] as { sale_id: string; method: string; currency: string; amount: number; amount_usd: number }[] };
+  assertQueryOk(
+    "error" in paymentsRes ? paymentsRes.error : null,
+    "No se pudieron cargar los pagos del reporte",
+  );
+  const payments = paymentsRes.data ?? [];
 
   const payAgg = new Map<string, { currency: "USD" | "VES"; usd: number; native: number }>();
   const salesWithPayments = new Set<string>();
