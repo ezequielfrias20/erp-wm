@@ -17,13 +17,15 @@ export async function getDashboard(branchId: string | null) {
 
   const salesQ = supabase
     .from("sales")
-    .select("id, total, tax, payment_method, status, created_at, customer_id, branch_id")
+    .select("id, invoice_number, total, total_ves, tax, payment_method, status, created_at, customer_id, branch_id")
     .gte("created_at", yearStart);
   const linesQ = supabase
     .from("v_sale_lines")
-    .select("*")
+    .select("quantity, line_total, cost, product_name, category, status, created_at, branch_id")
     .gte("created_at", yearStart);
-  const invQ = supabase.from("v_inventory").select("*");
+  const invQ = supabase
+    .from("v_inventory")
+    .select("product_name, branch_city, quantity, min_stock, estado, stock_value, branch_id");
 
   const branchStatsQ = supabase
     .from("v_branch_stats")
@@ -148,29 +150,30 @@ export async function getDashboard(branchId: string | null) {
     if (l.category) catMap.set(l.category, (catMap.get(l.category) ?? 0) + l.line_total);
   const categories = [...catMap.entries()]
     .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
     .map(([name, value], i) => ({ name, value: Math.round(value), color: CHART_COLORS[i % CHART_COLORS.length] }));
 
   // Recent sales (with customer + branch names)
   const recentRaw = [...sales].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)).slice(0, 6);
   const custIds = [...new Set(recentRaw.map((s) => s.customer_id).filter(Boolean))] as string[];
   const brIds = [...new Set(recentRaw.map((s) => s.branch_id))];
-  const [custNames, brNames, invoiceNos] = await Promise.all([
+  const [custNames, brNames] = await Promise.all([
     custIds.length
       ? supabase.from("customers").select("id, name").in("id", custIds)
       : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-    supabase.from("branches").select("id, city").in("id", brIds),
-    supabase.from("sales").select("id, invoice_number, total, total_ves").in("id", recentRaw.map((s) => s.id)),
+    brIds.length
+      ? supabase.from("branches").select("id, city").in("id", brIds)
+      : Promise.resolve({ data: [] as { id: string; city: string }[] }),
   ]);
   const cMap = new Map((custNames.data ?? []).map((c) => [c.id, c.name]));
   const bMap = new Map((brNames.data ?? []).map((b) => [b.id, b.city]));
-  const iMap = new Map((invoiceNos.data ?? []).map((s) => [s.id, s]));
   const recentSales = recentRaw.map((s) => ({
-    inv: iMap.get(s.id)?.invoice_number ?? "—",
+    inv: s.invoice_number ?? "—",
     customer: s.customer_id ? (cMap.get(s.customer_id) ?? "Cliente general") : "Cliente general",
     branch: bMap.get(s.branch_id) ?? "—",
     method: s.payment_method ?? "—",
-    total: Number(iMap.get(s.id)?.total ?? s.total),
-    ves: Number(iMap.get(s.id)?.total_ves ?? 0),
+    total: Number(s.total),
+    ves: Number(s.total_ves ?? 0),
     status: s.status,
   }));
 
@@ -234,7 +237,9 @@ export async function getOperationalDashboard(branchId: string | null) {
     .from("v_sale_lines")
     .select("quantity, status, created_at, branch_id")
     .gte("created_at", dayStart);
-  const invQ = supabase.from("v_inventory").select("*");
+  const invQ = supabase
+    .from("v_inventory")
+    .select("product_name, branch_city, quantity, min_stock, estado, stock_value, branch_id");
   const ordersQ = supabase
     .from("purchase_orders")
     .select("code, status, expected_date, supplier_id, branch_id")

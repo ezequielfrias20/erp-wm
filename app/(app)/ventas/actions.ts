@@ -32,6 +32,7 @@ export type CasheaInput = {
 };
 
 export type CheckoutInput = {
+  request_id: string;
   branch_id: string;
   customer_id: string;
   seller_id: string;
@@ -66,6 +67,10 @@ export async function checkout(input: CheckoutInput): Promise<{
     return { error: "No puedes registrar ventas en otra sucursal." };
   }
 
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.request_id)) {
+    return { error: "Identificador de operación inválido." };
+  }
+
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("create_sale", {
     p_branch_id: input.branch_id,
@@ -73,7 +78,7 @@ export async function checkout(input: CheckoutInput): Promise<{
     p_payments: input.payments,
     p_discount_pct: input.discount_pct,
     p_rate: input.rate,
-    p_items: input.items,
+    p_items: input.items.map((item) => ({ ...item, request_id: input.request_id })),
     p_status: input.status ?? "Pagada",
     p_cashea: input.cashea ?? null,
     p_seller_id: input.seller_id,
@@ -81,8 +86,8 @@ export async function checkout(input: CheckoutInput): Promise<{
   });
 
   if (error) return { error: error.message };
-  revalidatePath("/", "layout");
-  revalidatePath("/ventas");
+  // Keep checkout fast: only invalidate views whose persisted aggregates changed.
+  // The POS updates its cart/stock optimistically after this action returns.
   revalidatePath("/inventario");
   revalidatePath("/dashboard");
   revalidatePath("/reportes");

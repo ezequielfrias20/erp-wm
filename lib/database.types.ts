@@ -332,6 +332,7 @@ export type ProjectCheckin = {
 
 export type Sale = {
   id: string;
+  request_id: string | null;
   invoice_number: string;
   customer_id: string | null;
   branch_id: string;
@@ -646,6 +647,24 @@ export type Database = {
           favicon_url: string | null;
           primary_color: string | null;
           accent_color: string | null;
+        }[];
+      };
+      inventory_status_counts: {
+        Args: { p_branch_id?: string | null };
+        Returns: { low_stock: number; out_stock: number }[];
+      };
+      write_audit: {
+        Args: { p_action: string; p_module: string; p_severity?: string };
+        Returns: undefined;
+      };
+      report_payments: {
+        Args: { p_branch_id: string | null; p_from: string; p_to: string };
+        Returns: {
+          sale_id: string;
+          method: string;
+          currency: string;
+          amount: number;
+          amount_usd: number;
         }[];
       };
       create_sale: {

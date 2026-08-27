@@ -314,6 +314,7 @@ export function PosView({
   const [discountMode, setDiscountMode] = useState<DiscountMode>("percent");
   const [discountInput, setDiscountInput] = useState("");
   const [pending, startTransition] = useTransition();
+  const checkoutLock = useRef(false);
 
   const realMethods = useMemo(
     // Excluye Mixto y métodos financiados (Cashea): la inicial no se paga con Cashea.
@@ -481,6 +482,7 @@ export function PosView({
   }
 
   function complete(allowPaymentMismatch = false) {
+    if (checkoutLock.current || pending) return;
     if (!branch) return toast.error("No hay sucursal seleccionada.");
     if (lines.length === 0) return toast.error("El ticket está vacío.");
     if (!customer) {
@@ -532,34 +534,38 @@ export function PosView({
       draftId: activeDraftId,
     };
 
+    const requestId = crypto.randomUUID();
+    checkoutLock.current = true;
     startTransition(async () => {
-      const res = await checkout({
-        branch_id: branch.id,
-        customer_id: selectedCustomer.id,
-        seller_id: sellerId,
-        seller_code: sellerCode,
-        payments,
-        discount_pct: discountPct,
-        rate,
-        items,
-        status: "Pagada",
-        cashea: cashea
-          ? {
-              reference: cashea.reference,
-              initial_amount: round2(
-                cashea.initial.reduce((a, p) => a + p.amount_usd, 0),
-              ),
-              financed_amount: cashea.financed,
-              commission_pct: 0,
-              channel: cashea.channel,
-            }
-          : undefined,
-      });
-      if (res.error) {
-        toast.error(res.error);
-        return;
-      }
-      const inv: InvoiceData = {
+      try {
+        const res = await checkout({
+          request_id: requestId,
+          branch_id: branch.id,
+          customer_id: selectedCustomer.id,
+          seller_id: sellerId,
+          seller_code: sellerCode,
+          payments,
+          discount_pct: discountPct,
+          rate,
+          items,
+          status: "Pagada",
+          cashea: cashea
+            ? {
+                reference: cashea.reference,
+                initial_amount: round2(
+                  cashea.initial.reduce((a, p) => a + p.amount_usd, 0),
+                ),
+                financed_amount: cashea.financed,
+                commission_pct: 0,
+                channel: cashea.channel,
+              }
+            : undefined,
+        });
+        if (res.error) {
+          toast.error(res.error);
+          return;
+        }
+        const inv: InvoiceData = {
         company,
         invoiceNumber: res.invoice ?? "—",
         date: res.createdAt ?? new Date().toISOString(),
@@ -587,14 +593,17 @@ export function PosView({
           is_financed:
             paymentMethods.find((m) => m.name === p.method)?.is_financed ?? false,
         })),
-      };
-      setLastSale(inv);
-      setSaleCompleteOpen(true);
-      if (snapshot.draftId) {
-        removeDraft(snapshot.draftId);
+        };
+        setLastSale(inv);
+        setSaleCompleteOpen(true);
+        if (snapshot.draftId) {
+          removeDraft(snapshot.draftId);
+        }
+        clearTicket();
+        toast.success(`Venta ${res.invoice} registrada`);
+      } finally {
+        checkoutLock.current = false;
       }
-      clearTicket();
-      toast.success(`Venta ${res.invoice} registrada`);
     });
   }
 

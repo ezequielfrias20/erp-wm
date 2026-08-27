@@ -29,6 +29,8 @@ import { cn } from "@/lib/utils";
 import type { ReportData, SaleDetail } from "@/lib/queries/reports";
 import { loadSaleDetail } from "@/app/(app)/reportes/actions";
 import { downloadReportPdf } from "@/components/reportes/report-pdf";
+import { TablePagination } from "@/components/ui/table-pagination";
+import { useServerTable } from "@/hooks/use-server-table";
 import {
   InvoiceDocument,
   ThermalInvoiceDocument,
@@ -57,6 +59,7 @@ export function ReportesView({
   const [detailOpen, setDetailOpen] = useState(false);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const salesTable = useServerTable("sales");
 
   const { kpis, monthly, trend, rate, sales } = data;
   const trendMax = Math.max(1, ...trend.map((t) => t.value));
@@ -469,7 +472,7 @@ export function ReportesView({
       <div className="fadeup mb-[18px] overflow-hidden rounded-2xl border border-border bg-card shadow-card-sm">
         <div className="px-5 pt-[18px] pb-3.5">
           <div className="text-[15px] font-bold tracking-tight text-foreground">
-            Ventas del período ({sales.length})
+            Ventas del período ({data.salesPagination.total})
           </div>
           <div className="text-[12.5px] text-text-3">
             Toca una venta para ver el detalle y descargar la factura
@@ -518,6 +521,16 @@ export function ReportesView({
             )}
           </div>
         </div>
+        <TablePagination
+          page={data.salesPagination.page}
+          pageSize={data.salesPagination.pageSize}
+          totalItems={data.salesPagination.total}
+          onPageChange={(page) => salesTable.update({ Page: page })}
+          onPageSizeChange={(pageSize) =>
+            salesTable.update({ Page: 1, PageSize: pageSize })
+          }
+          itemLabel="ventas"
+        />
       </div>
 
       {/* Detalle mensual */}

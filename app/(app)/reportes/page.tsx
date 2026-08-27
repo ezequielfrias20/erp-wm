@@ -7,13 +7,14 @@ import { canView } from "@/lib/permissions";
 import { fetchBcvRate, BCV_FALLBACK } from "@/lib/bcv";
 import { normalizeReportRange } from "@/lib/report-dates";
 import { ReportesView } from "@/components/reportes/reportes-view";
+import { parsePageRequest } from "@/lib/pagination";
 
 export const metadata = { title: "Reportes · World Medics ERP" };
 
 export default async function ReportesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; salesPage?: string; salesPageSize?: string }>;
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -21,6 +22,10 @@ export default async function ReportesPage({
 
   const sp = await searchParams;
   const { from, to } = normalizeReportRange(sp);
+  const salesPaging = parsePageRequest({
+    page: sp.salesPage,
+    pageSize: sp.salesPageSize,
+  });
 
   const branchId = await getActiveBranchId(
     session.profile.branch_id,
@@ -37,7 +42,14 @@ export default async function ReportesPage({
       .maybeSingle(),
   ]);
 
-  const data = await getReports(branchId, from, to, bcv.rate);
+  const data = await getReports(
+    branchId,
+    from,
+    to,
+    bcv.rate,
+    salesPaging.page,
+    salesPaging.pageSize,
+  );
 
   let branchLabel = "Todas";
   if (branchId) {

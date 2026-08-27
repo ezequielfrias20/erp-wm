@@ -75,10 +75,8 @@ export async function createStockEntry(
     "Inventario",
   );
   revalidatePath("/inventario");
-  revalidatePath("/ventas");
   revalidatePath("/productos");
   revalidatePath(`/productos/${variant.product_id}`);
-  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -121,7 +119,6 @@ export async function updateStock(
 
   await audit(`Ajustó inventario ${sku} (${quantity} uds)`, "Inventario");
   revalidatePath("/inventario");
-  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -218,6 +215,5 @@ export async function importInventory(rows: ImportRow[]): Promise<ImportResult> 
 
   await audit(`Importó inventario (${payload.length} filas)`, "Inventario");
   revalidatePath("/inventario");
-  revalidatePath("/", "layout");
   return { imported: payload.length, skipped };
 }

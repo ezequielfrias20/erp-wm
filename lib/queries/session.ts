@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { ModuleName, Profile } from "@/lib/database.types";
 import { MODULES } from "@/lib/database.types";
@@ -42,9 +43,12 @@ export async function getMyPermissions(role: string): Promise<PermissionMap> {
   return map;
 }
 
-export async function getSession(): Promise<SessionData | null> {
+async function resolveSession(): Promise<SessionData | null> {
   const profile = await getCurrentProfile();
   if (!profile) return null;
   const permissions = await getMyPermissions(profile.role);
   return { profile, permissions };
 }
+
+/** Deduplicates auth/profile/permission round-trips within one RSC request. */
+export const getSession = cache(resolveSession);

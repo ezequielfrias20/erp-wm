@@ -5,6 +5,7 @@ import {
   getReportDateParts,
   reportRangeToIso,
 } from "@/lib/report-dates";
+import { fetchAllRows } from "@/lib/supabase/pagination";
 
 const COLORS = ["#0EA5E9", "#6366F1", "#10B981", "#F59E0B", "#F43F5E", "#64748B", "#8B5CF6", "#14B8A6"];
 const DEFAULT_SELLER_COMMISSION_PCT = 2;
@@ -83,6 +84,16 @@ type SellerProfileRecord = {
   commission_pct?: number | null;
 };
 
+type ReportPaymentRecord = {
+  sale_id: string;
+  method: string;
+  currency: string;
+  amount: number;
+  amount_usd: number;
+};
+
+const IN_FILTER_BATCH_SIZE = 100;
+
 function isMissingColumn(error: unknown, column: string) {
   if (!error || typeof error !== "object") return false;
   const candidate = error as QueryError;
@@ -107,28 +118,78 @@ async function fetchReportSales(
   const baseSelect =
     "id, invoice_number, total, total_ves, status, payment_method, exchange_rate, created_at, branch_id, seller_id, customers(name)";
 
-  const run = (select: string) => {
-    const query = supabase
-      .from("sales")
-      .select(select)
-      .gte("created_at", fromIso)
-      .lte("created_at", toIso)
-      .eq("status", "Pagada")
-      .order("created_at", { ascending: false });
-    return branchId ? query.eq("branch_id", branchId) : query;
-  };
+  const run = (select: string) =>
+    fetchAllRows<ReportSaleRecord>((pageFrom, pageTo) => {
+      let query = supabase
+        .from("sales")
+        .select(select)
+        .gte("created_at", fromIso)
+        .lte("created_at", toIso)
+        .eq("status", "Pagada")
+        .order("created_at", { ascending: false })
+        .range(pageFrom, pageTo);
+      if (branchId) query = query.eq("branch_id", branchId);
+      return query as unknown as PromiseLike<{
+        data: ReportSaleRecord[] | null;
+        error: { message: string } | null;
+      }>;
+    });
 
-  const withCommission = await run(`${baseSelect}, seller_commission_pct`);
-  if (!withCommission.error) return (withCommission.data ?? []) as unknown as ReportSaleRecord[];
+  try {
+    return await run(`${baseSelect}, seller_commission_pct`);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("seller_commission_pct")) {
+      return await run(baseSelect);
+    }
+    throw new Error(
+      `No se pudieron cargar las ventas del reporte: ${error instanceof Error ? error.message : "Error desconocido"}`,
+    );
+  }
+}
 
-  if (isMissingColumn(withCommission.error, "seller_commission_pct")) {
-    const fallback = await run(baseSelect);
-    assertQueryOk(fallback.error, "No se pudieron cargar las ventas del reporte");
-    return (fallback.data ?? []) as unknown as ReportSaleRecord[];
+async function fetchReportPayments(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  saleIds: string[],
+  branchId: string | null,
+  fromIso: string,
+  toIso: string,
+): Promise<ReportPaymentRecord[]> {
+  const rpcResult = await supabase.rpc("report_payments", {
+    p_branch_id: branchId,
+    p_from: fromIso,
+    p_to: toIso,
+  });
+  if (!rpcResult.error) return (rpcResult.data ?? []) as ReportPaymentRecord[];
+
+  // Rolling-deployment fallback while performance_indexes.sql is not applied.
+  const payments: ReportPaymentRecord[] = [];
+
+  for (let index = 0; index < saleIds.length; index += IN_FILTER_BATCH_SIZE) {
+    const ids = saleIds.slice(index, index + IN_FILTER_BATCH_SIZE);
+    let lastError: unknown = null;
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const result = await supabase
+        .from("sale_payments")
+        .select("sale_id, method, currency, amount, amount_usd")
+        .in("sale_id", ids);
+      if (!result.error) {
+        payments.push(...((result.data ?? []) as ReportPaymentRecord[]));
+        lastError = null;
+        break;
+      }
+      lastError = result.error;
+      if (attempt === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    }
+
+    if (lastError) {
+      assertQueryOk(lastError, "No se pudieron cargar los pagos del reporte");
+    }
   }
 
-  assertQueryOk(withCommission.error, "No se pudieron cargar las ventas del reporte");
-  return [];
+  return payments;
 }
 
 async function fetchSellerProfiles(
@@ -162,28 +223,39 @@ export async function getReports(
   from: string,
   to: string,
   rate: number,
+  salesPage = 1,
+  salesPageSize = 25,
 ) {
   const supabase = await createClient();
   const range = reportRangeToIso(from, to);
   const { fromIso, toIso } = range;
   const r2 = (n: number) => Math.round(n * 100) / 100;
 
-  const linesQ = supabase
-    .from("v_sale_lines")
-    .select("created_at, quantity, line_total, cost, category, status, branch_id")
-    .eq("status", "Pagada")
-    .gte("created_at", fromIso)
-    .lte("created_at", toIso);
-
-  const [sales, linesRes, pmRes] = await Promise.all([
+  const [sales, lines, pmRes] = await Promise.all([
     fetchReportSales(supabase, branchId, fromIso, toIso),
-    branchId ? linesQ.eq("branch_id", branchId) : linesQ,
+    fetchAllRows<{
+      created_at: string;
+      quantity: number;
+      line_total: number;
+      cost: number;
+      category: string | null;
+      status: string;
+      branch_id: string;
+    }>((pageFrom, pageTo) => {
+      let query = supabase
+        .from("v_sale_lines")
+        .select("created_at, quantity, line_total, cost, category, status, branch_id")
+        .eq("status", "Pagada")
+        .gte("created_at", fromIso)
+        .lte("created_at", toIso)
+        .range(pageFrom, pageTo);
+      if (branchId) query = query.eq("branch_id", branchId);
+      return query;
+    }),
     supabase.from("payment_methods").select("name, currency, is_financed"),
   ]);
-  assertQueryOk(linesRes.error, "No se pudieron cargar las líneas de venta del reporte");
   assertQueryOk(pmRes.error, "No se pudieron cargar los métodos de pago del reporte");
 
-  const lines = linesRes.data ?? [];
   const sellerIds = [...new Set(sales.map((s) => s.seller_id).filter(Boolean))] as string[];
   const sellerProfiles = await fetchSellerProfiles(supabase, sellerIds);
   const sellersById = new Map((sellerProfiles ?? []).map((s) => [s.id, s]));
@@ -196,17 +268,9 @@ export async function getReports(
 
   // Desglose de pagos por método (desde wm.sale_payments cuando existe).
   const saleIds = sales.map((s) => s.id);
-  const paymentsRes = saleIds.length
-    ? await supabase
-        .from("sale_payments")
-        .select("sale_id, method, currency, amount, amount_usd")
-        .in("sale_id", saleIds)
-    : { data: [] as { sale_id: string; method: string; currency: string; amount: number; amount_usd: number }[] };
-  assertQueryOk(
-    "error" in paymentsRes ? paymentsRes.error : null,
-    "No se pudieron cargar los pagos del reporte",
-  );
-  const payments = paymentsRes.data ?? [];
+  const payments = saleIds.length
+    ? await fetchReportPayments(supabase, saleIds, branchId, fromIso, toIso)
+    : [];
 
   const payAgg = new Map<string, { currency: "USD" | "VES"; usd: number; native: number }>();
   const salesWithPayments = new Set<string>();
@@ -385,6 +449,9 @@ export async function getReports(
   // Vista de caja: ingresos devengados menos lo que aún está por cobrar a Cashea.
   const efectivoCobrado = Math.round((kpis.ingresos - cashea.porCobrar) * 100) / 100;
 
+  const salesTotal = salesList.length;
+  const salesFrom = (salesPage - 1) * salesPageSize;
+
   return {
     kpis,
     monthly,
@@ -395,7 +462,12 @@ export async function getReports(
     commissionRate: DEFAULT_SELLER_COMMISSION_PCT / 100,
     cashea,
     efectivoCobrado,
-    sales: salesList,
+    sales: salesList.slice(salesFrom, salesFrom + salesPageSize),
+    salesPagination: {
+      page: salesPage,
+      pageSize: salesPageSize,
+      total: salesTotal,
+    },
     range: { from: range.from, to: range.to },
     rate,
   };

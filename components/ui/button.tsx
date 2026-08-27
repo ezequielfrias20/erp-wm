@@ -1,6 +1,9 @@
+"use client"
+
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { Slot } from "radix-ui"
+import { useFormStatus } from "react-dom"
 
 import { cn } from "@/lib/utils"
 
@@ -43,20 +46,81 @@ function Button({
   variant = "default",
   size = "default",
   asChild = false,
+  onClick,
+  disabled,
   ...props
 }: React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean
-  }) {
+}) {
   const Comp = asChild ? Slot.Root : "button"
+  const { pending } = useFormStatus()
+  const isSubmit = !asChild && (props.type ?? "submit") === "submit"
+  const [running, setRunning] = React.useState(false)
+  const clickLock = React.useRef(false)
+  const fallbackTimer = React.useRef<number | null>(null)
+
+  const handleClick = React.useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      if (clickLock.current) {
+        event.preventDefault()
+        return
+      }
+
+      if (isSubmit) {
+        if (event.currentTarget.form && !event.currentTarget.form.checkValidity()) {
+          onClick?.(event)
+          return
+        }
+        // Close the small gap before React publishes useFormStatus().pending.
+        clickLock.current = true
+        fallbackTimer.current = window.setTimeout(() => {
+          clickLock.current = false
+        }, 30_000)
+      }
+
+      const result = (onClick as
+        | ((event: React.MouseEvent<HTMLButtonElement>) => unknown)
+        | undefined)?.(event)
+      if (!isSubmit && result && typeof (result as Promise<unknown>).finally === "function") {
+        clickLock.current = true
+        setRunning(true)
+        void (result as Promise<unknown>).finally(() => {
+          clickLock.current = false
+          setRunning(false)
+        })
+      } else if (!isSubmit && onClick && !event.defaultPrevented) {
+        // useTransition callbacks return void. A short lock closes the render gap
+        // before their external `pending` prop becomes true.
+        clickLock.current = true
+        setRunning(true)
+        window.setTimeout(() => {
+          clickLock.current = false
+          setRunning(false)
+        }, 500)
+      }
+    },
+    [isSubmit, onClick],
+  )
+
+  React.useEffect(() => {
+    if (!pending && isSubmit) {
+      if (fallbackTimer.current !== null) window.clearTimeout(fallbackTimer.current)
+      fallbackTimer.current = null
+      clickLock.current = false
+    }
+  }, [isSubmit, pending])
 
   return (
     <Comp
+      {...props}
       data-slot="button"
       data-variant={variant}
       data-size={size}
       className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
+      aria-busy={running || (isSubmit && pending) ? true : undefined}
+      disabled={!asChild ? (disabled || running || (isSubmit && pending)) : undefined}
+      onClick={!asChild ? handleClick : onClick}
     />
   )
 }

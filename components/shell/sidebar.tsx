@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { BrandMark } from "@/components/shell/brand-mark";
 import { NAV_SECTIONS } from "@/components/shell/nav-items";
@@ -27,11 +27,12 @@ export function Sidebar({
   logoUrl: string | null;
   logoDarkUrl: string | null;
   companyName: string | null;
-  onNavigate?: () => void;
+  onNavigate?: (href: string) => void;
   className?: string;
   width?: number | string;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { view } = useCan();
   const expanded = !collapsed;
 
@@ -75,7 +76,12 @@ export function Sidebar({
                   <Link
                     key={item.href}
                     href={item.href}
-                    onClick={onNavigate}
+                    prefetch={false}
+                    onPointerEnter={() => router.prefetch(item.href)}
+                    onFocus={() => router.prefetch(item.href)}
+                    onClick={() => {
+                      if (!active) onNavigate?.(item.href);
+                    }}
                     data-active={active}
                     title={collapsed ? item.label : undefined}
                     className="nav-item mx-3 my-0.5 flex items-center gap-3 rounded-[10px] px-[14px] py-[9px] text-[13.5px] font-medium whitespace-nowrap text-text-2"

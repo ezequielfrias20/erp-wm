@@ -7,10 +7,22 @@ export async function audit(
   action: string,
   module: ModuleName,
   severity: AuditSeverity = "edit",
+  actor?: { id: string; full_name: string | null },
 ) {
   try {
     const supabase = await createClient();
-    const { data: profile } = await supabase.rpc("claim_profile");
+    if (!actor) {
+      const { error } = await supabase.rpc("write_audit", {
+        p_action: action,
+        p_module: module,
+        p_severity: severity,
+      });
+      if (!error) return;
+    }
+    const { data: claimedProfile } = actor
+      ? { data: null }
+      : await supabase.rpc("claim_profile");
+    const profile = actor ?? claimedProfile;
     await supabase.from("audit_log").insert({
       user_id: profile?.id ?? null,
       who: profile?.full_name ?? "Sistema",

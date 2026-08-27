@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/shell/sidebar";
 import { Header, type ShellNotification } from "@/components/shell/header";
 import type { BcvRate } from "@/lib/bcv";
+import { ModuleLoading } from "@/components/ui/module-loading";
 
 export function AppShell({
   bcv,
@@ -24,6 +26,24 @@ export function AppShell({
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setNavigatingTo(null), 0);
+    return () => window.clearTimeout(timer);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!navigatingTo) return;
+    const timer = window.setTimeout(() => setNavigatingTo(null), 15_000);
+    return () => window.clearTimeout(timer);
+  }, [navigatingTo]);
+
+  function beginNavigation(href: string) {
+    setNavigatingTo(href);
+    setMobileOpen(false);
+  }
 
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-background text-foreground">
@@ -47,7 +67,7 @@ export function AppShell({
           logoUrl={logoUrl}
           logoDarkUrl={logoDarkUrl}
           companyName={companyName}
-          onNavigate={() => setMobileOpen(false)}
+          onNavigate={beginNavigation}
           className="h-full w-full shadow-card-lg"
           width="100%"
         />
@@ -59,6 +79,7 @@ export function AppShell({
         logoUrl={logoUrl}
         logoDarkUrl={logoDarkUrl}
         companyName={companyName}
+        onNavigate={beginNavigation}
         className="hidden lg:flex"
       />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -73,8 +94,12 @@ export function AppShell({
           bcv={bcv}
           notifications={notifications}
         />
-        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background">
+        <main
+          className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background"
+          aria-busy={Boolean(navigatingTo)}
+        >
           {children}
+          {navigatingTo ? <ModuleLoading overlay /> : null}
         </main>
       </div>
     </div>

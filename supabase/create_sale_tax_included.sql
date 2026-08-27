@@ -2,6 +2,10 @@
 -- The sale subtotal stores the final-price subtotal before discount.
 -- IVA is extracted from the final total instead of added on top.
 
+alter table wm.sales add column if not exists request_id uuid;
+create unique index if not exists sales_user_request_uidx
+  on wm.sales (user_id, request_id) where request_id is not null;
+
 create or replace function wm.create_sale(
   p_branch_id uuid,
   p_customer_id uuid,
@@ -31,6 +35,7 @@ declare
   v_seller uuid;
   v_seller_commission_pct numeric := 2;
   v_npay int := coalesce(jsonb_array_length(p_payments), 0);
+  v_request_id uuid := nullif(p_items->0->>'request_id', '')::uuid;
   it jsonb;
   pay jsonb;
 begin
@@ -39,6 +44,12 @@ begin
   end if;
   if p_items is null or jsonb_array_length(p_items) = 0 then
     raise exception 'El ticket no tiene productos';
+  end if;
+  if v_request_id is not null then
+    perform pg_advisory_xact_lock(hashtextextended(v_profile::text || ':' || v_request_id::text, 0));
+    select * into v_sale from wm.sales
+    where user_id = v_profile and request_id = v_request_id;
+    if found then return v_sale; end if;
   end if;
   if p_seller_id is null or coalesce(p_seller_code, '') !~ '^[0-9]{4}$' then
     raise exception 'Selecciona el vendedor e ingresa su código de 4 dígitos';
@@ -74,11 +85,11 @@ begin
   end if;
 
   insert into wm.sales (
-    customer_id, branch_id, user_id, seller_id, seller_commission_pct, payment_method,
+    request_id, customer_id, branch_id, user_id, seller_id, seller_commission_pct, payment_method,
     subtotal, discount, discount_pct, tax, total,
     exchange_rate, total_ves, status
   ) values (
-    p_customer_id, p_branch_id, v_profile, v_seller, coalesce(v_seller_commission_pct, 2), v_method,
+    v_request_id, p_customer_id, p_branch_id, v_profile, v_seller, coalesce(v_seller_commission_pct, 2), v_method,
     round(v_subtotal, 2), v_discount, coalesce(p_discount_pct, 0), v_tax, v_total,
     p_rate, round(v_total * coalesce(p_rate, 0), 2), coalesce(p_status, 'Pagada')
   )

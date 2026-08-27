@@ -17,12 +17,18 @@ export async function getShellData(
 ): Promise<ShellData> {
   const supabase = await createClient();
 
-  let invQ = supabase.from("v_inventory").select("estado, branch_city");
-  if (branchId) invQ = invQ.eq("branch_id", branchId);
-  const { data: inv } = await invQ;
-
-  const lowStock = (inv ?? []).filter((r) => r.estado === "Stock bajo").length;
-  const outStock = (inv ?? []).filter((r) => r.estado === "Agotado").length;
+  let lowQ = supabase
+    .from("v_inventory")
+    .select("id", { count: "exact", head: true })
+    .eq("estado", "Stock bajo");
+  let outQ = supabase
+    .from("v_inventory")
+    .select("id", { count: "exact", head: true })
+    .eq("estado", "Agotado");
+  if (branchId) {
+    lowQ = lowQ.eq("branch_id", branchId);
+    outQ = outQ.eq("branch_id", branchId);
+  }
 
   let saleQ = supabase
     .from("sales")
@@ -30,15 +36,29 @@ export async function getShellData(
     .order("created_at", { ascending: false })
     .limit(1);
   if (branchId) saleQ = saleQ.eq("branch_id", branchId);
-  const { data: sales } = await saleQ;
-  const latestSale = sales?.[0];
-
-  const { data: pos } = await supabase
+  const poQ = supabase
     .from("purchase_orders")
     .select("code, expected_date, status")
     .eq("status", "En tránsito")
     .order("expected_date", { ascending: true })
     .limit(1);
+  const [countsRes, saleRes, poRes] = await Promise.all([
+    supabase
+      .rpc("inventory_status_counts", { p_branch_id: branchId })
+      .maybeSingle(),
+    saleQ,
+    poQ,
+  ]);
+  let lowStock = Number(countsRes.data?.low_stock ?? 0);
+  let outStock = Number(countsRes.data?.out_stock ?? 0);
+  // Keeps rolling deployments functional until the SQL migration is applied.
+  if (countsRes.error) {
+    const [lowRes, outRes] = await Promise.all([lowQ, outQ]);
+    lowStock = lowRes.count ?? 0;
+    outStock = outRes.count ?? 0;
+  }
+  const latestSale = saleRes.data?.[0];
+  const pos = poRes.data;
   const latestPo = pos?.[0];
 
   const notifications: ShellNotification[] = [];

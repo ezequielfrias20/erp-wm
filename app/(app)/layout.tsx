@@ -43,8 +43,10 @@ export default async function AppLayout({
   ]);
 
   const branches = (branchesRes.data ?? []) as BranchOption[];
-  const shell = await getShellData(bcv, activeId);
-  const branding = await getBranding();
+  const [shell, branding] = await Promise.all([
+    getShellData(bcv, activeId),
+    getBranding(),
+  ]);
 
   return (
     <SessionProvider value={session}>
