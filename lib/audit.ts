@@ -1,8 +1,16 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { AuditSeverity, ModuleName } from "@/lib/database.types";
+import { getSession } from "@/lib/queries/session";
+import { rpcOrFallback } from "@/lib/db-capabilities";
 
-/** Best-effort audit trail entry for the current user. Never throws. */
+/**
+ * Entrada de auditoría del usuario actual. Nunca lanza.
+ *
+ * `wm.write_audit` lo hace en un solo viaje. Si la función no está en el esquema,
+ * `rpcOrFallback` lo recuerda y a partir de ahí inserta directo sin intentarla —
+ * antes cada auditoría gastaba una RPC fallida más un `claim_profile` extra.
+ */
 export async function audit(
   action: string,
   module: ModuleName,
@@ -11,26 +19,37 @@ export async function audit(
 ) {
   try {
     const supabase = await createClient();
-    if (!actor) {
-      const { error } = await supabase.rpc("write_audit", {
-        p_action: action,
-        p_module: module,
-        p_severity: severity,
+
+    const insertDirectly = async () => {
+      const profile = actor ?? (await getSession())?.profile ?? null;
+      await supabase.from("audit_log").insert({
+        user_id: profile?.id ?? null,
+        who: profile?.full_name ?? "Sistema",
+        action,
+        module,
+        severity,
       });
-      if (!error) return;
+      return null;
+    };
+
+    if (actor) {
+      await insertDirectly();
+      return;
     }
-    const { data: claimedProfile } = actor
-      ? { data: null }
-      : await supabase.rpc("claim_profile");
-    const profile = actor ?? claimedProfile;
-    await supabase.from("audit_log").insert({
-      user_id: profile?.id ?? null,
-      who: profile?.full_name ?? "Sistema",
-      action,
-      module,
-      severity,
-    });
+
+    await rpcOrFallback<null>(
+      "write_audit",
+      async () => {
+        const { error } = await supabase.rpc("write_audit", {
+          p_action: action,
+          p_module: module,
+          p_severity: severity,
+        });
+        return { data: null, error };
+      },
+      insertDirectly,
+    );
   } catch {
-    // auditing must never block the primary action
+    // la auditoría nunca debe bloquear la acción principal
   }
 }

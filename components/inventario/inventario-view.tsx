@@ -21,11 +21,12 @@ import {
   updateStock,
   createStockEntry,
   importInventory,
+  loadInventoryOptions,
   type FormState,
   type ImportRow,
 } from "@/app/(app)/inventario/actions";
 import { toast } from "sonner";
-import { buildWorkbookBlob, downloadBlob, parseSheet } from "@/lib/excel";
+import { loadExcel } from "@/lib/excel-lazy";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -45,23 +46,14 @@ import type { VInventory } from "@/lib/database.types";
 
 type InventoryRow = VInventory & { product_image_url: string | null };
 
-export type InventoryVariantOption = {
-  id: string;
-  product_id: string;
-  sku: string;
-  product_name: string;
-  category: string | null;
-  brand: string | null;
-  size: string | null;
-  color: string | null;
-  color_hex: string | null;
-};
+import {
+  EMPTY_INVENTORY_OPTIONS,
+  type InventoryBranchOption,
+  type InventoryOptions,
+  type InventoryVariantOption,
+} from "@/lib/inventory-options";
 
-export type InventoryBranchOption = {
-  id: string;
-  city: string;
-  code: string;
-};
+export type { InventoryVariantOption, InventoryBranchOption };
 
 const ESTADO_STYLE: Record<string, { bg: string; color: string }> = {
   "En stock": { bg: "var(--success-soft)", color: "var(--success)" },
@@ -90,20 +82,12 @@ export function InventarioView({
   rows,
   categories,
   brands,
-  skuOptions,
-  branchOptions,
-  variantOptions,
-  inventoryBranches,
   branchLabel,
   canEdit,
 }: {
   rows: InventoryRow[];
   categories: string[];
   brands: string[];
-  skuOptions: string[];
-  branchOptions: string[];
-  variantOptions: InventoryVariantOption[];
-  inventoryBranches: InventoryBranchOption[];
   branchLabel: string;
   canEdit: boolean;
 }) {
@@ -116,6 +100,38 @@ export function InventarioView({
   const [editing, setEditing] = useState<VInventory | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  // El catálogo de variantes/sucursales sólo se necesita al abrir el alta de stock
+  // o al bajar la plantilla: se pide entonces, no en cada carga de la página.
+  const [options, setOptions] = useState<InventoryOptions | null>(null);
+  const [optionsBusy, setOptionsBusy] = useState(false);
+  const optionsRef = useRef<Promise<InventoryOptions> | null>(null);
+
+  function ensureOptions(): Promise<InventoryOptions> {
+    if (!optionsRef.current) {
+      setOptionsBusy(true);
+      optionsRef.current = loadInventoryOptions()
+        .then((loaded) => {
+          setOptions(loaded);
+          return loaded;
+        })
+        .catch((error) => {
+          optionsRef.current = null;
+          throw error;
+        })
+        .finally(() => setOptionsBusy(false));
+    }
+    return optionsRef.current;
+  }
+
+  async function openAddStock() {
+    setAddOpen(true);
+    try {
+      await ensureOptions();
+    } catch (error) {
+      toast.error("No se pudo cargar el catálogo de variantes.");
+      console.error(error);
+    }
+  }
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [failedProductImages, setFailedProductImages] = useState<Record<string, true>>({});
@@ -180,6 +196,8 @@ export function InventarioView({
 
   async function downloadTemplate() {
     try {
+      const [{ buildWorkbookBlob, downloadBlob }, { skuOptions, branchOptions }] =
+        await Promise.all([loadExcel(), ensureOptions()]);
       const blob = await buildWorkbookBlob([
         {
           name: INVENTORY_SHEET,
@@ -201,6 +219,7 @@ export function InventarioView({
 
   async function exportXlsx() {
     try {
+      const { buildWorkbookBlob, downloadBlob } = await loadExcel();
       const blob = await buildWorkbookBlob([
         {
           name: INVENTORY_SHEET,
@@ -252,7 +271,7 @@ export function InventarioView({
         <div className="flex flex-wrap items-center gap-2.5">
           {canEdit && (
             <button
-              onClick={() => setAddOpen(true)}
+              onClick={openAddStock}
               className="hoverlift flex h-11 flex-1 items-center justify-center gap-2 rounded-[10px] bg-brand px-[15px] text-[13px] font-semibold text-white sm:h-[38px] sm:flex-none"
             >
               <Plus className="size-4" /> Agregar inventario
@@ -546,8 +565,9 @@ export function InventarioView({
           key={addOpen ? "open" : "closed"}
           open={addOpen}
           onOpenChange={setAddOpen}
-          variants={variantOptions}
-          branches={inventoryBranches}
+          variants={(options ?? EMPTY_INVENTORY_OPTIONS).variantOptions}
+          branches={(options ?? EMPTY_INVENTORY_OPTIONS).inventoryBranches}
+          loading={optionsBusy}
         />
       )}
       {canEdit && (
@@ -619,6 +639,7 @@ function ImportDialog({
   async function onFile(f: File) {
     if (f.name.toLowerCase().endsWith(".xlsx")) {
       try {
+        const { parseSheet } = await loadExcel();
         const raw = await parseSheet(f, INVENTORY_SHEET);
         const rows: ImportRow[] = raw.map((r) => ({
           sku: cleanSku(r[INV_COLS.sku] ?? r["SKU"] ?? ""),
@@ -807,11 +828,14 @@ function AddStockDialog({
   onOpenChange,
   variants,
   branches,
+  loading,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   variants: InventoryVariantOption[];
   branches: InventoryBranchOption[];
+  /** El catálogo se pide al abrir el diálogo, no antes. */
+  loading: boolean;
 }) {
   const [state, formAction] = useActionState<FormState, FormData>(
     createStockEntry,
@@ -819,7 +843,11 @@ function AddStockDialog({
   );
   const [query, setQuery] = useState("");
   const [variantId, setVariantId] = useState("");
-  const [branchId, setBranchId] = useState(branches[0]?.id ?? "");
+  // Las sucursales llegan después de abrir el diálogo, así que el valor efectivo se
+  // deriva en vez de sincronizarse con un efecto: `""` significa "aún sin elegir".
+  const [branchChoice, setBranchChoice] = useState("");
+  const branchId = branchChoice || branches[0]?.id || "";
+  const setBranchId = setBranchChoice;
   const selected = variants.find((variant) => variant.id === variantId) ?? null;
   const filtered = useMemo(() => {
     const needle = query.trim();
@@ -872,7 +900,12 @@ function AddStockDialog({
               />
             </div>
             <div className="max-h-56 overflow-y-auto rounded-[10px] border border-border bg-card">
-              {variants.length === 0 ? (
+              {loading ? (
+                <div className="flex items-center justify-center gap-2 px-3 py-6 text-[12.5px] text-text-3">
+                  <Loader2 className="size-4 animate-spin" />
+                  Cargando catálogo…
+                </div>
+              ) : variants.length === 0 ? (
                 <div className="px-3 py-6 text-center text-[12.5px] text-text-3">
                   No hay variantes activas. Crea una variante/SKU desde Productos.
                 </div>

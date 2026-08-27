@@ -1,5 +1,7 @@
 "use client";
 
+import { Suspense, use } from "react";
+
 import {
   Menu,
   Search,
@@ -33,14 +35,9 @@ import { cn } from "@/lib/utils";
 import type { BcvRate } from "@/lib/bcv";
 import Link from "next/link";
 
-export type ShellNotification = {
-  id: string;
-  icon: "alert" | "cart" | "truck" | "refresh";
-  title: string;
-  body: string;
-  time: string;
-  tone: "danger" | "brand" | "success" | "muted";
-};
+import type { ShellNotification, ShellSummary } from "@/components/shell/shell-data";
+
+export type { ShellNotification };
 
 const NOTIF_ICON = {
   alert: AlertTriangle,
@@ -56,14 +53,62 @@ const TONE: Record<string, { bg: string; color: string }> = {
   muted: { bg: "var(--surface-2)", color: "var(--text-2)" },
 };
 
+/** Punto y lista de notificaciones. Suspende sólo esto, no la cabecera entera. */
+function NotificationDot({ shell }: { shell: Promise<ShellSummary> }) {
+  const { notifications } = use(shell);
+  if (notifications.length === 0) return null;
+  return (
+    <span className="absolute top-[7px] right-2 size-[7px] rounded-full border-2 border-card bg-danger" />
+  );
+}
+
+function NotificationList({ shell }: { shell: Promise<ShellSummary> }) {
+  const { notifications } = use(shell);
+  if (notifications.length === 0) {
+    return (
+      <div className="px-[15px] py-6 text-center text-[12.5px] text-text-3">
+        Sin notificaciones.
+      </div>
+    );
+  }
+  return (
+    <>
+      {notifications.map((n) => {
+        const Icon = NOTIF_ICON[n.icon];
+        const tone = TONE[n.tone];
+        return (
+          <div
+            key={n.id}
+            className="tr-row flex gap-[11px] border-b border-border px-[15px] py-3"
+          >
+            <span
+              className="flex size-8 flex-none items-center justify-center rounded-[9px]"
+              style={{ background: tone.bg, color: tone.color }}
+            >
+              <Icon className="size-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] font-semibold text-foreground">
+                {n.title}
+              </div>
+              <div className="mt-px text-[12px] text-text-2">{n.body}</div>
+              <div className="mt-0.5 text-[11px] text-text-3">{n.time}</div>
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 export function Header({
   onToggleSidebar,
   bcv,
-  notifications,
+  shell,
 }: {
   onToggleSidebar: () => void;
   bcv: BcvRate;
-  notifications: ShellNotification[];
+  shell: Promise<ShellSummary>;
 }) {
   const { branches, activeId, label, locked, setBranch } = useBranch();
   const { profile } = useSession();
@@ -151,9 +196,9 @@ export function Header({
         <DropdownMenuTrigger asChild>
           <button className="iconbtn relative flex size-11 flex-none items-center justify-center rounded-[10px] border border-border bg-card text-text-2 lg:size-[38px]">
             <Bell className="size-[18px]" />
-            {notifications.length > 0 && (
-              <span className="absolute top-[7px] right-2 size-[7px] rounded-full border-2 border-card bg-danger" />
-            )}
+            <Suspense fallback={null}>
+              <NotificationDot shell={shell} />
+            </Suspense>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-[340px] p-0">
@@ -165,30 +210,15 @@ export function Header({
               Marcar leídas
             </span>
           </div>
-          {notifications.map((n) => {
-            const Icon = NOTIF_ICON[n.icon];
-            const tone = TONE[n.tone];
-            return (
-              <div
-                key={n.id}
-                className="tr-row flex gap-[11px] border-b border-border px-[15px] py-3"
-              >
-                <span
-                  className="flex size-8 flex-none items-center justify-center rounded-[9px]"
-                  style={{ background: tone.bg, color: tone.color }}
-                >
-                  <Icon className="size-4" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[13px] font-semibold text-foreground">
-                    {n.title}
-                  </div>
-                  <div className="mt-px text-[12px] text-text-2">{n.body}</div>
-                  <div className="mt-0.5 text-[11px] text-text-3">{n.time}</div>
-                </div>
+          <Suspense
+            fallback={
+              <div className="px-[15px] py-6 text-center text-[12.5px] text-text-3">
+                Cargando…
               </div>
-            );
-          })}
+            }
+          >
+            <NotificationList shell={shell} />
+          </Suspense>
           <div className="px-[15px] py-[11px] text-center text-[12.5px] font-medium text-brand">
             Ver todas
           </div>

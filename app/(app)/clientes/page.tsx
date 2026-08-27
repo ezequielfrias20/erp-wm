@@ -24,7 +24,17 @@ export default async function ClientesPage() {
     .order("total_spent", { ascending: false });
   if (branchId) customersQ = customersQ.eq("branch_id", branchId);
 
-  const [customersRes, branchesRes, bcv] = await Promise.all([
+  // Los eventos y favoritos se filtraban con `.in()` sobre los ids de los clientes
+  // ya cargados, lo que forzaba un segundo viaje en serie (0.63 s medidos). Ninguna
+  // de las dos fuentes tiene branch_id, así que se piden en paralelo y se recortan
+  // en memoria contra los clientes de la sucursal activa.
+  const eventsQ = supabase
+    .from("customer_events")
+    .select("*")
+    .order("occurred_at", { ascending: false });
+  const favsQ = supabase.from("v_customer_favorites").select("*");
+
+  const [customersRes, branchesRes, bcv, eventsRes, favsRes] = await Promise.all([
     customersQ,
     branchId
       ? supabase.from("branches").select("id, city").eq("id", branchId).order("city")
@@ -34,25 +44,19 @@ export default async function ClientesPage() {
       updatedAt: "",
       source: "BCV",
     })),
+    eventsQ,
+    favsQ,
   ]);
-  const customerIds = (customersRes.data ?? []).map((c) => c.id);
-  const [eventsRes, favsRes] =
-    customerIds.length > 0
-      ? await Promise.all([
-          supabase
-            .from("customer_events")
-            .select("*")
-            .in("customer_id", customerIds)
-            .order("occurred_at", { ascending: false }),
-          supabase.from("v_customer_favorites").select("*").in("customer_id", customerIds),
-        ])
-      : [{ data: [] }, { data: [] }];
+
+  const customerIds = new Set((customersRes.data ?? []).map((c) => c.id));
+  const events = (eventsRes.data ?? []).filter((e) => customerIds.has(e.customer_id));
+  const favorites = (favsRes.data ?? []).filter((f) => customerIds.has(f.customer_id));
 
   return (
     <ClientesView
       customers={customersRes.data ?? []}
-      events={eventsRes.data ?? []}
-      favorites={favsRes.data ?? []}
+      events={events}
+      favorites={favorites}
       branches={branchesRes.data ?? []}
       rate={bcv.rate}
       canEdit={canEdit(session.permissions, "Clientes")}

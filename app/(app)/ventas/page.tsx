@@ -56,7 +56,18 @@ export default async function VentasPage() {
     .order("name");
   if (branchId) customersQ = customersQ.eq("branch_id", branchId);
 
-  const [branchRes, invRows, customersRes, pmRes, settingsRes, bcv] = await Promise.all([
+  // `sellers` y las versiones de producto iban en serie después de este Promise.all
+  // (dos viajes encadenados de más). Ninguna depende del resto: se traen aquí.
+  const [
+    branchRes,
+    invRows,
+    customersRes,
+    pmRes,
+    settingsRes,
+    bcv,
+    sellersRes,
+    productVersionsRes,
+  ] = await Promise.all([
     branchId
       ? supabase.from("branches").select("id, city").eq("id", branchId).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -89,25 +100,19 @@ export default async function VentasPage() {
       updatedAt: "",
       source: "BCV",
     })),
+    supabase
+      .from("profiles")
+      .select("id, full_name, employee_code")
+      .eq("role", "Vendedor")
+      .eq("status", "Activo")
+      .not("employee_code", "is", null)
+      .order("full_name"),
+    supabase.from("products").select("id, updated_at"),
   ]);
 
-  const { data: sellers } = await supabase
-    .from("profiles")
-    .select("id, full_name, employee_code")
-    .eq("role", "Vendedor")
-    .eq("status", "Activo")
-    .not("employee_code", "is", null)
-    .order("full_name");
-
-  const productIds = [...new Set(invRows.map((row) => row.product_id))];
-  const { data: productVersions } = productIds.length
-    ? await supabase
-        .from("products")
-        .select("id, updated_at")
-        .in("id", productIds)
-    : { data: [] as { id: string; updated_at: string }[] };
+  const sellers = sellersRes.data;
   const versionByProduct = new Map(
-    (productVersions ?? []).map((product) => [product.id, product.updated_at]),
+    (productVersionsRes.data ?? []).map((product) => [product.id, product.updated_at]),
   );
 
   const products: PosProduct[] = invRows.map((r) => ({

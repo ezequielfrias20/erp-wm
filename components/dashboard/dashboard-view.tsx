@@ -17,7 +17,7 @@ import {
   Truck,
   Clock,
 } from "lucide-react";
-import { SalesAreaChart, Donut } from "@/components/dashboard/charts";
+import { SalesAreaChart, Donut } from "@/components/dashboard/charts-lazy";
 import { fmtUSD, fmtUSDShort, fmtVES, fmtNum, fmtRelative } from "@/lib/format";
 import type { DashboardData } from "@/lib/queries/dashboard";
 

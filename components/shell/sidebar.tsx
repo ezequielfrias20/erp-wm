@@ -1,5 +1,7 @@
 "use client";
 
+import { Suspense, use } from "react";
+
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
@@ -9,10 +11,22 @@ import { useCan } from "@/context/session";
 import { fmtVES } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { BcvRate } from "@/lib/bcv";
+import type { ShellSummary } from "@/components/shell/shell-data";
+
+/** Único punto del sidebar que espera los conteos de inventario. */
+function LowStockBadge({ shell }: { shell: Promise<ShellSummary> }) {
+  const { lowStock } = use(shell);
+  if (!lowStock) return null;
+  return (
+    <span className="flex-none rounded-full bg-warning-soft px-[7px] py-px text-[10.5px] font-bold text-warning">
+      {lowStock}
+    </span>
+  );
+}
 
 export function Sidebar({
   collapsed,
-  badges,
+  shell,
   bcv,
   logoUrl,
   logoDarkUrl,
@@ -22,7 +36,7 @@ export function Sidebar({
   width,
 }: {
   collapsed: boolean;
-  badges: { lowStock?: number };
+  shell: Promise<ShellSummary>;
   bcv: BcvRate;
   logoUrl: string | null;
   logoDarkUrl: string | null;
@@ -70,8 +84,7 @@ export function Sidebar({
                 const active =
                   pathname === item.href || pathname.startsWith(item.href + "/");
                 const Icon = item.icon;
-                const badge =
-                  item.badgeKey === "lowStock" ? badges.lowStock : undefined;
+                const showBadge = item.badgeKey === "lowStock";
                 return (
                   <Link
                     key={item.href}
@@ -88,10 +101,10 @@ export function Sidebar({
                   >
                     <Icon className="size-5 flex-none" strokeWidth={1.8} />
                     {expanded && <span className="flex-1">{item.label}</span>}
-                    {expanded && badge ? (
-                      <span className="flex-none rounded-full bg-warning-soft px-[7px] py-px text-[10.5px] font-bold text-warning">
-                        {badge}
-                      </span>
+                    {expanded && showBadge ? (
+                      <Suspense fallback={null}>
+                        <LowStockBadge shell={shell} />
+                      </Suspense>
                     ) : null}
                   </Link>
                 );

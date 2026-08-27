@@ -1,6 +1,9 @@
 import "server-only";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { cachedFor, invalidateCache, CACHE_TTL } from "@/lib/server-cache";
+
+const BRANDING_KEY = "branding";
 
 export type Branding = {
   companyName: string | null;
@@ -20,8 +23,7 @@ const EMPTY: Branding = {
   accentColor: null,
 };
 
-/** Branding fields, safe for unauthenticated pages (login). Deduped per request. */
-export const getBranding = cache(async (): Promise<Branding> => {
+async function loadBranding(): Promise<Branding> {
   try {
     const supabase = await createClient();
     const { data } = await supabase.rpc("branding").maybeSingle();
@@ -37,4 +39,21 @@ export const getBranding = cache(async (): Promise<Branding> => {
   } catch {
     return EMPTY;
   }
-});
+}
+
+/**
+ * Campos de marca, seguros para páginas sin autenticar (login).
+ *
+ * `cache()` deduplica dentro de la petición (el root layout la pide en
+ * `generateMetadata` y en el render). `cachedFor` evita repetir la RPC —0.45 s
+ * medidos— en cada navegación, para datos que cambian una vez al año. Las acciones
+ * de Configuración llaman a `invalidateBrandingCache()`.
+ */
+export const getBranding = cache(
+  (): Promise<Branding> =>
+    cachedFor(BRANDING_KEY, CACHE_TTL.branding, loadBranding),
+);
+
+export function invalidateBrandingCache() {
+  invalidateCache(BRANDING_KEY);
+}

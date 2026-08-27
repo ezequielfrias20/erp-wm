@@ -1,14 +1,13 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { fmtUSD, fmtVES, fmtRelative } from "@/lib/format";
-import type { ShellNotification } from "@/components/shell/header";
+import type { ShellNotification, ShellSummary } from "@/components/shell/shell-data";
 import type { BcvRate } from "@/lib/bcv";
+import { rpcOrFallback } from "@/lib/db-capabilities";
 
-export type ShellData = {
-  lowStock: number;
-  outStock: number;
-  notifications: ShellNotification[];
-};
+type StatusCounts = { low_stock: number; out_stock: number };
+
+export type ShellData = ShellSummary;
 
 /** Sidebar badge counts + header notifications, scoped to the active branch. */
 export async function getShellData(
@@ -16,19 +15,6 @@ export async function getShellData(
   branchId: string | null,
 ): Promise<ShellData> {
   const supabase = await createClient();
-
-  let lowQ = supabase
-    .from("v_inventory")
-    .select("id", { count: "exact", head: true })
-    .eq("estado", "Stock bajo");
-  let outQ = supabase
-    .from("v_inventory")
-    .select("id", { count: "exact", head: true })
-    .eq("estado", "Agotado");
-  if (branchId) {
-    lowQ = lowQ.eq("branch_id", branchId);
-    outQ = outQ.eq("branch_id", branchId);
-  }
 
   let saleQ = supabase
     .from("sales")
@@ -42,21 +28,47 @@ export async function getShellData(
     .eq("status", "En tránsito")
     .order("expected_date", { ascending: true })
     .limit(1);
-  const [countsRes, saleRes, poRes] = await Promise.all([
-    supabase
-      .rpc("inventory_status_counts", { p_branch_id: branchId })
-      .maybeSingle(),
-    saleQ,
-    poQ,
-  ]);
-  let lowStock = Number(countsRes.data?.low_stock ?? 0);
-  let outStock = Number(countsRes.data?.out_stock ?? 0);
-  // Keeps rolling deployments functional until the SQL migration is applied.
-  if (countsRes.error) {
-    const [lowRes, outRes] = await Promise.all([lowQ, outQ]);
-    lowStock = lowRes.count ?? 0;
-    outStock = outRes.count ?? 0;
-  }
+
+  // Los conteos van en paralelo con las notificaciones. Si `inventory_status_counts`
+  // no está en el esquema, `rpcOrFallback` lo recuerda y las siguientes peticiones
+  // van directo a los dos `count` sin gastar antes una RPC que va a fallar.
+  const countsPromise = rpcOrFallback<StatusCounts>(
+    "inventory_status_counts",
+    async () => {
+      const { data, error } = await supabase
+        .rpc("inventory_status_counts", { p_branch_id: branchId })
+        .maybeSingle();
+      return {
+        data: data
+          ? {
+              low_stock: Number(data.low_stock ?? 0),
+              out_stock: Number(data.out_stock ?? 0),
+            }
+          : { low_stock: 0, out_stock: 0 },
+        error,
+      };
+    },
+    async () => {
+      let lowQ = supabase
+        .from("v_inventory")
+        .select("id", { count: "exact", head: true })
+        .eq("estado", "Stock bajo");
+      let outQ = supabase
+        .from("v_inventory")
+        .select("id", { count: "exact", head: true })
+        .eq("estado", "Agotado");
+      if (branchId) {
+        lowQ = lowQ.eq("branch_id", branchId);
+        outQ = outQ.eq("branch_id", branchId);
+      }
+      const [lowRes, outRes] = await Promise.all([lowQ, outQ]);
+      return { low_stock: lowRes.count ?? 0, out_stock: outRes.count ?? 0 };
+    },
+  );
+
+  const [counts, saleRes, poRes] = await Promise.all([countsPromise, saleQ, poQ]);
+  const lowStock = counts.low_stock;
+  const outStock = counts.out_stock;
   const latestSale = saleRes.data?.[0];
   const pos = poRes.data;
   const latestPo = pos?.[0];

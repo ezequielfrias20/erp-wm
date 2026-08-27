@@ -12,12 +12,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import {
-  buildWorkbookBlob,
-  downloadBlob,
-  parseSheet,
-  type SheetColumn,
-} from "@/lib/excel";
+import type { SheetColumn } from "@/lib/excel";
+import { loadExcel } from "@/lib/excel-lazy";
 import {
   importProducts,
   getProductsExport,
@@ -66,6 +62,7 @@ export function ProductsBulkBar({ lists }: { lists: Lists }) {
   async function downloadTemplate() {
     setDownloading(true);
     try {
+      const { buildWorkbookBlob, downloadBlob } = await loadExcel();
       const blob = await buildWorkbookBlob([
         { name: "Productos", columns: productCols(lists) },
         { name: "Variantes", columns: variantCols(lists) },
@@ -82,7 +79,10 @@ export function ProductsBulkBar({ lists }: { lists: Lists }) {
   async function exportAll() {
     setDownloading(true);
     try {
-      const data = await getProductsExport();
+      const [{ buildWorkbookBlob, downloadBlob }, data] = await Promise.all([
+        loadExcel(),
+        getProductsExport(),
+      ]);
       const blob = await buildWorkbookBlob([
         { name: "Productos", columns: productCols(lists), rows: data.products },
         { name: "Variantes", columns: variantCols(lists), rows: data.variants },
@@ -100,6 +100,7 @@ export function ProductsBulkBar({ lists }: { lists: Lists }) {
     if (!file) return;
     startBusy(async () => {
       try {
+        const { parseSheet } = await loadExcel();
         const [productsRaw, variantsRaw] = await Promise.all([
           parseSheet(file, "Productos"),
           parseSheet(file, "Variantes"),

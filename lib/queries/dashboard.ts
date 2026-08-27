@@ -32,8 +32,28 @@ export async function getDashboard(branchId: string | null) {
     .select("id, city, month_sales")
     .order("month_sales", { ascending: false });
 
-  const [salesRes, linesRes, invRes, branchStatsRes, ordersRes, suppliersRes, activityRes, custRes] =
-    await Promise.all([
+  // Los métodos de pago, las cuentas Cashea pendientes y los nombres de
+  // clientes/sucursales no dependen de las ventas: iban en dos barreras seriales
+  // más abajo. Todo va en una sola tanda.
+  const casheaPendQ = supabase
+    .from("cashea_orders")
+    .select("financed_amount")
+    .eq("status", "pendiente");
+
+  const [
+    salesRes,
+    linesRes,
+    invRes,
+    branchStatsRes,
+    ordersRes,
+    suppliersRes,
+    activityRes,
+    custRes,
+    pmRes,
+    casheaPendRes,
+    customerNamesRes,
+    branchNamesRes,
+  ] = await Promise.all([
       branchId ? salesQ.eq("branch_id", branchId) : salesQ,
       branchId ? linesQ.eq("branch_id", branchId) : linesQ,
       branchId ? invQ.eq("branch_id", branchId) : invQ,
@@ -46,6 +66,10 @@ export async function getDashboard(branchId: string | null) {
       supabase.from("suppliers").select("id, name"),
       supabase.from("audit_log").select("who, action, module, created_at").order("created_at", { ascending: false }).limit(6),
       supabase.from("customers").select("id, created_at, branch_id").gte("created_at", monthStart),
+      supabase.from("payment_methods").select("name, is_financed"),
+      branchId ? casheaPendQ.eq("branch_id", branchId) : casheaPendQ,
+      supabase.from("customers").select("id, name"),
+      supabase.from("branches").select("id, city"),
     ]);
 
   const sales = salesRes.data ?? [];
@@ -58,22 +82,12 @@ export async function getDashboard(branchId: string | null) {
   // Desglose de pagos del mes desde sale_payments (separa lo financiado por Cashea
   // del efectivo en caja) + cuentas por cobrar a Cashea pendientes.
   const monthPaidIds = monthPaid.map((s) => s.id);
-  const casheaPendQ = supabase
-    .from("cashea_orders")
-    .select("financed_amount")
-    .eq("status", "pendiente");
-  const [monthPayRes, pmRes, casheaPendRes] = await Promise.all([
-    monthPaidIds.length
-      ? supabase
-          .from("sale_payments")
-          .select("sale_id, method, amount_usd")
-          .in("sale_id", monthPaidIds)
-      : Promise.resolve({
-          data: [] as { sale_id: string; method: string; amount_usd: number }[],
-        }),
-    supabase.from("payment_methods").select("name, is_financed"),
-    branchId ? casheaPendQ.eq("branch_id", branchId) : casheaPendQ,
-  ]);
+  const monthPayRes = monthPaidIds.length
+    ? await supabase
+        .from("sale_payments")
+        .select("sale_id, method, amount_usd")
+        .in("sale_id", monthPaidIds)
+    : { data: [] as { sale_id: string; method: string; amount_usd: number }[] };
   const pmFinanced = new Map((pmRes.data ?? []).map((p) => [p.name, !!p.is_financed]));
   const payAgg = new Map<string, number>();
   const salesWithPay = new Set<string>();
@@ -157,16 +171,18 @@ export async function getDashboard(branchId: string | null) {
   const recentRaw = [...sales].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)).slice(0, 6);
   const custIds = [...new Set(recentRaw.map((s) => s.customer_id).filter(Boolean))] as string[];
   const brIds = [...new Set(recentRaw.map((s) => s.branch_id))];
-  const [custNames, brNames] = await Promise.all([
-    custIds.length
-      ? supabase.from("customers").select("id, name").in("id", custIds)
-      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-    brIds.length
-      ? supabase.from("branches").select("id, city").in("id", brIds)
-      : Promise.resolve({ data: [] as { id: string; city: string }[] }),
-  ]);
-  const cMap = new Map((custNames.data ?? []).map((c) => [c.id, c.name]));
-  const bMap = new Map((brNames.data ?? []).map((b) => [b.id, b.city]));
+  const custIdSet = new Set(custIds);
+  const brIdSet = new Set(brIds);
+  const cMap = new Map(
+    (customerNamesRes.data ?? [])
+      .filter((c) => custIdSet.has(c.id))
+      .map((c) => [c.id, c.name]),
+  );
+  const bMap = new Map(
+    (branchNamesRes.data ?? [])
+      .filter((b) => brIdSet.has(b.id))
+      .map((b) => [b.id, b.city]),
+  );
   const recentSales = recentRaw.map((s) => ({
     inv: s.invoice_number ?? "—",
     customer: s.customer_id ? (cMap.get(s.customer_id) ?? "Cliente general") : "Cliente general",
@@ -247,12 +263,24 @@ export async function getOperationalDashboard(branchId: string | null) {
     .order("expected_date", { ascending: true, nullsFirst: false })
     .limit(5);
 
-  const [salesRes, linesRes, invRes, ordersRes, suppliersRes] = await Promise.all([
+  // Igual que en el dashboard ejecutivo: los nombres de clientes y sucursales no
+  // dependen de las ventas del día, así que no merecen una segunda barrera.
+  const [
+    salesRes,
+    linesRes,
+    invRes,
+    ordersRes,
+    suppliersRes,
+    customersRes,
+    branchesRes,
+  ] = await Promise.all([
     branchId ? salesQ.eq("branch_id", branchId) : salesQ,
     branchId ? linesQ.eq("branch_id", branchId) : linesQ,
     branchId ? invQ.eq("branch_id", branchId) : invQ,
     branchId ? ordersQ.eq("branch_id", branchId) : ordersQ,
     supabase.from("suppliers").select("id, name"),
+    supabase.from("customers").select("id, name"),
+    supabase.from("branches").select("id, city"),
   ]);
 
   const sales = salesRes.data ?? [];
@@ -264,16 +292,18 @@ export async function getOperationalDashboard(branchId: string | null) {
     ...new Set(sales.map((s) => s.customer_id).filter(Boolean)),
   ] as string[];
   const branchIds = [...new Set(sales.map((s) => s.branch_id).filter(Boolean))];
-  const [customersRes, branchesRes] = await Promise.all([
-    customerIds.length
-      ? supabase.from("customers").select("id, name").in("id", customerIds)
-      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-    branchIds.length
-      ? supabase.from("branches").select("id, city").in("id", branchIds)
-      : Promise.resolve({ data: [] as { id: string; city: string }[] }),
-  ]);
-  const customers = new Map((customersRes.data ?? []).map((c) => [c.id, c.name]));
-  const branches = new Map((branchesRes.data ?? []).map((b) => [b.id, b.city]));
+  const customerIdSet = new Set(customerIds);
+  const branchIdSet = new Set(branchIds);
+  const customers = new Map(
+    (customersRes.data ?? [])
+      .filter((c) => customerIdSet.has(c.id))
+      .map((c) => [c.id, c.name]),
+  );
+  const branches = new Map(
+    (branchesRes.data ?? [])
+      .filter((b) => branchIdSet.has(b.id))
+      .map((b) => [b.id, b.city]),
+  );
 
   const todayTotal = paidSales.reduce((a, s) => a + Number(s.total), 0);
   const todayProducts = lines.reduce((a, l) => a + l.quantity, 0);

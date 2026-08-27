@@ -1,6 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { invalidateBrandingCache } from "@/lib/queries/branding";
+import { invalidateCatalogRefs } from "@/lib/queries/products";
+import { getSession, invalidateSessionCache } from "@/lib/queries/session";
 import { createClient } from "@/lib/supabase/server";
 import { audit } from "@/lib/audit";
 import { storagePathFromPublicUrl } from "@/lib/storage-path";
@@ -11,10 +14,11 @@ export async function updateMyProfile(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const supabase = await createClient();
-  const { data: profile } = await supabase.rpc("claim_profile");
-  if (!profile) return { error: "Sesión no válida." };
+  const session = await getSession();
+  if (!session) return { error: "Sesión no válida." };
+  const { profile } = session;
 
+  const supabase = await createClient();
   const { error } = await supabase
     .from("profiles")
     .update({
@@ -24,20 +28,24 @@ export async function updateMyProfile(
     .eq("id", profile.id);
   if (error) return { error: error.message };
   await audit("Actualizó su perfil", "Configuración");
+  invalidateSessionCache(profile.user_id);
   revalidatePath("/configuracion");
   revalidatePath("/", "layout");
   return { ok: true };
 }
 
 export async function updateAvatar(url: string): Promise<FormState> {
+  const session = await getSession();
+  if (!session) return { error: "Sesión no válida." };
+  const { profile } = session;
+
   const supabase = await createClient();
-  const { data: profile } = await supabase.rpc("claim_profile");
-  if (!profile) return { error: "Sesión no válida." };
   const { error } = await supabase
     .from("profiles")
     .update({ avatar_url: url })
     .eq("id", profile.id);
   if (error) return { error: error.message };
+  invalidateSessionCache(profile.user_id);
   revalidatePath("/configuracion");
   revalidatePath("/", "layout");
   return { ok: true };
@@ -67,6 +75,7 @@ export async function updateBrandAsset(kind: BrandKind, url: string): Promise<Fo
     .eq("id", 1);
   if (error) return { error: error.message };
   await audit(`Actualizó ${brandLabel(kind)}`, "Configuración");
+  invalidateBrandingCache();
   revalidatePath("/configuracion");
   revalidatePath("/", "layout");
   return { ok: true };
@@ -101,6 +110,7 @@ export async function removeBrandAsset(kind: BrandKind): Promise<FormState> {
   }
 
   await audit(`Eliminó ${brandLabel(kind)}`, "Configuración");
+  invalidateBrandingCache();
   revalidatePath("/configuracion");
   revalidatePath("/", "layout");
   return { ok: true };
@@ -158,7 +168,9 @@ export async function updateColors(
     .eq("id", 1);
   if (error) return { error: error.message };
   await audit("Actualizó colores de marca", "Configuración");
+  invalidateBrandingCache();
   revalidatePath("/configuracion");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -208,6 +220,8 @@ export async function addMaster(
   const { error } = await supabase.from(table).insert(payload as never);
   if (error) return { error: error.message };
   await audit(`Agregó ${value} a ${table}`, "Configuración");
+  invalidateBrandingCache();
+  invalidateCatalogRefs();
   revalidatePath("/configuracion");
   revalidatePath("/", "layout");
   return { ok: true };
@@ -220,6 +234,7 @@ export async function deleteMaster(
   const supabase = await createClient();
   const { error } = await supabase.from(table).delete().eq("id", id);
   if (error) return { error: error.message };
+  invalidateCatalogRefs();
   revalidatePath("/configuracion");
   return { ok: true };
 }

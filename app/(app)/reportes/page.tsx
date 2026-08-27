@@ -33,13 +33,18 @@ export default async function ReportesPage({
   );
   const supabase = await createClient();
 
-  const [bcv, settingsRes] = await Promise.all([
+  // La etiqueta de sucursal no depende del reporte: iba en serie después de
+  // getReports y costaba un viaje entero de red.
+  const [bcv, settingsRes, branchRow] = await Promise.all([
     fetchBcvRate().catch(() => ({ rate: BCV_FALLBACK, updatedAt: "", source: "BCV" })),
     supabase
       .from("settings")
       .select("company_name, rif, fiscal_address, phone, logo_url")
       .eq("id", 1)
       .maybeSingle(),
+    branchId
+      ? supabase.from("branches").select("city").eq("id", branchId).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
   const data = await getReports(
@@ -51,15 +56,7 @@ export default async function ReportesPage({
     salesPaging.pageSize,
   );
 
-  let branchLabel = "Todas";
-  if (branchId) {
-    const { data: b } = await supabase
-      .from("branches")
-      .select("city")
-      .eq("id", branchId)
-      .maybeSingle();
-    if (b) branchLabel = b.city;
-  }
+  const branchLabel = branchRow.data?.city ?? "Todas";
 
   const s = settingsRes.data;
   return (

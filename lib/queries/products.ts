@@ -11,6 +11,7 @@ import type {
   VProductSummary,
 } from "@/lib/database.types";
 import { productImageUrl } from "@/lib/product-images";
+import { cachedFor, invalidateCache, CACHE_TTL } from "@/lib/server-cache";
 
 export async function listProducts(
   branchId?: string | null,
@@ -103,12 +104,29 @@ export async function listProducts(
   }));
 }
 
-export async function getCatalogRefs(): Promise<{
+export type CatalogRefs = {
   categories: Pick<Category, "id" | "name" | "color">[];
   brands: Pick<Brand, "id" | "name">[];
   sizes: { id: string; label: string }[];
   colors: { id: string; name: string; hex: string | null }[];
-}> {
+};
+
+const CATALOG_REFS_KEY = "catalog-refs";
+
+/** Se invalida al añadir o borrar maestros desde Configuración. */
+export function invalidateCatalogRefs() {
+  invalidateCache(CATALOG_REFS_KEY);
+}
+
+/**
+ * Categorías, marcas, tallas y colores. Son datos de referencia que cambian muy de
+ * vez en cuando, así que se memorizan en el proceso en vez de pedirlos en cada carga.
+ */
+export function getCatalogRefs(): Promise<CatalogRefs> {
+  return cachedFor(CATALOG_REFS_KEY, CACHE_TTL.refs, loadCatalogRefs);
+}
+
+async function loadCatalogRefs(): Promise<CatalogRefs> {
   const supabase = await createClient();
   const [c, b, s, col] = await Promise.all([
     supabase.from("categories").select("id, name, color").order("sort_order"),
@@ -135,18 +153,17 @@ export async function getProductDetail(
   byBranch: { city: string; qty: number }[];
 } | null> {
   const supabase = await createClient();
-  const { data: product } = await supabase
-    .from("products")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
+  // El producto y sus variantes se piden por el mismo id: no hay razón para
+  // encadenarlos, iban en serie.
+  const [{ data: product }, { data: variants }] = await Promise.all([
+    supabase.from("products").select("*").eq("id", id).maybeSingle(),
+    supabase
+      .from("product_variants")
+      .select("*")
+      .eq("product_id", id)
+      .order("sku"),
+  ]);
   if (!product) return null;
-
-  const { data: variants } = await supabase
-    .from("product_variants")
-    .select("*")
-    .eq("product_id", id)
-    .order("sku");
 
   const variantIds = (variants ?? []).map((v) => v.id);
   let inventoryQuery = supabase

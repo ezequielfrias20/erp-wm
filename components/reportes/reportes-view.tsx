@@ -28,7 +28,6 @@ import {
 import { cn } from "@/lib/utils";
 import type { ReportData, SaleDetail } from "@/lib/queries/reports";
 import { loadSaleDetail } from "@/app/(app)/reportes/actions";
-import { downloadReportPdf } from "@/components/reportes/report-pdf";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { useServerTable } from "@/hooks/use-server-table";
 import {
@@ -117,6 +116,9 @@ export function ReportesView({
   async function exportPdf() {
     setPdfBusy(true);
     try {
+      // @react-pdf/renderer son 1.44 MB sin comprimir: se carga al pulsar el botón,
+      // no en cada visita a Reportes.
+      const { downloadReportPdf } = await import("@/components/reportes/report-pdf");
       await downloadReportPdf(data, company, branchLabel);
     } catch (e) {
       toast.error("No se pudo generar el PDF.");

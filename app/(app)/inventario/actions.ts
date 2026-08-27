@@ -4,8 +4,13 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { audit } from "@/lib/audit";
 import { getSession } from "@/lib/queries/session";
-import { canEdit } from "@/lib/permissions";
-import { getProfileBranchScope } from "@/lib/branch";
+import { getActiveBranchId, getProfileBranchScope } from "@/lib/branch";
+import { canEdit, canView } from "@/lib/permissions";
+import { getInventoryOptions } from "@/lib/queries/inventory-options";
+import {
+  EMPTY_INVENTORY_OPTIONS,
+  type InventoryOptions,
+} from "@/lib/inventory-options";
 
 export type FormState = { error?: string; ok?: boolean } | null;
 
@@ -216,4 +221,20 @@ export async function importInventory(rows: ImportRow[]): Promise<ImportResult> 
   await audit(`Importó inventario (${payload.length} filas)`, "Inventario");
   revalidatePath("/inventario");
   return { imported: payload.length, skipped };
+}
+
+/**
+ * Catálogo de variantes y sucursales para la plantilla y el alta de inventario.
+ * Se pide desde el cliente al abrir el diálogo, no en cada carga de la página.
+ */
+export async function loadInventoryOptions(): Promise<InventoryOptions> {
+  const session = await getSession();
+  if (!session || !canView(session.permissions, "Inventario")) {
+    return EMPTY_INVENTORY_OPTIONS;
+  }
+  const branchId = await getActiveBranchId(
+    session.profile.branch_id,
+    session.profile.role,
+  );
+  return getInventoryOptions(branchId);
 }

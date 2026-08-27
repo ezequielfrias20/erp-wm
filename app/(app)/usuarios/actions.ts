@@ -2,6 +2,7 @@
 
 import { randomInt } from "crypto";
 import { revalidatePath } from "next/cache";
+import { invalidateSessionCache } from "@/lib/queries/session";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -227,7 +228,7 @@ export async function saveUser(
   if (id) {
     const { data: current, error: currentError } = await supabase
       .from("profiles")
-      .select("id, role, employee_code")
+      .select("id, user_id, role, employee_code")
       .eq("id", id)
       .maybeSingle();
     if (currentError) return { error: databaseErrorMessage(currentError) };
@@ -254,6 +255,7 @@ export async function saveUser(
     const { error } = await supabase.from("profiles").update(values).eq("id", id);
     if (error) return { error: databaseErrorMessage(error) };
     await audit(`Editó al usuario ${full_name}`, "Usuarios");
+    invalidateSessionCache(current.user_id);
     revalidatePath("/usuarios");
     return {
       ok: true,
@@ -356,6 +358,7 @@ export async function deleteUser(id: string): Promise<FormState> {
   const { error } = await supabase.from("profiles").delete().eq("id", id);
   if (error) return { error: error.message };
   await audit(`Eliminó al usuario ${target.full_name}`, "Usuarios", "warn");
+  invalidateSessionCache(target.user_id);
   revalidatePath("/usuarios");
   return { ok: true, message: "Usuario eliminado." };
 }
@@ -451,6 +454,7 @@ export async function setPermission(
     .eq("module", module);
   if (error) return { error: error.message };
   await audit(`Cambió permiso ${role}/${module} → ${level}`, "Usuarios");
+  invalidateSessionCache();
   revalidatePath("/usuarios");
   revalidatePath("/", "layout");
   return { ok: true };

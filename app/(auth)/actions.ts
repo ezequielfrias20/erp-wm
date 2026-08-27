@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { invalidateSessionCache } from "@/lib/queries/session";
 
 export type AuthState = { error?: string; ok?: string } | null;
 
@@ -46,6 +47,8 @@ export async function signIn(
     return { error: "Credenciales inválidas. Verifica tu correo y contraseña." };
   }
 
+  // `claim_profile` enlaza el perfil en el primer ingreso, así que aquí NO se usa el
+  // caché; y se tira la entrada previa para que la sesión arranque con datos frescos.
   const { data: claimedProfile } = await supabase.rpc("claim_profile");
   if (!claimedProfile) {
     await supabase.auth.signOut();
@@ -53,6 +56,7 @@ export async function signIn(
       error: "Tu cuenta no tiene acceso al ERP. Contacta a un administrador.",
     };
   }
+  invalidateSessionCache(claimedProfile.user_id);
 
   redirect("/dashboard");
 }
@@ -138,6 +142,7 @@ export async function acceptInvite(
         "No encontramos una invitación activa para este correo. Contacta a un administrador.",
     };
   }
+  invalidateSessionCache(claimedProfile.user_id);
 
   redirect("/dashboard");
 }

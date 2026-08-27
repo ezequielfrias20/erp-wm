@@ -638,6 +638,13 @@ export type Database = {
       my_profile_id: { Args: Record<string, never>; Returns: string };
       has_module: { Args: { p_module: string; p_min?: number }; Returns: boolean };
       claim_profile: { Args: Record<string, never>; Returns: Profile };
+      session_bootstrap: {
+        Args: Record<string, never>;
+        Returns: {
+          profile: Profile;
+          permissions: Record<string, number>;
+        } | null;
+      };
       branding: {
         Args: Record<string, never>;
         Returns: {

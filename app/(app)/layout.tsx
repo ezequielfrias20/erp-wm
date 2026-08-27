@@ -8,6 +8,7 @@ import { fetchBcvRate, BCV_FALLBACK, type BcvRate } from "@/lib/bcv";
 import { SessionProvider } from "@/context/session";
 import { BranchProvider, type BranchOption } from "@/context/branch";
 import { AppShell } from "@/components/shell/app-shell";
+import { EMPTY_SHELL_SUMMARY } from "@/components/shell/shell-data";
 
 export default async function AppLayout({
   children,
@@ -31,22 +32,28 @@ export default async function AppLayout({
     ? branchesQuery.eq("id", assignedBranchId)
     : branchesQuery.eq("is_active", true);
 
-  const [branchesRes, bcv] = await Promise.all([
+  const bcvPromise = fetchBcvRate().catch(
+    (): BcvRate => ({
+      rate: BCV_FALLBACK,
+      updatedAt: new Date().toISOString(),
+      source: "BCV",
+    }),
+  );
+
+  // Los badges del sidebar y las notificaciones del header no bloquean el shell:
+  // viajan como promesa y se resuelven dentro de su propio Suspense. Antes el
+  // layout entero esperaba estos conteos (~0.7 s medidos) antes de pintar nada.
+  const shellPromise = bcvPromise
+    .then((bcv) => getShellData(bcv, activeId))
+    .catch(() => EMPTY_SHELL_SUMMARY);
+
+  const [branchesRes, bcv, branding] = await Promise.all([
     scopedBranchesQuery,
-    fetchBcvRate().catch(
-      (): BcvRate => ({
-        rate: BCV_FALLBACK,
-        updatedAt: new Date().toISOString(),
-        source: "BCV",
-      }),
-    ),
+    bcvPromise,
+    getBranding(),
   ]);
 
   const branches = (branchesRes.data ?? []) as BranchOption[];
-  const [shell, branding] = await Promise.all([
-    getShellData(bcv, activeId),
-    getBranding(),
-  ]);
 
   return (
     <SessionProvider value={session}>
@@ -57,8 +64,7 @@ export default async function AppLayout({
       >
         <AppShell
           bcv={bcv}
-          badges={{ lowStock: shell.lowStock }}
-          notifications={shell.notifications}
+          shell={shellPromise}
           logoUrl={branding.logoUrl}
           logoDarkUrl={branding.logoDarkUrl}
           companyName={branding.companyName}

@@ -3,22 +3,22 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/shell/sidebar";
-import { Header, type ShellNotification } from "@/components/shell/header";
+import { Header } from "@/components/shell/header";
+import type { ShellSummary } from "@/components/shell/shell-data";
 import type { BcvRate } from "@/lib/bcv";
 import { ModuleLoading } from "@/components/ui/module-loading";
 
 export function AppShell({
   bcv,
-  badges,
-  notifications,
+  shell,
   logoUrl,
   logoDarkUrl,
   companyName,
   children,
 }: {
   bcv: BcvRate;
-  badges: { lowStock?: number };
-  notifications: ShellNotification[];
+  /** Promesa: el shell pinta sin esperar los conteos ni las notificaciones. */
+  shell: Promise<ShellSummary>;
   logoUrl: string | null;
   logoDarkUrl: string | null;
   companyName: string | null;
@@ -62,7 +62,7 @@ export function AppShell({
       >
         <Sidebar
           collapsed={false}
-          badges={badges}
+          shell={shell}
           bcv={bcv}
           logoUrl={logoUrl}
           logoDarkUrl={logoDarkUrl}
@@ -74,7 +74,7 @@ export function AppShell({
       </div>
       <Sidebar
         collapsed={collapsed}
-        badges={badges}
+        shell={shell}
         bcv={bcv}
         logoUrl={logoUrl}
         logoDarkUrl={logoDarkUrl}
@@ -92,7 +92,7 @@ export function AppShell({
             }
           }}
           bcv={bcv}
-          notifications={notifications}
+          shell={shell}
         />
         <main
           className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background"

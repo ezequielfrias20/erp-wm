@@ -6,6 +6,7 @@ import {
   reportRangeToIso,
 } from "@/lib/report-dates";
 import { fetchAllRows } from "@/lib/supabase/pagination";
+import { rpcOrFallback, selectWithOptionalColumns } from "@/lib/db-capabilities";
 
 const COLORS = ["#0EA5E9", "#6366F1", "#10B981", "#F59E0B", "#F43F5E", "#64748B", "#8B5CF6", "#14B8A6"];
 const DEFAULT_SELLER_COMMISSION_PCT = 2;
@@ -135,12 +136,18 @@ async function fetchReportSales(
       }>;
     });
 
+  // `seller_commission_pct` puede no existir todavía en el esquema. Antes eso hacía
+  // que la consulta completa de ventas corriera DOS veces en cada carga; ahora la
+  // ausencia se recuerda por proceso (ver db-capabilities).
   try {
-    return await run(`${baseSelect}, seller_commission_pct`);
+    return await selectWithOptionalColumns(
+      "sales",
+      "seller_commission_pct",
+      `${baseSelect}, seller_commission_pct`,
+      baseSelect,
+      run,
+    );
   } catch (error) {
-    if (error instanceof Error && error.message.includes("seller_commission_pct")) {
-      return await run(baseSelect);
-    }
     throw new Error(
       `No se pudieron cargar las ventas del reporte: ${error instanceof Error ? error.message : "Error desconocido"}`,
     );
@@ -154,42 +161,45 @@ async function fetchReportPayments(
   fromIso: string,
   toIso: string,
 ): Promise<ReportPaymentRecord[]> {
-  const rpcResult = await supabase.rpc("report_payments", {
-    p_branch_id: branchId,
-    p_from: fromIso,
-    p_to: toIso,
-  });
-  if (!rpcResult.error) return (rpcResult.data ?? []) as ReportPaymentRecord[];
-
-  // Rolling-deployment fallback while performance_indexes.sql is not applied.
-  const payments: ReportPaymentRecord[] = [];
-
-  for (let index = 0; index < saleIds.length; index += IN_FILTER_BATCH_SIZE) {
-    const ids = saleIds.slice(index, index + IN_FILTER_BATCH_SIZE);
-    let lastError: unknown = null;
-
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      const result = await supabase
-        .from("sale_payments")
-        .select("sale_id, method, currency, amount, amount_usd")
-        .in("sale_id", ids);
-      if (!result.error) {
-        payments.push(...((result.data ?? []) as ReportPaymentRecord[]));
-        lastError = null;
-        break;
+  return rpcOrFallback<ReportPaymentRecord[]>(
+    "report_payments",
+    async () => {
+      const { data, error } = await supabase.rpc("report_payments", {
+        p_branch_id: branchId,
+        p_from: fromIso,
+        p_to: toIso,
+      });
+      return { data: (data ?? []) as ReportPaymentRecord[], error };
+    },
+    // Respaldo mientras performance_indexes.sql no esté aplicado. Los lotes van en
+    // paralelo: antes eran seriales (5 viajes encadenados = ~1.5 s medidos).
+    async () => {
+      const batches: string[][] = [];
+      for (let index = 0; index < saleIds.length; index += IN_FILTER_BATCH_SIZE) {
+        batches.push(saleIds.slice(index, index + IN_FILTER_BATCH_SIZE));
       }
-      lastError = result.error;
-      if (attempt === 0) {
-        await new Promise((resolve) => setTimeout(resolve, 150));
-      }
-    }
 
-    if (lastError) {
-      assertQueryOk(lastError, "No se pudieron cargar los pagos del reporte");
-    }
-  }
+      const results = await Promise.all(
+        batches.map(async (ids) => {
+          for (let attempt = 0; attempt < 2; attempt += 1) {
+            const result = await supabase
+              .from("sale_payments")
+              .select("sale_id, method, currency, amount, amount_usd")
+              .in("sale_id", ids);
+            if (!result.error) return (result.data ?? []) as ReportPaymentRecord[];
+            if (attempt === 0) {
+              await new Promise((resolve) => setTimeout(resolve, 150));
+            } else {
+              assertQueryOk(result.error, "No se pudieron cargar los pagos del reporte");
+            }
+          }
+          return [] as ReportPaymentRecord[];
+        }),
+      );
 
-  return payments;
+      return results.flat();
+    },
+  );
 }
 
 async function fetchSellerProfiles(
@@ -198,24 +208,26 @@ async function fetchSellerProfiles(
 ) {
   if (!sellerIds.length) return [] as SellerProfileRecord[];
 
-  const withCommission = await supabase
-    .from("profiles")
-    .select("id, full_name, commission_pct")
-    .in("id", sellerIds);
+  // Igual que en las ventas: si `commission_pct` no está, se recuerda por proceso
+  // en vez de repetir la consulta en cada carga del reporte.
+  const run = async (select: string) => {
+    const result = await supabase.from("profiles").select(select).in("id", sellerIds);
+    if (result.error) {
+      if (isMissingColumn(result.error, "commission_pct")) {
+        throw new Error(result.error.message);
+      }
+      assertQueryOk(result.error, "No se pudieron cargar los vendedores del reporte");
+    }
+    return (result.data ?? []) as unknown as SellerProfileRecord[];
+  };
 
-  if (!withCommission.error) return (withCommission.data ?? []) as SellerProfileRecord[];
-
-  if (isMissingColumn(withCommission.error, "commission_pct")) {
-    const fallback = await supabase
-      .from("profiles")
-      .select("id, full_name")
-      .in("id", sellerIds);
-    assertQueryOk(fallback.error, "No se pudieron cargar los vendedores del reporte");
-    return (fallback.data ?? []) as SellerProfileRecord[];
-  }
-
-  assertQueryOk(withCommission.error, "No se pudieron cargar los vendedores del reporte");
-  return [];
+  return selectWithOptionalColumns(
+    "profiles",
+    "commission_pct",
+    "id, full_name, commission_pct",
+    "id, full_name",
+    run,
+  );
 }
 
 export async function getReports(
@@ -231,7 +243,17 @@ export async function getReports(
   const { fromIso, toIso } = range;
   const r2 = (n: number) => Math.round(n * 100) / 100;
 
-  const [sales, lines, pmRes] = await Promise.all([
+  // Cashea no depende de nada de lo anterior: iba en serie al final (0.82 s medidos).
+  let casheaQ = supabase
+    .from("cashea_orders")
+    .select(
+      "total, initial_amount, financed_amount, commission_amount, settled_amount, status, channel",
+    )
+    .gte("created_at", fromIso)
+    .lte("created_at", toIso);
+  if (branchId) casheaQ = casheaQ.eq("branch_id", branchId);
+
+  const [sales, lines, pmRes, casheaRes] = await Promise.all([
     fetchReportSales(supabase, branchId, fromIso, toIso),
     fetchAllRows<{
       created_at: string;
@@ -253,6 +275,7 @@ export async function getReports(
       return query;
     }),
     supabase.from("payment_methods").select("name, currency, is_financed"),
+    casheaQ,
   ]);
   assertQueryOk(pmRes.error, "No se pudieron cargar los métodos de pago del reporte");
 
@@ -393,15 +416,7 @@ export async function getReports(
   );
 
   // Resumen Cashea (cuentas por cobrar) — fuente de verdad: wm.cashea_orders.
-  let casheaQ = supabase
-    .from("cashea_orders")
-    .select(
-      "total, initial_amount, financed_amount, commission_amount, settled_amount, status, channel",
-    )
-    .gte("created_at", fromIso)
-    .lte("created_at", toIso);
-  if (branchId) casheaQ = casheaQ.eq("branch_id", branchId);
-  const { data: casheaRows } = await casheaQ;
+  const casheaRows = casheaRes.data;
   const mkChannelTotals = (): CasheaChannelTotals => ({
     ventas: 0,
     porCobrar: 0,
@@ -486,17 +501,40 @@ export async function getSaleDetail(id: string) {
     .maybeSingle();
   if (!sale) return null;
 
-  const [itemsRes, paymentsRes, pmRes] = await Promise.all([
-    supabase
-      .from("sale_items")
-      .select("description, quantity, unit_price, line_total")
-      .eq("sale_id", id),
-    supabase
-      .from("sale_payments")
-      .select("method, currency, amount, amount_usd, reference")
-      .eq("sale_id", id),
-    supabase.from("payment_methods").select("name, is_financed"),
-  ]);
+  // Con la venta ya en mano, el resto sólo necesita sus ids: iba en cinco pasos
+  // encadenados (~1.4 s de red) para descargar una factura.
+  const [itemsRes, paymentsRes, pmRes, customerRes, branchRes, cashierRes] =
+    await Promise.all([
+      supabase
+        .from("sale_items")
+        .select("description, quantity, unit_price, line_total")
+        .eq("sale_id", id),
+      supabase
+        .from("sale_payments")
+        .select("method, currency, amount, amount_usd, reference")
+        .eq("sale_id", id),
+      supabase.from("payment_methods").select("name, is_financed"),
+      sale.customer_id
+        ? supabase
+            .from("customers")
+            .select("name, document, phone, email")
+            .eq("id", sale.customer_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      supabase
+        .from("branches")
+        .select("city")
+        .eq("id", sale.branch_id)
+        .maybeSingle(),
+      sale.user_id
+        ? supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("id", sale.user_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+
   const financedMethods = new Set(
     (pmRes.data ?? []).filter((m) => m.is_financed).map((m) => m.name),
   );
@@ -504,37 +542,15 @@ export async function getSaleDetail(id: string) {
     ...p,
     is_financed: financedMethods.has(p.method),
   }));
-
-  let customer: { name: string; document: string | null; phone: string | null; email: string | null } | null = null;
-  if (sale.customer_id) {
-    const { data } = await supabase
-      .from("customers")
-      .select("name, document, phone, email")
-      .eq("id", sale.customer_id)
-      .maybeSingle();
-    customer = data ?? null;
-  }
-  const { data: b } = await supabase
-    .from("branches")
-    .select("city")
-    .eq("id", sale.branch_id)
-    .maybeSingle();
-  let cashier: string | null = null;
-  if (sale.user_id) {
-    const { data: p } = await supabase
-      .from("profiles")
-      .select("full_name")
-      .eq("id", sale.user_id)
-      .maybeSingle();
-    cashier = p?.full_name ?? null;
-  }
+  const customer = customerRes.data ?? null;
+  const cashier = cashierRes.data?.full_name ?? null;
 
   return {
     sale,
     items: itemsRes.data ?? [],
     payments,
     customer,
-    branchName: b?.city ?? null,
+    branchName: branchRes.data?.city ?? null,
     cashier,
   };
 }
