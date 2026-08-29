@@ -12,6 +12,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { reportActionError } from "@/lib/action-error";
 import { fmtUSD, fmtVES, fmtDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
@@ -416,17 +417,21 @@ function SettleModal({
       return;
     }
     startTransition(async () => {
-      const res = await settleCasheaOrder({
-        id: order.id,
-        settled_amount: round2(settled),
-        notes: notes.trim() || undefined,
-      });
-      if (res.error) {
-        toast.error(res.error);
-        return;
+      try {
+        const res = await settleCasheaOrder({
+          id: order.id,
+          settled_amount: round2(settled),
+          notes: notes.trim() || undefined,
+        });
+        if (res.error) {
+          toast.error(res.error);
+          return;
+        }
+        toast.success("Orden conciliada");
+        onClose();
+      } catch (error) {
+        reportActionError(error, "No se pudo conciliar la orden.");
       }
-      toast.success("Orden conciliada");
-      onClose();
     });
   }
 

@@ -15,6 +15,7 @@ import {
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { reportActionError } from "@/lib/action-error";
 import {
   CalendarDays,
   Camera,
@@ -262,11 +263,15 @@ export function ProyectosView({
       return;
     }
     startTransition(async () => {
-      const res = await deleteProject(project.id);
-      if (res?.error) toast.error(res.error);
-      else {
-        toast.success("Proyecto eliminado");
-        setSelectedId(projects.find((p) => p.id !== project.id)?.id ?? null);
+      try {
+        const res = await deleteProject(project.id);
+        if (res?.error) toast.error(res.error);
+        else {
+          toast.success("Proyecto eliminado");
+          setSelectedId(projects.find((p) => p.id !== project.id)?.id ?? null);
+        }
+      } catch (error) {
+        reportActionError(error, "No se pudo eliminar el proyecto.");
       }
     });
   }
@@ -274,9 +279,13 @@ export function ProyectosView({
   function onDeleteRegistration(registration: ProjectRegistration) {
     if (!confirm(`¿Eliminar a ${fullName(registration)} de este proyecto?`)) return;
     startTransition(async () => {
-      const res = await deleteRegistration(registration.id);
-      if (res?.error) toast.error(res.error);
-      else toast.success("Inscrito eliminado");
+      try {
+        const res = await deleteRegistration(registration.id);
+        if (res?.error) toast.error(res.error);
+        else toast.success("Inscrito eliminado");
+      } catch (error) {
+        reportActionError(error, "No se pudo eliminar al inscrito.");
+      }
     });
   }
 
@@ -284,9 +293,13 @@ export function ProyectosView({
     if (!registration.order_id) return;
     if (!confirm("¿Confirmar este pago y enviar los QR de todos los inscritos de la orden?")) return;
     startTransition(async () => {
-      const res = await confirmProjectOrder(registration.order_id ?? "");
-      if (res?.error) toast.error(res.error);
-      else toast.success("Pago confirmado y QR enviados");
+      try {
+        const res = await confirmProjectOrder(registration.order_id ?? "");
+        if (res?.error) toast.error(res.error);
+        else toast.success("Pago confirmado y QR enviados");
+      } catch (error) {
+        reportActionError(error, "No se pudo confirmar el pago.");
+      }
     });
   }
 

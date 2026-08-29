@@ -125,3 +125,77 @@ de respetar `useFormStatus().pending`. También bloquea botones cuyo `onClick`
 devuelve una promesa hasta que esta termina. Las operaciones financieras deben
 conservar, además, una clave idempotente en la base de datos (paso 2 de las
 migraciones).
+
+## Verificación de sesión (causa del 504 en el POS)
+
+**Síntoma.** `504 GATEWAY_TIMEOUT` con `Code: MIDDLEWARE_INVOCATION_TIMEOUT` al
+cobrar una venta, más lentitud errática en toda la aplicación.
+
+**Causa.** `supabase.auth.getClaims()` verifica la firma del JWT contra las claves
+públicas del proyecto. Con claves asimétricas (ES256, que es lo que usamos) eso
+**no** es local: supabase-js descarga `/auth/v1/.well-known/jwks.json` con un `fetch`
+**sin timeout ni AbortSignal**, y lo cachea sólo 10 minutos por isolate. Cuando ese
+endpoint se degradó (medido: 10,9 s en el mejor caso, sin respuesta en el resto), el
+proxy se quedaba esperando hasta que la plataforma mataba la invocación. Se pagaba
+dos veces por navegación: en `proxy.ts` y en `getSession()`.
+
+Nótese que el cambio de `getUser()` a `getClaims()` fue una optimización real
+(quitó ~200 ms fijos por petición), pero cambió un coste **acotado** por uno **sin
+techo**. Esa es la parte que había que arreglar, no el cambio en sí.
+
+**Arreglo** (`lib/supabase/jwks.ts`, usado por `lib/supabase/middleware.ts` y
+`lib/queries/session.ts`). Cuatro capas, de más a menos deseable:
+
+1. **Sin cookie de sesión, no se hace nada.** Un visitante anónimo no tiene token que
+   verificar: ni JWKS ni `getClaims()`. Cubre `/login` y todo el tráfico no autenticado.
+2. **`SUPABASE_AUTH_JWKS`**: si está en el entorno, cero red, siempre. Es la
+   configuración recomendada en producción.
+3. **Caché de proceso con *stale-while-revalidate*** (10 min): pasado el TTL se siguen
+   sirviendo las claves viejas y el refresco va por detrás. Las claves de firma rotan
+   muy de vez en cuando; si el `kid` del token no está entre ellas, supabase-js hace
+   su propio viaje, acotado por `withTimeout`.
+4. **Descarga acotada** con `AbortSignal.timeout` (2,5 s) y ventana de enfriamiento de
+   30 s tras un fallo, para no martillear un endpoint caído.
+
+Si aun así Auth no responde, la verificación se marca **degradada**: el proxy deja
+pasar la petición en vez de expulsar al usuario (una caída de Auth no debe convertirse
+en un cierre de sesión masivo). La autorización real no se relaja — la página vuelve a
+comprobar la sesión y cada consulta viaja por RLS, donde Postgres verifica el JWT por
+su cuenta. En ese modo degradado la sesión **no se cachea por `sub`**, porque el `sub`
+de una cookie sin firma verificada podría envenenar la entrada de otro usuario.
+
+Se distingue un `4xx` del JWKS ("el proyecto no usa claves asimétricas", y entonces
+`getClaims()` debe seguir su camino y caer a `getUser()`) de una caída de red ("no
+tiene sentido intentarlo").
+
+**Medido contra el proyecto con Auth caído** (`npm run dev`, ruta protegida):
+
+| Caso | 1.ª petición | siguientes |
+|---|---|---|
+| Anónimo, sin cookie | 3–90 ms | 3 ms |
+| Con cookie, Auth caído | 5,1 s | ~30 ms |
+
+Antes, ese segundo caso no terminaba: se colgaba hasta el timeout de la plataforma.
+
+**Prefetch.** El `matcher` de `proxy.ts` excluye los prefetch del router
+(`next-router-prefetch`, `purpose: prefetch`). El sidebar dispara uno por cada enlace
+que roza el ratón y cada uno pagaba una verificación de sesión sin gatear nada nuevo:
+un prefetch sólo calienta la caché del router, y la página que devuelve ya comprueba
+la sesión por su cuenta.
+
+## Fallos de transporte en las Server Actions
+
+Las acciones devuelven `{ error }` para los fallos de negocio, pero si el POST muere
+en el camino (red caída, 504 del proxy, despliegue a mitad) la promesa **rechaza**.
+Dentro de `startTransition(async () => …)` sin `catch`, esa excepción escapa y la
+transición nunca se cierra: `pending` se queda en `true` y todo lo que cuelga de
+`disabled={pending}` queda muerto hasta recargar la página.
+
+Regla: **toda** `startTransition(async …)` lleva `try`/`catch` con
+`reportActionError` (`lib/action-error.ts`), que distingue el fallo de red del resto y
+relanza los errores de control de flujo de Next (`redirect`, `notFound`).
+
+En el POS, además, el `request_id` del cobro vive en un `ref` y sobrevive al fallo:
+`create_sale` es idempotente por `(user_id, request_id)`, así que si la venta llegó a
+grabarse y sólo se perdió la respuesta, el reintento devuelve esa misma venta en vez
+de duplicarla. Se descarta al completar el cobro y al vaciar el ticket.

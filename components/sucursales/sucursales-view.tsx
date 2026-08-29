@@ -15,6 +15,7 @@ import { deleteBranch } from "@/app/(app)/sucursales/actions";
 import { fmtUSDShort, fmtNum, initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { reportActionError } from "@/lib/action-error";
 import type { VBranchStats } from "@/lib/database.types";
 
 export function SucursalesView({
@@ -55,9 +56,13 @@ export function SucursalesView({
     if (!confirm(`¿Eliminar la sucursal ${b.city}? Esta acción no se puede deshacer.`))
       return;
     startTransition(async () => {
-      const res = await deleteBranch(b.id);
-      if (res?.error) toast.error(res.error);
-      else toast.success("Sucursal eliminada");
+      try {
+        const res = await deleteBranch(b.id);
+        if (res?.error) toast.error(res.error);
+        else toast.success("Sucursal eliminada");
+      } catch (error) {
+        reportActionError(error, "No se pudo eliminar la sucursal.");
+      }
     });
   }
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { toast } from "sonner";
+import { reportActionError } from "@/lib/action-error";
 import {
   ArrowLeft,
   Loader2,
@@ -107,20 +108,28 @@ export function ProductEditor({
   function onDeleteProduct() {
     if (!confirm(`¿Eliminar "${product.name}" y todas sus variantes?`)) return;
     startTransition(async () => {
-      const res = await deleteProduct(product.id);
-      if (res?.error) toast.error(res.error);
-      else {
-        toast.success("Producto eliminado");
-        router.push("/productos");
+      try {
+        const res = await deleteProduct(product.id);
+        if (res?.error) toast.error(res.error);
+        else {
+          toast.success("Producto eliminado");
+          router.push("/productos");
+        }
+      } catch (error) {
+        reportActionError(error, "No se pudo eliminar el producto.");
       }
     });
   }
   function onDeleteVariant(v: VariantWithStock) {
     if (!confirm(`¿Eliminar la variante ${v.sku}?`)) return;
     startTransition(async () => {
-      const res = await deleteVariant(v.id, product.id);
-      if (res?.error) toast.error(res.error);
-      else toast.success("Variante eliminada");
+      try {
+        const res = await deleteVariant(v.id, product.id);
+        if (res?.error) toast.error(res.error);
+        else toast.success("Variante eliminada");
+      } catch (error) {
+        reportActionError(error, "No se pudo eliminar la variante.");
+      }
     });
   }
   function onImageSelected(file: File | null | undefined) {
@@ -129,14 +138,18 @@ export function ProductEditor({
     formData.set("product_id", product.id);
     formData.set("image", file);
     startTransition(async () => {
-      const res = await uploadProductImage(null, formData);
-      if (res?.error) {
-        toast.error(res.error);
-        return;
+      try {
+        const res = await uploadProductImage(null, formData);
+        if (res?.error) {
+          toast.error(res.error);
+          return;
+        }
+        setFailedImageUrl(null);
+        toast.success("Foto del producto actualizada");
+        router.refresh();
+      } catch (error) {
+        reportActionError(error, "No se pudo subir la foto del producto.");
       }
-      setFailedImageUrl(null);
-      toast.success("Foto del producto actualizada");
-      router.refresh();
     });
   }
 

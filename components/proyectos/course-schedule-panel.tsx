@@ -11,6 +11,7 @@ import {
 } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
+import { reportActionError } from "@/lib/action-error";
 import {
   CalendarClock,
   CheckCircle2,
@@ -134,27 +135,39 @@ export function CourseSchedulePanel({
   function removeGroup(group: ProjectGroup) {
     if (!confirm(`Eliminar el grupo ${group.name}?`)) return;
     startTransition(async () => {
-      const result = await deleteProjectGroup(group.id);
-      if (result?.error) toast.error(result.error);
-      else toast.success("Grupo eliminado");
+      try {
+        const result = await deleteProjectGroup(group.id);
+        if (result?.error) toast.error(result.error);
+        else toast.success("Grupo eliminado");
+      } catch (error) {
+        reportActionError(error, "No se pudo eliminar el grupo.");
+      }
     });
   }
 
   function removeSession(session: ProjectSession) {
     if (!confirm("Eliminar esta jornada y sus registros de asistencia?")) return;
     startTransition(async () => {
-      const result = await deleteProjectSession(session.id);
-      if (result?.error) toast.error(result.error);
-      else toast.success("Jornada eliminada");
+      try {
+        const result = await deleteProjectSession(session.id);
+        if (result?.error) toast.error(result.error);
+        else toast.success("Jornada eliminada");
+      } catch (error) {
+        reportActionError(error, "No se pudo eliminar la jornada.");
+      }
     });
   }
 
   function removeCheckin(checkin: ProjectCheckin) {
     if (!confirm("Revertir esta asistencia?")) return;
     startTransition(async () => {
-      const result = await deleteProjectCheckin(checkin.id);
-      if (result?.error) toast.error(result.error);
-      else toast.success("Asistencia revertida");
+      try {
+        const result = await deleteProjectCheckin(checkin.id);
+        if (result?.error) toast.error(result.error);
+        else toast.success("Asistencia revertida");
+      } catch (error) {
+        reportActionError(error, "No se pudo revertir la asistencia.");
+      }
     });
   }
 

@@ -4,6 +4,7 @@ import { useMemo, useState, useActionState, useEffect, useTransition } from "rea
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
+import { reportActionError } from "@/lib/action-error";
 import {
   Plus,
   Search,
@@ -148,22 +149,30 @@ export function ClientesView({
   function onDelete(c: VCustomerStats) {
     if (!confirm(`¿Eliminar al cliente ${c.name}?`)) return;
     startTransition(async () => {
-      const res = await deleteCustomer(c.id);
-      if (res?.error) toast.error(res.error);
-      else {
-        toast.success("Cliente eliminado");
-        setSelectedId(customers.find((x) => x.id !== c.id)?.id ?? null);
+      try {
+        const res = await deleteCustomer(c.id);
+        if (res?.error) toast.error(res.error);
+        else {
+          toast.success("Cliente eliminado");
+          setSelectedId(customers.find((x) => x.id !== c.id)?.id ?? null);
+        }
+      } catch (error) {
+        reportActionError(error, "No se pudo eliminar el cliente.");
       }
     });
   }
   function submitNote() {
     if (!selected || !note.trim()) return;
     startTransition(async () => {
-      const res = await addNote(selected.id, note);
-      if (res?.error) toast.error(res.error);
-      else {
-        toast.success("Nota agregada");
-        setNote("");
+      try {
+        const res = await addNote(selected.id, note);
+        if (res?.error) toast.error(res.error);
+        else {
+          toast.success("Nota agregada");
+          setNote("");
+        }
+      } catch (error) {
+        reportActionError(error, "No se pudo agregar la nota.");
       }
     });
   }

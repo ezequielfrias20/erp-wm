@@ -8,6 +8,7 @@ import {
   useTransition,
 } from "react";
 import { toast } from "sonner";
+import { reportActionError } from "@/lib/action-error";
 import {
   Search,
   Plus,
@@ -315,6 +316,12 @@ export function PosView({
   const [discountInput, setDiscountInput] = useState("");
   const [pending, startTransition] = useTransition();
   const checkoutLock = useRef(false);
+  // Identificador del intento de cobro en curso. Sobrevive a un fallo de red para
+  // que el reintento reutilice el mismo id: `create_sale` es idempotente por
+  // (user_id, request_id), así que si la venta llegó a grabarse y sólo se perdió
+  // la respuesta, el segundo envío devuelve esa misma venta en vez de duplicarla.
+  // Se descarta al completar el cobro y al vaciar el ticket.
+  const checkoutRequestId = useRef<string | null>(null);
 
   const realMethods = useMemo(
     // Excluye Mixto y métodos financiados (Cashea): la inicial no se paga con Cashea.
@@ -468,6 +475,7 @@ export function PosView({
 
   function clearTicket() {
     setCart({});
+    checkoutRequestId.current = null;
     setCustomer(null);
     setSellerId("");
     setSellerCode("");
@@ -534,7 +542,7 @@ export function PosView({
       draftId: activeDraftId,
     };
 
-    const requestId = crypto.randomUUID();
+    const requestId = (checkoutRequestId.current ??= crypto.randomUUID());
     checkoutLock.current = true;
     startTransition(async () => {
       try {
@@ -599,8 +607,14 @@ export function PosView({
         if (snapshot.draftId) {
           removeDraft(snapshot.draftId);
         }
+        checkoutRequestId.current = null;
         clearTicket();
         toast.success(`Venta ${res.invoice} registrada`);
+      } catch (error) {
+        // Sin este `catch` un fallo de transporte (504 del proxy, red caída) dejaba
+        // la transición abierta y el botón de cobrar deshabilitado para siempre.
+        // El ticket se conserva intacto para poder reintentar el cobro.
+        reportActionError(error, "No se pudo registrar la venta.");
       } finally {
         checkoutLock.current = false;
       }

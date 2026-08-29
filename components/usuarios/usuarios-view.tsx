@@ -3,6 +3,7 @@
 import { useMemo, useState, useActionState, useEffect, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
+import { reportActionError } from "@/lib/action-error";
 import { Plus, Search, Check, Loader2, Trash2, Mail, Phone, Store, Send, KeyRound, Percent } from "lucide-react";
 import {
   saveUser,
@@ -120,8 +121,12 @@ export function UsuariosView({
       };
     });
     startTransition(async () => {
-      const res = await setPermission(role, module, next);
-      if (res?.error) toast.error(res.error);
+      try {
+        const res = await setPermission(role, module, next);
+        if (res?.error) toast.error(res.error);
+      } catch (error) {
+        reportActionError(error, "No se pudo actualizar el permiso.");
+      }
     });
   }
 
@@ -136,21 +141,29 @@ export function UsuariosView({
     }
     if (!confirm(`¿Eliminar a ${u.full_name}? Se eliminará su acceso al sistema.`)) return;
     startTransition(async () => {
-      const res = await deleteUser(u.id);
-      if (res?.error) toast.error(res.error);
-      else {
-        toast.success(res?.message ?? "Usuario eliminado");
-        setFormOpen(false);
-        setDrawerUser(null);
+      try {
+        const res = await deleteUser(u.id);
+        if (res?.error) toast.error(res.error);
+        else {
+          toast.success(res?.message ?? "Usuario eliminado");
+          setFormOpen(false);
+          setDrawerUser(null);
+        }
+      } catch (error) {
+        reportActionError(error, "No se pudo eliminar el usuario.");
       }
     });
   }
 
   function onResendInvite(u: UserRow) {
     startTransition(async () => {
-      const res = await resendUserInvite(u.id);
-      if (res?.error) toast.error(res.error);
-      else toast.success(res?.message ?? "Invitación enviada");
+      try {
+        const res = await resendUserInvite(u.id);
+        if (res?.error) toast.error(res.error);
+        else toast.success(res?.message ?? "Invitación enviada");
+      } catch (error) {
+        reportActionError(error, "No se pudo reenviar la invitación.");
+      }
     });
   }
 
@@ -158,17 +171,21 @@ export function UsuariosView({
     if (u.role !== "Vendedor") return;
     if (!confirm(`¿Regenerar el código secreto de ${u.full_name}? El código anterior dejará de servir.`)) return;
     startTransition(async () => {
-      const res = await regenerateSellerCode(u.id);
-      if (res?.error) toast.error(res.error);
-      else {
-        if (res?.employeeCode) {
-          setDrawerUser((current) =>
-            current?.id === u.id
-              ? { ...current, employee_code: res.employeeCode ?? current.employee_code }
-              : current,
-          );
+      try {
+        const res = await regenerateSellerCode(u.id);
+        if (res?.error) toast.error(res.error);
+        else {
+          if (res?.employeeCode) {
+            setDrawerUser((current) =>
+              current?.id === u.id
+                ? { ...current, employee_code: res.employeeCode ?? current.employee_code }
+                : current,
+            );
+          }
+          toast.success(res?.message ?? "Código regenerado");
         }
-        toast.success(res?.message ?? "Código regenerado");
+      } catch (error) {
+        reportActionError(error, "No se pudo regenerar el código de vendedor.");
       }
     });
   }

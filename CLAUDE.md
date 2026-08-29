@@ -23,6 +23,10 @@ handoff de diseño `World Medics ERP.dc.html` (claude.ai/design) **tal cual**.
   emite `public`). Mantener en sync al cambiar el esquema.
 - Variables de entorno (`.env.local`, NO commiteado):
   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_BCV_API`.
+- **`SUPABASE_AUTH_JWKS`** (opcional, muy recomendada en producción): el JSON del
+  JWKS del proyecto (`/auth/v1/.well-known/jwks.json`, o Supabase → Settings → API →
+  JWT Keys). Precargarlo elimina por completo el viaje de red que hace `getClaims()`
+  para verificar la firma del JWT. Ver `docs/RENDIMIENTO.md § Verificación de sesión`.
 
 ### Migraciones aplicadas (vía MCP `apply_migration`, en orden)
 1. `wm_schema_exposure_grants` — esquema, exposición PostgREST, grants, `set_updated_at`, secuencias y `next_invoice/next_po`.
