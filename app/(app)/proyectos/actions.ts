@@ -307,6 +307,8 @@ async function sendTicketEmail({
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
+    // Sin plazo, un Resend que no responda deja la acción colgada indefinidamente.
+    signal: AbortSignal.timeout(10_000),
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
@@ -362,6 +364,8 @@ async function sendPaymentRejectedEmail({
   const contactUrl = whatsappLink(project, registration);
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
+    // Sin plazo, un Resend que no responda deja la acción colgada indefinidamente.
+    signal: AbortSignal.timeout(10_000),
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",

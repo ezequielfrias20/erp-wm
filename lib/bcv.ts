@@ -100,9 +100,20 @@ export function resolveBcvRate(
   };
 }
 
+/**
+ * Techo de la consulta a dolarapi. `app/(app)/layout.tsx` espera esta tasa dentro de
+ * un `Promise.all`, así que sin límite un dolarapi que no responda cuelga **todas**
+ * las páginas de la aplicación, no sólo el indicador de la tasa. Con el plazo agotado
+ * caemos a `BCV_FALLBACK`, que es justo para lo que existe.
+ */
+const RATE_TIMEOUT_MS = 4_000;
+
 async function fetchJson<T>(endpoint: string): Promise<T | null> {
   try {
-    const res = await fetch(endpoint, { next: { revalidate: 3600 } });
+    const res = await fetch(endpoint, {
+      next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(RATE_TIMEOUT_MS),
+    });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {

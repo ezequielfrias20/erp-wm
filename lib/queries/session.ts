@@ -6,7 +6,8 @@ import type { ModuleName, Profile } from "@/lib/database.types";
 import { MODULES } from "@/lib/database.types";
 import { cachedFor, invalidateCache, CACHE_TTL } from "@/lib/server-cache";
 import { rpcOrFallback } from "@/lib/db-capabilities";
-import { loadJwks, withTimeout, isAuthTimeout } from "@/lib/supabase/jwks";
+import { loadJwks, withTimeout } from "@/lib/supabase/jwks";
+import { isTransportFailure } from "@/lib/supabase/fetch";
 
 /**
  * Techo de la verificación de sesión al renderizar. Más holgado que el del proxy
@@ -75,10 +76,15 @@ async function readAuthClaims(): Promise<AuthClaims | null> {
         ),
         AUTH_TIMEOUT_MS,
       );
-      if (error || !data?.claims?.sub) return null;
-      return { userId: String(data.claims.sub), verified: true };
-    } catch (error) {
-      if (!isAuthTimeout(error)) return null;
+      // Un fallo de transporte cae al camino degradado de abajo; un error de
+      // credencial es un "no hay sesión" de verdad.
+      if (error && !isTransportFailure(error)) return null;
+      if (!error) {
+        if (!data?.claims?.sub) return null;
+        return { userId: String(data.claims.sub), verified: true };
+      }
+    } catch {
+      // Ídem: supabase-js lanza sólo cuando la petición no se completó.
     }
   }
 

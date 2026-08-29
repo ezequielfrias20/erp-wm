@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { supabaseFetch } from "@/lib/supabase/fetch";
 import type { Database } from "@/lib/database.types";
 
 /** Server Supabase client (RSC / Server Actions / Route Handlers). Targets `wm` schema. */
@@ -19,6 +20,8 @@ export async function createClient() {
     supabaseKey,
     {
       db: { schema: "wm" },
+      // Sin esto, una petición que Supabase deja sin contestar no termina nunca.
+      global: { fetch: supabaseFetch },
       cookies: {
         getAll() {
           return cookieStore.getAll();

@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
+import { supabaseFetch } from "@/lib/supabase/fetch";
 
 /**
  * Admin client for trusted server-only routes. Do not use this in SSR clients:
@@ -15,6 +16,7 @@ export function createAdminClient() {
 
   return createClient<Database, "wm">(url, key, {
     db: { schema: "wm" },
+    global: { fetch: supabaseFetch },
     auth: {
       autoRefreshToken: false,
       persistSession: false,

@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { loadJwks, withTimeout, isAuthTimeout } from "@/lib/supabase/jwks";
+import { loadJwks, withTimeout } from "@/lib/supabase/jwks";
+import { supabaseFetch, isTransportFailure } from "@/lib/supabase/fetch";
 
 /**
  * Techo de la verificación de sesión dentro del proxy. El límite de invocación de
@@ -57,6 +58,7 @@ export async function updateSession(request: NextRequest) {
     supabaseKey,
     {
       db: { schema: "wm" },
+      global: { fetch: supabaseFetch },
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -101,14 +103,19 @@ export async function updateSession(request: NextRequest) {
           ),
           AUTH_TIMEOUT_MS,
         );
-        if (error) throw error;
-        userId = data?.claims?.sub ? String(data.claims.sub) : null;
-      } catch (error) {
-        if (isInvalidRefreshToken(error)) {
-          clearSupabaseAuthCookies(request, response);
-        } else if (isAuthTimeout(error)) {
+        if (!error) {
+          userId = data?.claims?.sub ? String(data.claims.sub) : null;
+        } else if (isTransportFailure(error)) {
+          // La petición no llegó a completarse. No es un token malo: degradamos.
           verified = false;
+        } else if (isInvalidRefreshToken(error)) {
+          clearSupabaseAuthCookies(request, response);
         }
+      } catch (error) {
+        // supabase-js devuelve los errores de credencial y **lanza** el resto, así
+        // que llegar aquí significa que la petición no se completó.
+        if (isInvalidRefreshToken(error)) clearSupabaseAuthCookies(request, response);
+        else verified = false;
       }
     }
   }

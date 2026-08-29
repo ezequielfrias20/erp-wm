@@ -1,5 +1,6 @@
 import { createBrowserClient } from "@supabase/ssr";
 import type { Database } from "@/lib/database.types";
+import { supabaseFetch } from "@/lib/supabase/fetch";
 
 /** Browser Supabase client. Points at the `wm` schema (ERP tables). */
 export function createClient() {
@@ -15,6 +16,6 @@ export function createClient() {
   return createBrowserClient<Database, "wm">(
     supabaseUrl,
     supabaseKey,
-    { db: { schema: "wm" } },
+    { db: { schema: "wm" }, global: { fetch: supabaseFetch } },
   );
 }

@@ -199,3 +199,40 @@ En el POS, además, el `request_id` del cobro vive en un `ref` y sobrevive al fa
 `create_sale` es idempotente por `(user_id, request_id)`, así que si la venta llegó a
 grabarse y sólo se perdió la respuesta, el reintento devuelve esa misma venta en vez
 de duplicarla. Se descarta al completar el cobro y al vaciar el ticket.
+
+## Llamadas de red sin techo (cuelgues intermitentes)
+
+Segunda ronda, tras seguir viendo cuelgues en producción. La causa del 504 del POS
+estaba acotada, pero quedaban llamadas sin límite en el camino de cada página.
+
+**El problema de fondo.** Un servicio que *rechaza* es fácil de manejar; uno que
+*acepta la conexión y no contesta* no lo es. Ni supabase-js ni `@supabase/ssr` ponen
+plazo a sus peticiones, y el `headersTimeout` de undici para ese caso es de **300 s**.
+Medido con un servidor local que acepta y nunca responde: con el `fetch` por defecto,
+`signInWithPassword` seguía pendiente a los 15 s; con el nuestro, falla en ~8 s.
+Así se veía en producción: TLS en 0,13 s y respuesta jamás.
+
+**Arreglo.**
+
+- `lib/supabase/fetch.ts` — `supabaseFetch`, inyectado en los cuatro clientes
+  (`server`, `client`, `admin`, `middleware`) vía `global: { fetch }`. El plazo se
+  elige por URL: **8 s para `/auth/v1/…`** (login, refresco de token, JWKS — deberían
+  tardar milisegundos) y **30 s para datos** (PostgREST, RPC, Storage), holgado
+  a propósito porque ahí sí hay reportes y cargas masivas legítimamente lentas.
+  Respeta la señal de quien llama en vez de sustituirla.
+- `lib/bcv.ts` — la tasa de dolarapi se pedía **sin plazo** y `app/(app)/layout.tsx`
+  la espera dentro de un `Promise.all`: un dolarapi que no respondiera colgaba
+  **todas** las páginas, no sólo el indicador. Ahora 4 s y, al agotarse, `BCV_FALLBACK`.
+- Resend (`proyectos/actions.ts`, `usuarios/actions.ts`) — 10 s, para que un correo
+  lento no deje la Server Action colgada.
+
+**Transporte ≠ credencial.** `isTransportFailure` distingue el `AuthRetryableFetchError`
+de supabase-js (y abortos/plazos) de un token realmente inválido. De esa distinción
+depende que una caída de Auth **no** se convierta en un cierre de sesión masivo: con
+fallo de transporte la verificación queda degradada y el usuario sigue navegando; sólo
+un error de credencial real limpia las cookies. Sin esta parte, acotar el `fetch` habría
+empeorado las cosas — el aborto se habría leído como "sesión inválida".
+
+**Observado.** `/auth/v1/*` del proyecto se degradó por completo (sin respuesta en
+9+ sondeos de 15–40 s) y se recuperó horas después (0,24–0,5 s) mientras `/rest/v1/`
+respondía normal todo el tiempo. Es intermitente: de ahí el "a veces".
