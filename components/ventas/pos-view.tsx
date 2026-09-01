@@ -311,7 +311,6 @@ export function PosView({
   const [customer, setCustomer] = useState<PosCustomer | null>(null);
   const [custOpen, setCustOpen] = useState(false);
   const [sellerId, setSellerId] = useState("");
-  const [sellerCode, setSellerCode] = useState("");
   const [discountMode, setDiscountMode] = useState<DiscountMode>("percent");
   const [discountInput, setDiscountInput] = useState("");
   const [pending, startTransition] = useTransition();
@@ -478,7 +477,6 @@ export function PosView({
     checkoutRequestId.current = null;
     setCustomer(null);
     setSellerId("");
-    setSellerCode("");
     setDiscountMode("percent");
     setDiscountInput("");
     setMixed(null);
@@ -498,7 +496,6 @@ export function PosView({
       return toast.error("Selecciona un cliente para cobrar la venta.");
     }
     if (!sellerId) return toast.error("Selecciona el vendedor de la venta.");
-    if (!sellerCode.trim()) return toast.error("Ingresa el código del vendedor.");
     const selectedCustomer = customer;
     const resolved = resolvePayments();
     if (resolved.error || !resolved.payments) return toast.error(resolved.error);
@@ -551,7 +548,6 @@ export function PosView({
           branch_id: branch.id,
           customer_id: selectedCustomer.id,
           seller_id: sellerId,
-          seller_code: sellerCode,
           payments,
           discount_pct: discountPct,
           rate,
@@ -823,13 +819,10 @@ export function PosView({
               </span>
             ) : null}
           </div>
-          <div className="grid grid-cols-[1fr_112px] gap-2 min-[1440px]:grid-cols-1 2xl:grid-cols-[1fr_112px]">
+          <div>
             <Select
               value={sellerId}
-              onValueChange={(value) => {
-                setSellerId(value);
-                setSellerCode("");
-              }}
+              onValueChange={setSellerId}
               disabled={sellers.length === 0}
             >
               <SelectTrigger className="h-10 min-w-0">
@@ -843,20 +836,6 @@ export function PosView({
                 ))}
               </SelectContent>
             </Select>
-            <Input
-              type="password"
-              inputMode="numeric"
-              value={sellerCode}
-              onChange={(e) => {
-                const value = e.target.value.replace(/\D/g, "").slice(0, 4);
-                setSellerCode(value);
-              }}
-              placeholder="Código"
-              className="h-10 text-center font-semibold tracking-wide"
-              maxLength={4}
-              autoComplete="off"
-              disabled={!sellerId}
-            />
           </div>
         </div>
 

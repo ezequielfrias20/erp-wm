@@ -51,20 +51,18 @@ begin
     where user_id = v_profile and request_id = v_request_id;
     if found then return v_sale; end if;
   end if;
-  if p_seller_id is null or coalesce(p_seller_code, '') !~ '^[0-9]{4}$' then
-    raise exception 'Selecciona el vendedor e ingresa su código de 4 dígitos';
+  if p_seller_id is null then
+    raise exception 'Selecciona el vendedor de la venta';
   end if;
 
   select id, commission_pct into v_seller, v_seller_commission_pct
     from wm.profiles
-   where id = p_seller_id
+     where id = p_seller_id
      and role = 'Vendedor'
      and status = 'Activo'
-     and employee_code is not null
-     and employee_code = btrim(p_seller_code)
    limit 1;
   if v_seller is null then
-    raise exception 'Código de vendedor inválido';
+    raise exception 'El vendedor seleccionado no es válido o está inactivo';
   end if;
 
   for it in select * from jsonb_array_elements(p_items) loop
