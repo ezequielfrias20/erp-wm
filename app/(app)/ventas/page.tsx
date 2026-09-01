@@ -102,10 +102,9 @@ export default async function VentasPage() {
     })),
     supabase
       .from("profiles")
-      .select("id, full_name, employee_code")
+      .select("id, full_name")
       .eq("role", "Vendedor")
       .eq("status", "Activo")
-      .not("employee_code", "is", null)
       .order("full_name"),
     supabase.from("products").select("id, updated_at"),
   ]);
