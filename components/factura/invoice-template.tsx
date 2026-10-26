@@ -199,14 +199,13 @@ export const InvoiceDocument = forwardRef<HTMLDivElement, { data: InvoiceData }>
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
           <table style={{ width: 320, borderCollapse: "collapse" }}>
             <tbody>
-              <Row label="Subtotal con IVA" value={fmtUSD(data.subtotal)} />
+              <Row label="Subtotal" value={fmtUSD(data.subtotal)} />
               {data.discount > 0 ? (
                 <Row
                   label={data.discount_label ?? `Descuento (${data.discount_pct}%)`}
                   value={`- ${fmtUSD(data.discount)}`}
                 />
               ) : null}
-              <Row label="IVA incluido (16%)" value={fmtUSD(data.tax)} />
               <tr>
                 <td style={{ ...td, fontWeight: 800, fontSize: 14, borderBottom: "none" }}>
                   Total
@@ -316,9 +315,6 @@ export const ThermalInvoiceDocument = forwardRef<HTMLDivElement, { data: Invoice
     const c = data.company;
     const subtotalVes = usdToVesAmount(data.subtotal, data.rate);
     const discountVes = usdToVesAmount(data.discount, data.rate);
-    const taxableBase = Math.max(0, data.total - data.tax);
-    const taxableVes = usdToVesAmount(taxableBase, data.rate);
-    const taxVes = usdToVesAmount(data.tax, data.rate);
     const totalVes = data.total_ves ?? usdToVesAmount(data.total, data.rate);
     const paidTodayUsd = data.payments
       .filter((p) => !p.is_financed)
@@ -416,7 +412,7 @@ export const ThermalInvoiceDocument = forwardRef<HTMLDivElement, { data: Invoice
               <div key={i} style={{ marginBottom: 5 }}>
                 <ReceiptLine alignStart>
                   <span style={{ paddingRight: 8 }}>
-                    {receiptItemName(it.description)} (G)
+                    {receiptItemName(it.description)}
                   </span>
                   <span>{fmtReceiptVES(totalLineVes)}</span>
                 </ReceiptLine>
@@ -441,29 +437,6 @@ export const ThermalInvoiceDocument = forwardRef<HTMLDivElement, { data: Invoice
             <span>-{fmtReceiptVES(discountVes)}</span>
           </ReceiptLine>
         ) : null}
-        <ReceiptDash />
-        <ReceiptLine>
-          <span>EXENTO</span>
-          <span>{fmtReceiptVES(0)}</span>
-        </ReceiptLine>
-        <ReceiptLine>
-          <span>BI G16,00%</span>
-          <span>{fmtReceiptVES(taxableVes)}</span>
-        </ReceiptLine>
-        <ReceiptLine>
-          <span>IVA G16,00%</span>
-          <span>{fmtReceiptVES(taxVes)}</span>
-        </ReceiptLine>
-        <ReceiptDash />
-        <ReceiptLine>
-          <span>SUBTTL</span>
-          <span>{fmtReceiptVES(taxableVes)}</span>
-        </ReceiptLine>
-        <ReceiptLine>
-          <span>IVA</span>
-          <span>{fmtReceiptVES(taxVes)}</span>
-        </ReceiptLine>
-
         <ReceiptDash />
         {data.payments.length > 0 ? (
           <div>

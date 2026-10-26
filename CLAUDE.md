@@ -100,6 +100,12 @@ Utilidades extra: `bg-brand`, `text-brand`, `bg-brand-soft`, `text-success`,
 - Rutas protegidas bajo `app/(app)/`; auth bajo `app/(auth)/`. `middleware.ts` refresca
   sesión y redirige a `/login`.
 - Lectura inicial en Server Components; mutaciones con **Server Actions** en `app/(app)/<modulo>/actions.ts`.
+  **Excepción: el cobro del POS** va por Route Handler (`app/api/ventas/checkout/route.ts`), no por
+  Server Action. Next las serializa en una cola por router y no deja abortarlas: una petición que se
+  cuelga deja `pending` de `useTransition` en `true` para siempre e impide que salgan las acciones
+  siguientes —el POS entero se congela hasta recargar—. Con `fetch` + `AbortSignal.timeout` hay plazo
+  real, aborto y cola propia. Detalle en `lib/sales/checkout-client.ts`. Un Route Handler no trae la
+  comprobación de origen que sí hacen las Server Actions: la pone `lib/same-origin.ts`.
 - Acceso a datos por entidad en `lib/queries/<entidad>.ts` (`list/get/create/update/remove`).
 - Sucursal activa global vía `context/branch` (cookie + provider); casi todo filtra por ella.
 - Moneda: `lib/format.ts` (`fmtUSD`, `fmtVES`, `fmtNum`, `fmtDate`, `initials`, y para
@@ -114,7 +120,10 @@ Utilidades extra: `bg-brand`, `text-brand`, `bg-brand-soft`, `text-success`,
 - **POS** (`components/ventas/pos-view.tsx`): cliente por cédula con alta inline
   (`findCustomerByDocument`/`createPosCustomer`), pagos mixtos con referencia y modal,
   borradores en **localStorage** (`lib/pos-drafts.ts`, vía `useSyncExternalStore`),
-  y factura imprimible tras cobrar.
+  y factura imprimible tras cobrar. El cobro se envía con `postCheckout`
+  (`lib/sales/checkout-client.ts`, contrato en `lib/sales/checkout-types.ts`); el botón se gatea
+  con estado propio (`submitting`), nunca con `pending`, y tras cobrar se llama `router.refresh()`
+  para repintar el stock, que viene del servidor.
 - **Factura/Reportes**: plantilla HTML imprimible `components/factura/invoice-template.tsx`
   (POS y descarga por venta en Reportes) y PDF con membrete
   `components/reportes/report-pdf.tsx`. Ver `docs/FACTURACION-Y-REPORTES.md`.

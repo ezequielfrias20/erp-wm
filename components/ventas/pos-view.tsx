@@ -5,9 +5,9 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
-  useTransition,
 } from "react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 import { reportActionError } from "@/lib/action-error";
 import {
   Search,
@@ -27,12 +27,11 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import {
-  checkout,
   findCustomerByDocument,
   createPosCustomer,
-  type CheckoutItem,
-  type SalePaymentInput,
 } from "@/app/(app)/ventas/actions";
+import { postCheckout } from "@/lib/sales/checkout-client";
+import type { CheckoutItem, SalePaymentInput } from "@/lib/sales/checkout-types";
 import {
   Dialog,
   DialogContent,
@@ -313,7 +312,13 @@ export function PosView({
   const [sellerId, setSellerId] = useState("");
   const [discountMode, setDiscountMode] = useState<DiscountMode>("percent");
   const [discountInput, setDiscountInput] = useState("");
-  const [pending, startTransition] = useTransition();
+  // Estado propio, no el `pending` de `useTransition`: aquél sigue a la Server Action
+  // en la cola de React, no a nuestro `await`, y con un POST mudo se queda en `true`
+  // para siempre dejando el botón de cobrar muerto hasta recargar. Éste lo soltamos
+  // nosotros pase lo que pase, y el cobro ya no viaja por esa cola
+  // (`lib/sales/checkout-client.ts`).
+  const [submitting, setSubmitting] = useState(false);
+  const router = useRouter();
   const checkoutLock = useRef(false);
   // Identificador del intento de cobro en curso. Sobrevive a un fallo de red para
   // que el reintento reutilice el mismo id: `create_sale` es idempotente por
@@ -488,7 +493,7 @@ export function PosView({
   }
 
   function complete(allowPaymentMismatch = false) {
-    if (checkoutLock.current || pending) return;
+    if (checkoutLock.current || submitting) return;
     if (!branch) return toast.error("No hay sucursal seleccionada.");
     if (lines.length === 0) return toast.error("El ticket está vacío.");
     if (!customer) {
@@ -541,9 +546,10 @@ export function PosView({
 
     const requestId = (checkoutRequestId.current ??= crypto.randomUUID());
     checkoutLock.current = true;
-    startTransition(async () => {
+    setSubmitting(true);
+    void (async () => {
       try {
-        const res = await checkout({
+        const res = await postCheckout({
           request_id: requestId,
           branch_id: branch.id,
           customer_id: selectedCustomer.id,
@@ -605,6 +611,10 @@ export function PosView({
         }
         checkoutRequestId.current = null;
         clearTicket();
+        // El stock de las tarjetas viene del servidor y no se toca en el cliente.
+        // Con la Server Action lo repintaba Next al revalidar; desde un Route
+        // Handler hay que pedirlo, o el POS seguiría mostrando el stock anterior.
+        router.refresh();
         toast.success(`Venta ${res.invoice} registrada`);
       } catch (error) {
         // Sin este `catch` un fallo de transporte (504 del proxy, red caída) dejaba
@@ -613,8 +623,9 @@ export function PosView({
         reportActionError(error, "No se pudo registrar la venta.");
       } finally {
         checkoutLock.current = false;
+        setSubmitting(false);
       }
-    });
+    })();
   }
 
   function saveDraftNow() {
@@ -1058,10 +1069,10 @@ export function PosView({
 
           <Button
             onClick={() => complete()}
-            disabled={pending || lines.length === 0}
+            disabled={submitting || lines.length === 0}
             className="mt-3 h-11 w-full text-[14px] font-bold"
           >
-            {pending ? (
+            {submitting ? (
               <Loader2 className="size-4 animate-spin" />
             ) : customer ? (
               <>Cobrar {fmtUSD(total)}</>
@@ -1071,7 +1082,7 @@ export function PosView({
           </Button>
           <button
             onClick={saveDraftNow}
-            disabled={pending || lines.length === 0}
+            disabled={submitting || lines.length === 0}
             className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-[10px] border border-border text-[12.5px] font-medium text-text-2 disabled:opacity-50"
           >
             <Save className="size-3.5" /> Guardar borrador
@@ -1360,7 +1371,7 @@ export function PosView({
       <PaymentMismatchDialog
         open={paymentMismatch !== null}
         mismatch={paymentMismatch}
-        pending={pending}
+        pending={submitting}
         onBack={() => setPaymentMismatch(null)}
         onContinue={() => complete(true)}
       />

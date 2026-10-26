@@ -6,88 +6,16 @@ import { getSession } from "@/lib/queries/session";
 import { getProfileBranchScope } from "@/lib/branch";
 import type { CustomerSegment } from "@/lib/database.types";
 
-export type CheckoutItem = {
-  variant_id: string;
-  description: string;
-  quantity: number;
-  unit_price: number;
-  cost: number;
-};
-
-export type SalePaymentInput = {
-  method: string;
-  currency: "USD" | "VES";
-  amount: number; // monto en la moneda nativa del método
-  amount_usd: number; // normalizado a USD
-  reference: string | null;
-};
-
-// Datos de la cuenta por cobrar a Cashea cuando la venta se financia con Cashea.
-export type CasheaInput = {
-  reference: string; // nro de orden Cashea
-  initial_amount: number; // inicial cobrado en caja (USD)
-  financed_amount: number; // por cobrar a Cashea (USD) = total − inicial
-  commission_pct: number; // 0 en el POS salvo que se conozca
-  channel: "tienda" | "online"; // canal: en sucursal o marketplace
-};
-
-export type CheckoutInput = {
-  request_id: string;
-  branch_id: string;
-  customer_id: string;
-  seller_id: string;
-  payments: SalePaymentInput[];
-  discount_pct: number;
-  rate: number;
-  items: CheckoutItem[];
-  status?: "Pagada" | "Pendiente";
-  cashea?: CasheaInput;
-};
-
-export async function checkout(input: CheckoutInput): Promise<{
-  error?: string;
-  invoice?: string;
-  saleId?: string;
-  createdAt?: string;
-}> {
-  if (!input.items.length) return { error: "El ticket está vacío." };
-  if (!input.customer_id) return { error: "Selecciona un cliente para cobrar la venta." };
-  if (!input.seller_id) return { error: "Selecciona el vendedor de la venta." };
-  if (!input.payments.length) return { error: "Configura al menos un método de pago." };
-
-  const session = await getSession();
-  if (!session) return { error: "Debes iniciar sesión." };
-  const assignedBranchId = getProfileBranchScope(session.profile);
-  if (assignedBranchId && input.branch_id !== assignedBranchId) {
-    return { error: "No puedes registrar ventas en otra sucursal." };
-  }
-
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.request_id)) {
-    return { error: "Identificador de operación inválido." };
-  }
-
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("create_sale", {
-    p_branch_id: input.branch_id,
-    p_customer_id: input.customer_id,
-    p_payments: input.payments,
-    p_discount_pct: input.discount_pct,
-    p_rate: input.rate,
-    p_items: input.items.map((item) => ({ ...item, request_id: input.request_id })),
-    p_status: input.status ?? "Pagada",
-    p_cashea: input.cashea ?? null,
-    p_seller_id: input.seller_id,
-  });
-
-  if (error) return { error: error.message };
-  // Keep checkout fast: only invalidate views whose persisted aggregates changed.
-  // The POS updates its cart/stock optimistically after this action returns.
-  revalidatePath("/inventario");
-  revalidatePath("/dashboard");
-  revalidatePath("/reportes");
-  revalidatePath("/cashea");
-  return { invoice: data.invoice_number, saleId: data.id, createdAt: data.created_at };
-}
+// El cobro dejó de ser una Server Action: vive en `app/api/ventas/checkout/route.ts`
+// para poder acotarlo y abortarlo (el porqué, en `lib/sales/checkout-client.ts`).
+// Los tipos se re-exportan desde aquí para no romper a quien ya los importaba.
+export type {
+  CheckoutItem,
+  SalePaymentInput,
+  CasheaInput,
+  CheckoutInput,
+  CheckoutResult,
+} from "@/lib/sales/checkout-types";
 
 // ───────────────────────── Cliente en el POS ─────────────────────────
 

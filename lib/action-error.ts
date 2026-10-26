@@ -25,6 +25,21 @@ import { toast } from "sonner";
  * ```
  */
 
+/**
+ * La acción no contestó dentro del plazo y su petición se abortó.
+ *
+ * Quien la lanza decide el mensaje, porque el consejo depende del transporte: el
+ * cobro va por `fetch` a un Route Handler, así que ahí sí se puede reintentar en el
+ * acto (`lib/sales/checkout-client.ts`). Con una Server Action no: Next las
+ * serializa en una cola por router y una colgada impide que salgan las siguientes.
+ */
+export class ActionTimeoutError extends Error {
+  constructor(message = "El servidor no respondió a tiempo.") {
+    super(message);
+    this.name = "ActionTimeoutError";
+  }
+}
+
 /** Errores de control de flujo de Next (`redirect`, `notFound`): deben seguir subiendo. */
 function isNextControlFlow(error: unknown): boolean {
   const digest = (error as { digest?: unknown } | null)?.digest;
@@ -47,6 +62,8 @@ function isNetworkFailure(error: unknown): boolean {
  */
 export function actionErrorMessage(error: unknown, fallback: string): string {
   if (isNextControlFlow(error)) throw error;
+  // Ya es un mensaje redactado para el usuario: envolverlo sólo lo haría más largo.
+  if (error instanceof ActionTimeoutError) return error.message;
   if (isNetworkFailure(error)) {
     return "Se perdió la conexión con el servidor. Revisa tu internet e inténtalo de nuevo.";
   }
