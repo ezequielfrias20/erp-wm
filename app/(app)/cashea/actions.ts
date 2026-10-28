@@ -68,6 +68,7 @@ export async function settleCasheaOrder(input: {
   revalidatePath("/cashea");
   revalidatePath("/reportes");
   revalidatePath("/dashboard");
+  revalidatePath("/cierres");
   return {};
 }
 
@@ -85,5 +86,6 @@ export async function voidCasheaOrder(id: string): Promise<{ error?: string }> {
   revalidatePath("/cashea");
   revalidatePath("/reportes");
   revalidatePath("/dashboard");
+  revalidatePath("/cierres");
   return {};
 }

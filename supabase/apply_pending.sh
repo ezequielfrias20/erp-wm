@@ -71,7 +71,10 @@ run supabase/session_bootstrap.sql
 #    project_checkins. Necesita projects_module.sql ya aplicado.
 run supabase/projects_courses.sql
 
-# 6. Estadísticas del planificador al día.
+# 6. Cierres diarios de caja por sucursal.
+run supabase/daily_closures.sql
+
+# 7. Estadísticas del planificador al día.
 echo ""
 echo "=== ANALYZE ==="
 psql "$DB_URL" -v ON_ERROR_STOP=1 -c "analyze wm.sales; analyze wm.sale_items; analyze wm.sale_payments; analyze wm.inventory; analyze wm.customers; analyze wm.products; analyze wm.product_variants;"
@@ -85,8 +88,10 @@ with esperado(clase, nombre) as (values
   ('col','sales.seller_commission_pct'), ('col','sales.request_id'),
   ('rpc','session_bootstrap'), ('rpc','inventory_status_counts'),
   ('rpc','report_payments'),   ('rpc','write_audit'), ('rpc','create_sale'),
+  ('rpc','daily_closure_preview'), ('rpc','close_daily'),
   ('tab','project_groups'), ('tab','project_sessions'),
-  ('tab','project_orders'),  ('tab','project_checkins')
+  ('tab','project_orders'),  ('tab','project_checkins'),
+  ('tab','daily_closures')
 )
 select case when presente then '  OK    ' else '  FALTA ' end || clase || ' ' || nombre
 from (

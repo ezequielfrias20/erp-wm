@@ -92,6 +92,7 @@ export async function POST(request: Request) {
   revalidatePath("/dashboard");
   revalidatePath("/reportes");
   revalidatePath("/cashea");
+  revalidatePath("/cierres");
 
   return json(200, {
     invoice: data.invoice_number,

@@ -10,6 +10,7 @@ import {
   BarChart3,
   Wallet,
   Settings,
+  ClipboardCheck,
   type LucideIcon,
 } from "lucide-react";
 import type { ModuleName } from "@/lib/database.types";
@@ -43,6 +44,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/usuarios", label: "Usuarios", icon: Shield, module: "Usuarios" },
       { href: "/reportes", label: "Reportes", icon: BarChart3, module: "Reportes" },
       { href: "/cashea", label: "Cashea", icon: Wallet, module: "Reportes" },
+      { href: "/cierres", label: "Cierres diarios", icon: ClipboardCheck, module: "Ventas" },
     ],
   },
   {

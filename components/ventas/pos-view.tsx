@@ -8,6 +8,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { reportActionError } from "@/lib/action-error";
 import {
   Search,
@@ -25,6 +26,7 @@ import {
   X,
   CheckCircle2,
   AlertTriangle,
+  ClipboardCheck,
 } from "lucide-react";
 import {
   findCustomerByDocument,
@@ -1106,17 +1108,22 @@ export function PosView({
                 Sucursal {branch?.city ?? "—"} · {fmtNum(filtered.length)} productos · tasa {fmtVES(rate)}
               </p>
             </div>
-            <button
-              onClick={() => setDraftsOpen(true)}
-              className="iconbtn relative flex h-11 items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-3 text-[13px] font-medium text-foreground sm:h-[38px]"
-            >
-              <Layers className="size-4 text-text-3" /> Borradores
-              {drafts.length > 0 && (
-                <span className="flex size-5 items-center justify-center rounded-full bg-brand text-[10.5px] font-bold text-white">
-                  {drafts.length}
-                </span>
-              )}
-            </button>
+            <div className="flex items-center gap-2">
+              <Link href="/cierres" className="iconbtn flex h-11 items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-3 text-[13px] font-medium text-foreground sm:h-[38px]">
+                <ClipboardCheck className="size-4 text-text-3" /> Cierre diario
+              </Link>
+              <button
+                onClick={() => setDraftsOpen(true)}
+                className="iconbtn relative flex h-11 items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-3 text-[13px] font-medium text-foreground sm:h-[38px]"
+              >
+                <Layers className="size-4 text-text-3" /> Borradores
+                {drafts.length > 0 && (
+                  <span className="flex size-5 items-center justify-center rounded-full bg-brand text-[10.5px] font-bold text-white">
+                    {drafts.length}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="relative mt-4">

@@ -364,6 +364,43 @@ export type SaleItem = {
   line_total: number;
 }
 
+export type DailyClosure = {
+  id: string;
+  branch_id: string;
+  business_date: string;
+  snapshot: DailyClosureSnapshot;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export type DailyClosureLine = {
+  source: "sale" | "legacy" | "cashea_settlement";
+  method: string;
+  currency: "USD" | "VES";
+  expected: number;
+  expected_usd: number;
+  counted?: number;
+  difference?: number;
+}
+
+export type DailyClosureSnapshot = {
+  branch_id: string;
+  branch_name: string;
+  business_date: string;
+  captured_at: string;
+  sales_count: number;
+  closed_by_name?: string | null;
+  company?: {
+    name: string | null;
+    rif: string | null;
+    address: string | null;
+    phone: string | null;
+    logoUrl: string | null;
+  } | null;
+  rows: DailyClosureLine[];
+}
+
 export type PurchaseOrder = {
   id: string;
   code: string;
@@ -613,6 +650,7 @@ export type Database = {
       project_checkins: Tbl<ProjectCheckin>;
       sales: Tbl<Sale>;
       sale_items: Tbl<SaleItem>;
+      daily_closures: Tbl<DailyClosure>;
       sale_payments: Tbl<SalePayment>;
       cashea_orders: Tbl<CasheaOrder>;
       purchase_orders: Tbl<PurchaseOrder>;
@@ -688,6 +726,19 @@ export type Database = {
           p_seller_code?: string | null;
         };
         Returns: Sale;
+      };
+      daily_closure_preview: {
+        Args: { p_branch_id: string; p_date: string };
+        Returns: DailyClosureSnapshot;
+      };
+      close_daily: {
+        Args: {
+          p_branch_id: string;
+          p_date: string;
+          p_counted: unknown;
+          p_notes?: string | null;
+        };
+        Returns: DailyClosure;
       };
       create_course_order: {
         Args: {

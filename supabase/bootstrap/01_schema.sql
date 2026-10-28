@@ -989,5 +989,6 @@ create policy "wm_authenticated_delete" on storage.objects
 -- Ampliacion aditiva de Proyectos para cursos, grupos, jornadas y asistencia.
 -- \ir resuelve la ruta respecto de este archivo cuando se ejecuta con psql.
 \ir ../projects_courses.sql
+\ir ../daily_closures.sql
 
 notify pgrst, 'reload schema';
