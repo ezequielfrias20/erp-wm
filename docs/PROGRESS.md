@@ -57,6 +57,9 @@ Migraciones: `wm_payment_methods_is_financed`, `wm_cashea_orders`, `wm_cashea_or
 - **POS** (`pos-view.tsx`): botón **Cashea** (junto a Mixto) → `CasheaPaymentForm`: captura la
   inicial (uno o varios métodos, no Cashea) + referencia de orden; calcula `financia Cashea`.
   `create_sale` recibe `p_cashea` y escribe `cashea_orders` en la misma transacción.
+  **Inicial 0%**: Cashea a veces aprueba cuotas sin inicial; el modal lo admite (botón *Sin inicial
+  (0%)*). Entonces no se cobra nada en caja, `sale_payments` lleva sólo la línea `Cashea` por el
+  total (`sales.payment_method='Cashea'`) y `cashea_orders.initial_amount=0`. Sin cambios de esquema.
 - **Factura**: la línea Cashea se rotula "Financiado por Cashea (por cobrar)" + resumen inicial/financiado.
 - **Módulo `/cashea`** (`lib/queries/cashea.ts`, `app/(app)/cashea/*`, `components/cashea/*`):
   lista de órdenes con filtros (estado/rango), KPIs (ventas Cashea, inicial cobrada, por cobrar,

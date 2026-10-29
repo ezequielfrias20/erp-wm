@@ -2015,7 +2015,7 @@ function CasheaPaymentForm({
   const [initialInput, setInitialInput] = useState(() => {
     if (!initial) return "";
     const initialAmount = round2(total - initial.financed);
-    return initialAmount > 0 ? formatAmountInput(initialAmount) : "";
+    return initialAmount >= 0 ? formatAmountInput(initialAmount) : "";
   });
 
   const pmOf = (name: string) => methods.find((m) => m.name === name);
@@ -2033,7 +2033,9 @@ function CasheaPaymentForm({
   const validInitialInput = initialInput.trim() !== "" && moneyPattern.test(initialInput.trim());
   const requestedInitialUsd = validInitialInput ? round2(Number(initialInput.trim())) : 0;
   const requestedInitialVes = usdToVesAmount(requestedInitialUsd, rate);
-  const collectedInitialUsd = round2(rows.reduce((a, r) => a + toUsd(r), 0));
+  // Cashea a veces aprueba cuotas con 0% de inicial: no se cobra nada en caja.
+  const noInitial = validInitialInput && cents(requestedInitialUsd) === 0;
+  const collectedInitialUsd = noInitial ? 0 : round2(rows.reduce((a, r) => a + toUsd(r), 0));
   const collectedDiffCents = cents(requestedInitialUsd) - cents(collectedInitialUsd);
   const financedCents = cents(total) - cents(requestedInitialUsd);
   const financed = centsToMoney(financedCents);
@@ -2053,14 +2055,11 @@ function CasheaPaymentForm({
     if (!validInitialInput) {
       return toast.error("Ingresa el inicial indicado por Cashea en USD.");
     }
-    if (requestedInitialUsd <= 0) {
-      return toast.error("El inicial de Cashea debe ser mayor a cero.");
-    }
     if (financedCents <= 0) {
       return toast.error("El inicial no puede cubrir el total; usa un método de pago normal.");
     }
     const lines: SalePaymentInput[] = [];
-    for (const r of rows) {
+    for (const r of noInitial ? [] : rows) {
       const pm = pmOf(r.method);
       const amountText = r.amount.trim();
       if (amountText && !moneyPattern.test(amountText)) {
@@ -2132,9 +2131,23 @@ function CasheaPaymentForm({
         </div>
 
         <div className="rounded-[12px] border border-border bg-card p-3">
-          <Label className="text-[12px] text-text-2">
-            Inicial indicado por Cashea (USD)
-          </Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-[12px] text-text-2">
+              Inicial indicado por Cashea (USD)
+            </Label>
+            <button
+              type="button"
+              onClick={() => setInitialInput("0.00")}
+              className={cn(
+                "rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition",
+                noInitial
+                  ? "border-brand bg-brand-soft text-brand"
+                  : "border-border text-text-2 hover:bg-[var(--hover)]",
+              )}
+            >
+              Sin inicial (0%)
+            </button>
+          </div>
           <div className="relative mt-1">
             <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-[13px] font-semibold text-text-3">
               $
@@ -2192,83 +2205,91 @@ function CasheaPaymentForm({
           ) : null}
         </div>
 
-        <div className="text-[11px] font-semibold uppercase tracking-wide text-text-3">
-          Inicial cobrada: cómo pagó el cliente
-        </div>
-
-        {rows.map((r, i) => {
-          const pm = pmOf(r.method);
-          return (
-            <div key={i} className="min-w-0 rounded-[10px] border border-border p-3">
-              <div className="grid min-w-0 grid-cols-1 items-center gap-2 sm:grid-cols-[minmax(150px,190px)_minmax(0,1fr)_auto]">
-                <Select value={r.method} onValueChange={(v) => update(i, { method: v })}>
-                  <SelectTrigger className="h-10 w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {methods.map((m) => (
-                      <SelectItem key={m.name} value={m.name}>
-                        {m.name} ({m.currency})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={r.amount}
-                  onChange={(e) => update(i, { amount: e.target.value })}
-                  onBlur={(e) => {
-                    const value = e.target.value.trim();
-                    if (value && moneyPattern.test(value)) {
-                      update(i, { amount: formatAmountInput(Number(value)) });
-                    }
-                  }}
-                  placeholder={pm?.currency === "VES" ? "Monto Bs." : "Monto $"}
-                  className="h-10"
-                />
-                {rows.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeRow(i)}
-                    className="iconbtn flex size-10 items-center justify-center rounded-md text-danger"
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
-                )}
-              </div>
-              <div className="mt-2 grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_210px] sm:items-center">
-                <span className="min-w-0 text-[11px] text-text-3">
-                  {isValidAmount(r.amount) ? (
-                    <>
-                      ≈ {fmtUSD(toUsd(r))}
-                      {pm?.currency === "VES" ? ` · ${fmtVES(Number(r.amount) || 0)}` : ""}
-                    </>
-                  ) : (
-                    <span className="text-danger">Monto inválido: máximo 2 decimales</span>
-                  )}
-                </span>
-                {pm?.requires_reference && (
-                  <Input
-                    value={r.reference}
-                    onChange={(e) => update(i, { reference: e.target.value })}
-                    placeholder="N° referencia"
-                    className="h-8 w-full text-[12px]"
-                  />
-                )}
-              </div>
+        {noInitial ? (
+          <div className="rounded-[10px] border border-dashed border-border px-3 py-2.5 text-[12px] text-text-2">
+            Venta sin inicial: no se cobra nada en caja y Cashea financia el 100% del total.
+          </div>
+        ) : (
+          <>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-3">
+              Inicial cobrada: cómo pagó el cliente
             </div>
-          );
-        })}
 
-        <button
-          type="button"
-          onClick={addRow}
-          className="flex items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-border py-2 text-[12.5px] font-medium text-text-2 hover:bg-[var(--hover)]"
-        >
-          <Plus className="size-4" /> Agregar método a la inicial
-        </button>
+            {rows.map((r, i) => {
+              const pm = pmOf(r.method);
+              return (
+                <div key={i} className="min-w-0 rounded-[10px] border border-border p-3">
+                  <div className="grid min-w-0 grid-cols-1 items-center gap-2 sm:grid-cols-[minmax(150px,190px)_minmax(0,1fr)_auto]">
+                    <Select value={r.method} onValueChange={(v) => update(i, { method: v })}>
+                      <SelectTrigger className="h-10 w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {methods.map((m) => (
+                          <SelectItem key={m.name} value={m.name}>
+                            {m.name} ({m.currency})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={r.amount}
+                      onChange={(e) => update(i, { amount: e.target.value })}
+                      onBlur={(e) => {
+                        const value = e.target.value.trim();
+                        if (value && moneyPattern.test(value)) {
+                          update(i, { amount: formatAmountInput(Number(value)) });
+                        }
+                      }}
+                      placeholder={pm?.currency === "VES" ? "Monto Bs." : "Monto $"}
+                      className="h-10"
+                    />
+                    {rows.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeRow(i)}
+                        className="iconbtn flex size-10 items-center justify-center rounded-md text-danger"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="mt-2 grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_210px] sm:items-center">
+                    <span className="min-w-0 text-[11px] text-text-3">
+                      {isValidAmount(r.amount) ? (
+                        <>
+                          ≈ {fmtUSD(toUsd(r))}
+                          {pm?.currency === "VES" ? ` · ${fmtVES(Number(r.amount) || 0)}` : ""}
+                        </>
+                      ) : (
+                        <span className="text-danger">Monto inválido: máximo 2 decimales</span>
+                      )}
+                    </span>
+                    {pm?.requires_reference && (
+                      <Input
+                        value={r.reference}
+                        onChange={(e) => update(i, { reference: e.target.value })}
+                        placeholder="N° referencia"
+                        className="h-8 w-full text-[12px]"
+                      />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={addRow}
+              className="flex items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-border py-2 text-[12.5px] font-medium text-text-2 hover:bg-[var(--hover)]"
+            >
+              <Plus className="size-4" /> Agregar método a la inicial
+            </button>
+          </>
+        )}
 
         <div className="rounded-[10px] bg-surface-2 px-3 py-2.5 text-[13px]">
           <div className="flex items-center justify-between">
@@ -2293,6 +2314,8 @@ function CasheaPaymentForm({
             >
               {!validInitialInput
                 ? "Ingresa inicial"
+                : noInitial
+                ? "Sin inicial"
                 : collectedDiffCents === 0
                 ? "Completo"
                 : collectedDiffCents > 0

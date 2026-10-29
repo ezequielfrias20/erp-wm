@@ -128,7 +128,7 @@ Utilidades extra: `bg-brand`, `text-brand`, `bg-brand-soft`, `text-success`,
   (POS y descarga por venta en Reportes) y PDF con membrete
   `components/reportes/report-pdf.tsx`. Ver `docs/FACTURACION-Y-REPORTES.md`.
 - **Cashea** (financiamiento): venta = inicial (efectivo en caja) + financiado (por cobrar a
-  Cashea, USD). El POS captura con `CasheaPaymentForm` (`pos-view.tsx`) y `create_sale` recibe
+  Cashea, USD). La inicial puede ser **0** (cuotas 0% inicial): entonces sólo va la línea `Cashea`. El POS captura con `CasheaPaymentForm` (`pos-view.tsx`) y `create_sale` recibe
   `p_cashea` (escribe `cashea_orders`). Módulo `/cashea` (`lib/queries/cashea.ts`,
   `app/(app)/cashea/*`, `components/cashea/cashea-view.tsx`) lista las cuentas por cobrar, las
   concilia (depósito + comisión) y muestra KPIs. Reportes/Dashboard separan **cobrado** vs
