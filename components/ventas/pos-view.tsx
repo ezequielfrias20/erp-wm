@@ -116,12 +116,14 @@ export type PaymentMethodOption = {
   is_financed: boolean;
 };
 
+type CasheaChannel = "tienda" | "online"; // canal: en sucursal o marketplace
+
 /** Pago con Cashea capturado en el POS: inicial (efectivo) + lo que financia Cashea. */
 export type CasheaDraft = {
   initial: SalePaymentInput[];
   reference: string;
   financed: number; // USD por cobrar a Cashea = total − inicial
-  channel: "tienda" | "online"; // canal: en sucursal o marketplace
+  channel: CasheaChannel;
 };
 
 type CartLine = PosProduct & { qty: number };
@@ -1963,9 +1965,24 @@ function CasheaPaymentModal({
   initial: CasheaDraft | null;
   onConfirm: (draft: CasheaDraft) => void;
 }) {
+  // El canal vive aquí (no en el form) porque tiñe el fondo del modal.
+  const [channel, setChannel] = useState<CasheaChannel>(initial?.channel ?? "tienda");
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setChannel(initial?.channel ?? "tienda");
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] max-w-[720px] overflow-y-auto overflow-x-hidden">
+      <DialogContent
+        className={cn(
+          "max-h-[90vh] w-[calc(100vw-2rem)] max-w-[720px] overflow-y-auto overflow-x-hidden transition-colors",
+          channel === "online"
+            ? "border-violet-200 bg-violet-50 dark:border-violet-900 dark:bg-violet-950"
+            : "border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950",
+        )}
+      >
         <DialogHeader>
           <DialogTitle>Pago con Cashea · Total {fmtUSD(total)}</DialogTitle>
         </DialogHeader>
@@ -1975,6 +1992,8 @@ function CasheaPaymentModal({
             rate={rate}
             total={total}
             initial={initial}
+            channel={channel}
+            onChannelChange={setChannel}
             onCancel={() => onOpenChange(false)}
             onConfirm={onConfirm}
           />
@@ -1989,6 +2008,8 @@ function CasheaPaymentForm({
   rate,
   total,
   initial,
+  channel,
+  onChannelChange: setChannel,
   onCancel,
   onConfirm,
 }: {
@@ -1996,6 +2017,8 @@ function CasheaPaymentForm({
   rate: number;
   total: number;
   initial: CasheaDraft | null;
+  channel: CasheaChannel;
+  onChannelChange: (c: CasheaChannel) => void;
   onCancel: () => void;
   onConfirm: (draft: CasheaDraft) => void;
 }) {
@@ -2009,9 +2032,6 @@ function CasheaPaymentForm({
       : [{ method: methods[0]?.name ?? "", amount: "", reference: "" }],
   );
   const [reference, setReference] = useState(initial?.reference ?? "");
-  const [channel, setChannel] = useState<"tienda" | "online">(
-    initial?.channel ?? "tienda",
-  );
   const [initialInput, setInitialInput] = useState(() => {
     if (!initial) return "";
     const initialAmount = round2(total - initial.financed);
@@ -2110,9 +2130,11 @@ function CasheaPaymentForm({
                 onClick={() => setChannel(c)}
                 className={cn(
                   "h-10 rounded-[10px] border text-[12.5px] font-medium transition",
-                  channel === c
-                    ? "border-brand bg-brand-soft text-brand"
-                    : "border-border bg-card text-text-2 hover:bg-[var(--hover)]",
+                  channel !== c
+                    ? "border-border bg-card text-text-2 hover:bg-[var(--hover)]"
+                    : c === "online"
+                      ? "border-violet-500 bg-violet-500 text-white"
+                      : "border-sky-500 bg-sky-500 text-white",
                 )}
               >
                 {c === "tienda" ? "Tienda" : "Online (marketplace)"}
