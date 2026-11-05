@@ -27,7 +27,8 @@ revoke all on wm.daily_closures from anon, authenticated;
 grant select on wm.daily_closures to authenticated;
 
 -- Mismos renglones para la vista previa y el guardado. El método financiado
--- Cashea se excluye; la inicial ya figura bajo el método con que se cobró.
+-- Cashea se excluye; la inicial figura bajo el método con que se cobró.
+-- La inicial por Pago Móvil de Cashea Online se muestra en su propio renglón.
 -- Un depósito conciliado se cuenta el día de settled_at, por separado.
 create or replace function wm.daily_closure_preview(p_branch_id uuid, p_date date)
 returns jsonb
@@ -64,10 +65,14 @@ begin
        and (s.created_at at time zone 'America/Caracas')::date = p_date
        and s.created_at <= v_captured_at
   ), payment_lines as (
-    select 'sale'::text as source, sp.method, sp.currency,
+    select 'sale'::text as source,
+           case when c.channel = 'online' and sp.method = 'Pago Móvil'
+                then 'Cashea Online (Pago móvil)' else sp.method end as method,
+           sp.currency,
            sp.amount::numeric as amount, sp.amount_usd::numeric as amount_usd
       from sales_of_day s join wm.sale_payments sp on sp.sale_id = s.id
       left join wm.payment_methods pm on pm.name = sp.method
+      left join wm.cashea_orders c on c.sale_id = s.id
      where not coalesce(pm.is_financed, false) and sp.method <> 'Cashea'
     union all
     select 'legacy',
@@ -91,6 +96,9 @@ begin
     select 'sale'::text as source, pm.name as method, pm.currency
       from wm.payment_methods pm
      where pm.enabled and not pm.is_financed and pm.name <> 'Mixto'
+    union
+    select 'sale', 'Cashea Online (Pago móvil)', 'VES'
+     where exists (select 1 from wm.payment_methods pm where pm.name = 'Pago Móvil' and pm.enabled)
     union
     select source, method, currency from payment_lines
     union

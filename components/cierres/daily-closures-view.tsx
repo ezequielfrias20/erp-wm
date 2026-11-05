@@ -213,7 +213,7 @@ export function DailyClosuresView({
                     placeholder="Anota diferencias o incidencias del día"
                     className="mt-1.5 min-h-20 w-full rounded-md border border-border bg-background p-3 text-sm text-foreground" />
                   <p className="mt-3 text-xs text-text-3">
-                    La inicial de Cashea aparece bajo el método con que se cobró. El importe financiado no entra al cierre.
+                    La inicial de Cashea Online pagada por Pago Móvil aparece por separado. Las demás iniciales figuran bajo el método con que se cobraron. El importe financiado no entra al cierre.
                   </p>
                   <Button type="button" onClick={submit} disabled={!canSave || submitting} className="mt-4 h-10">
                     {submitting ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
