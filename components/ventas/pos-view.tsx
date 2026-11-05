@@ -1979,24 +1979,28 @@ function CasheaPaymentModal({
         className={cn(
           "max-h-[90vh] w-[calc(100vw-2rem)] max-w-[720px] overflow-y-auto overflow-x-hidden transition-colors",
           channel === "online"
-            ? "border-violet-200 bg-violet-50 dark:border-violet-900 dark:bg-violet-950"
-            : "border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950",
+            ? "border-violet-600 bg-violet-400 text-violet-950 dark:border-violet-500 dark:bg-violet-800 dark:text-violet-50"
+            : "border-sky-600 bg-sky-400 text-sky-950 dark:border-sky-500 dark:bg-sky-800 dark:text-sky-50",
         )}
       >
         <DialogHeader>
-          <DialogTitle>Pago con Cashea · Total {fmtUSD(total)}</DialogTitle>
+          <DialogTitle className="pr-8 leading-snug">
+            Cashea {channel === "online" ? "Online (marketplace)" : "Tienda"} · Total {fmtUSD(total)}
+          </DialogTitle>
         </DialogHeader>
         {open && (
-          <CasheaPaymentForm
-            methods={methods}
-            rate={rate}
-            total={total}
-            initial={initial}
-            channel={channel}
-            onChannelChange={setChannel}
-            onCancel={() => onOpenChange(false)}
-            onConfirm={onConfirm}
-          />
+          <div className="rounded-xl border border-white/70 bg-white/95 p-3 text-slate-950 shadow-sm [--text-2:#334155] [--text-3:#475569] dark:border-white/15 dark:bg-slate-950/90 dark:text-slate-50 dark:[--text-2:#e2e8f0] dark:[--text-3:#cbd5e1] sm:p-4">
+            <CasheaPaymentForm
+              methods={methods}
+              rate={rate}
+              total={total}
+              initial={initial}
+              channel={channel}
+              onChannelChange={setChannel}
+              onCancel={() => onOpenChange(false)}
+              onConfirm={onConfirm}
+            />
+          </div>
         )}
       </DialogContent>
     </Dialog>
@@ -2133,8 +2137,8 @@ function CasheaPaymentForm({
                   channel !== c
                     ? "border-border bg-card text-text-2 hover:bg-[var(--hover)]"
                     : c === "online"
-                      ? "border-violet-500 bg-violet-500 text-white"
-                      : "border-sky-500 bg-sky-500 text-white",
+                      ? "border-violet-700 bg-violet-700 text-white"
+                      : "border-sky-700 bg-sky-700 text-white",
                 )}
               >
                 {c === "tienda" ? "Tienda" : "Online (marketplace)"}
@@ -2208,7 +2212,7 @@ function CasheaPaymentForm({
               <div
                 className={cn(
                   "font-mono text-[14px] font-bold",
-                  financedCents > 0 ? "text-warning" : "text-danger",
+                  financedCents > 0 ? "text-amber-800 dark:text-amber-300" : "text-danger",
                 )}
               >
                 {validInitialInput ? fmtUSD(financed) : fmtUSD(total)}
