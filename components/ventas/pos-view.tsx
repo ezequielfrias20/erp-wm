@@ -448,16 +448,19 @@ export function PosView({
   function resolvePayments(): { payments?: SalePaymentInput[]; error?: string } {
     if (cashea) {
       // Inicial (efectivo real) + una línea financiada por Cashea (por cobrar).
+      // Pago total en Cashea Online: no hay financiado, así que no va línea Cashea.
       return {
         payments: [
           ...cashea.initial,
-          {
-            method: "Cashea",
-            currency: "USD",
-            amount: cashea.financed,
-            amount_usd: cashea.financed,
-            reference: cashea.reference,
-          },
+          ...(cashea.financed > 0
+            ? [{
+                method: "Cashea",
+                currency: "USD" as const,
+                amount: cashea.financed,
+                amount_usd: cashea.financed,
+                reference: cashea.reference,
+              }]
+            : []),
         ],
       };
     }
@@ -1064,10 +1067,17 @@ export function PosView({
                   <span>{fmtUSD(0)}</span>
                 </div>
               )}
-              <div className="mt-1 flex justify-between border-t border-border pt-1 font-medium text-warning">
-                <span>Financia Cashea (por cobrar)</span>
-                <span>{fmtUSD(cashea.financed)}</span>
-              </div>
+              {cashea.financed > 0 ? (
+                <div className="mt-1 flex justify-between border-t border-border pt-1 font-medium text-warning">
+                  <span>Financia Cashea (por cobrar)</span>
+                  <span>{fmtUSD(cashea.financed)}</span>
+                </div>
+              ) : (
+                <div className="mt-1 flex justify-between border-t border-border pt-1 font-medium text-success">
+                  <span>Pago total (100%) · nada por cobrar</span>
+                  <span>{fmtUSD(0)}</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -2063,6 +2073,9 @@ function CasheaPaymentForm({
   const collectedDiffCents = cents(requestedInitialUsd) - cents(collectedInitialUsd);
   const financedCents = cents(total) - cents(requestedInitialUsd);
   const financed = centsToMoney(financedCents);
+  // En Cashea Online el cliente puede pagar el 100%: el dinero llega entero a la
+  // tienda y no queda nada por cobrar a Cashea. En tienda eso es una venta normal.
+  const paidInFull = channel === "online" && validInitialInput && financedCents === 0;
 
   function update(i: number, patch: Partial<DraftPayLine>) {
     setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
@@ -2079,8 +2092,11 @@ function CasheaPaymentForm({
     if (!validInitialInput) {
       return toast.error("Ingresa el inicial indicado por Cashea en USD.");
     }
-    if (financedCents <= 0) {
-      return toast.error("El inicial no puede cubrir el total; usa un método de pago normal.");
+    if (financedCents < 0) {
+      return toast.error("El inicial no puede ser mayor que el total de la venta.");
+    }
+    if (financedCents === 0 && channel !== "online") {
+      return toast.error("En Cashea Tienda, si el cliente paga el total usa un método de pago normal.");
     }
     const lines: SalePaymentInput[] = [];
     for (const r of noInitial ? [] : rows) {
@@ -2161,18 +2177,34 @@ function CasheaPaymentForm({
             <Label className="text-[12px] text-text-2">
               Inicial indicado por Cashea (USD)
             </Label>
-            <button
-              type="button"
-              onClick={() => setInitialInput("0.00")}
-              className={cn(
-                "rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition",
-                noInitial
-                  ? "border-brand bg-brand-soft text-brand"
-                  : "border-border text-text-2 hover:bg-[var(--hover)]",
+            <div className="flex flex-wrap justify-end gap-1.5">
+              <button
+                type="button"
+                onClick={() => setInitialInput("0.00")}
+                className={cn(
+                  "rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition",
+                  noInitial
+                    ? "border-brand bg-brand-soft text-brand"
+                    : "border-border text-text-2 hover:bg-[var(--hover)]",
+                )}
+              >
+                Sin inicial (0%)
+              </button>
+              {channel === "online" && (
+                <button
+                  type="button"
+                  onClick={() => setInitialInput(formatAmountInput(total))}
+                  className={cn(
+                    "rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition",
+                    paidInFull
+                      ? "border-brand bg-brand-soft text-brand"
+                      : "border-border text-text-2 hover:bg-[var(--hover)]",
+                  )}
+                >
+                  Pago total (100%)
+                </button>
               )}
-            >
-              Sin inicial (0%)
-            </button>
+            </div>
           </div>
           <div className="relative mt-1">
             <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-[13px] font-semibold text-text-3">
@@ -2207,20 +2239,26 @@ function CasheaPaymentForm({
                 {validInitialInput ? fmtVES(requestedInitialVes) : fmtVES(0)}
               </div>
             </div>
-            <div className="rounded-[10px] bg-warning-soft px-3 py-2">
+            <div className={cn("rounded-[10px] px-3 py-2", paidInFull ? "bg-success-soft" : "bg-warning-soft")}>
               <div className="text-[11px] text-text-2">Financia Cashea</div>
               <div
                 className={cn(
                   "font-mono text-[14px] font-bold",
-                  financedCents > 0 ? "text-amber-800 dark:text-amber-300" : "text-danger",
+                  paidInFull
+                    ? "text-success"
+                    : financedCents > 0
+                      ? "text-amber-800 dark:text-amber-300"
+                      : "text-danger",
                 )}
               >
                 {validInitialInput ? fmtUSD(financed) : fmtUSD(total)}
               </div>
               <div className="text-[11px] text-text-2">
-                {validInitialInput && financedCents > 0
-                  ? fmtVES(usdToVesAmount(financed, rate))
-                  : "Por cobrar a Cashea"}
+                {paidInFull
+                  ? "Pagado 100% · nada por cobrar"
+                  : validInitialInput && financedCents > 0
+                    ? fmtVES(usdToVesAmount(financed, rate))
+                    : "Por cobrar a Cashea"}
               </div>
             </div>
           </div>
@@ -2351,12 +2389,12 @@ function CasheaPaymentForm({
           </div>
           <div className="mt-1 flex items-center justify-between border-t border-border pt-1">
             <span className="font-semibold text-foreground">
-              Financia Cashea (por cobrar)
+              {paidInFull ? "Pago total (100%) · nada por cobrar" : "Financia Cashea (por cobrar)"}
             </span>
             <span
               className={cn(
                 "flex flex-col items-end text-right font-semibold",
-                financedCents > 0 ? "text-warning" : "text-danger",
+                paidInFull ? "text-success" : financedCents > 0 ? "text-warning" : "text-danger",
               )}
             >
               <span>{fmtUSD(financed)}</span>

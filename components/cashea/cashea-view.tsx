@@ -243,6 +243,14 @@ export function CasheaView({
                 <span className="flex flex-wrap items-center gap-1">
                   <StatusBadge status={o.status} />
                   <ChannelChip channel={o.channel} />
+                  {o.financed_amount === 0 ? (
+                    <span
+                      title="El cliente pagó el 100% en Cashea Online: no hubo nada por cobrar."
+                      className="rounded-md border border-border bg-surface-2 px-1.5 py-0.5 text-[10.5px] font-medium text-text-2"
+                    >
+                      Pago 100%
+                    </span>
+                  ) : null}
                 </span>
                 <span className="flex justify-end">
                   {o.status === "pendiente" && canSettle ? (

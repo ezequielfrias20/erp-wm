@@ -811,7 +811,7 @@ left join wm.products p on p.id = pv.product_id
 left join wm.categories c on c.id = p.category_id;
 grant select on wm.v_sale_lines to authenticated;
 
--- ===== 9. RPC create_sale (v4: pagos mixtos + Cashea con canal) =============
+-- ===== 9. RPC create_sale (pagos mixtos + Cashea con canal y pago total online) =
 create or replace function wm.create_sale(
   p_branch_id uuid,
   p_customer_id uuid,
@@ -844,6 +844,8 @@ declare
   v_request_id uuid := nullif(p_items->0->>'request_id', '')::uuid;
   it jsonb;
   pay jsonb;
+  v_cashea_financed numeric;
+  v_cashea_channel text;
 begin
   if v_profile is null or not wm.has_module('Ventas', 2) then
     raise exception 'No autorizado para registrar ventas';
@@ -935,18 +937,35 @@ begin
 
   -- cuenta por cobrar a Cashea (con canal tienda|online)
   if p_cashea is not null then
+    v_cashea_financed := coalesce((p_cashea->>'financed_amount')::numeric, v_total);
+    v_cashea_channel := case when coalesce(p_cashea->>'channel','tienda') = 'online'
+                             then 'online' else 'tienda' end;
+    if v_cashea_financed < 0 then
+      raise exception 'El monto financiado por Cashea no puede ser negativo';
+    end if;
+    -- Pago total (100%) sólo existe en Cashea Online: el dinero llegó entero a la
+    -- tienda, no queda nada por cobrar y la orden nace conciliada, sin comisión.
+    if v_cashea_financed = 0 and v_cashea_channel <> 'online' then
+      raise exception 'En Cashea Tienda, si el cliente paga el total usa un método de pago normal';
+    end if;
     insert into wm.cashea_orders (
       sale_id, branch_id, reference, total,
-      initial_amount, financed_amount, commission_pct, status, channel
+      initial_amount, financed_amount, commission_pct, status, channel,
+      settled_at, settled_amount, commission_amount, net_amount
     ) values (
       v_sale.id, p_branch_id,
       coalesce(p_cashea->>'reference', ''),
       v_total,
       coalesce((p_cashea->>'initial_amount')::numeric, 0),
-      coalesce((p_cashea->>'financed_amount')::numeric, v_total),
-      coalesce((p_cashea->>'commission_pct')::numeric, 0),
-      'pendiente',
-      case when coalesce(p_cashea->>'channel','tienda') = 'online' then 'online' else 'tienda' end
+      v_cashea_financed,
+      case when v_cashea_financed = 0 then 0
+           else coalesce((p_cashea->>'commission_pct')::numeric, 0) end,
+      case when v_cashea_financed = 0 then 'cobrada' else 'pendiente' end,
+      v_cashea_channel,
+      case when v_cashea_financed = 0 then now() end,
+      case when v_cashea_financed = 0 then 0 end,
+      case when v_cashea_financed = 0 then 0 end,
+      case when v_cashea_financed = 0 then 0 end
     );
   end if;
 

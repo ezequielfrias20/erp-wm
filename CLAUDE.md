@@ -142,6 +142,10 @@ Utilidades extra: `bg-brand`, `text-brand`, `bg-brand-soft`, `text-success`,
   **por cobrar** vía `payment_methods.is_financed`; los ingresos siguen devengados.
   El modal del POS captura el **canal** (`tienda|online`); el módulo `/cashea` y Reportes
   desglosan por canal (comisiones distintas entre tienda y marketplace).
+  **Pago total (100%) en Cashea Online**: el cliente paga todo y el dinero llega entero a la
+  tienda. Inicial = total, financiado 0, sin línea `Cashea` en `sale_payments`; `create_sale`
+  crea la orden ya `cobrada` (sin comisión, `settled_amount` 0). En Tienda no se admite
+  (financiado 0 en tienda es una venta normal; `create_sale` lo rechaza).
 - **Cierre diario** (`supabase/daily_closures.sql`, `components/cierres/*`): cada renglón lleva un
   `source` que dice a qué cuenta va. `sale`/`legacy` = caja de la sucursal (lo único que suma al
   total de caja); `cashea_online` = inicial de una venta Cashea Online con cualquier método

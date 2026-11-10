@@ -60,6 +60,11 @@ Migraciones: `wm_payment_methods_is_financed`, `wm_cashea_orders`, `wm_cashea_or
   **Inicial 0%**: Cashea a veces aprueba cuotas sin inicial; el modal lo admite (botón *Sin inicial
   (0%)*). Entonces no se cobra nada en caja, `sale_payments` lleva sólo la línea `Cashea` por el
   total (`sales.payment_method='Cashea'`) y `cashea_orders.initial_amount=0`. Sin cambios de esquema.
+  **Pago total (100%)**, sólo canal Online (botón *Pago total (100%)*): el cliente paga todo en
+  Cashea Online y el dinero llega entero a la tienda. Inicial = total, financiado 0, sin línea
+  `Cashea`; `create_sale` (`supabase/create_sale_tax_included.sql`, también en el bootstrap) crea
+  la orden ya `cobrada`, sin comisión. Financiado 0 en Tienda se rechaza (es una venta normal).
+  `/cashea` la marca con la etiqueta *Pago 100%*; en el cierre la inicial cae en *Cashea Online*.
 - **Factura**: la línea Cashea se rotula "Financiado por Cashea (por cobrar)" + resumen inicial/financiado.
 - **Módulo `/cashea`** (`lib/queries/cashea.ts`, `app/(app)/cashea/*`, `components/cashea/*`):
   lista de órdenes con filtros (estado/rango), KPIs (ventas Cashea, inicial cobrada, por cobrar,
