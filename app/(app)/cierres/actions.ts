@@ -9,7 +9,7 @@ import { parseReportDate, reportYmdFromDate } from "@/lib/report-dates";
 import type { DailyClosure } from "@/lib/database.types";
 
 export type CountedLine = {
-  source: "sale" | "legacy" | "cashea_settlement";
+  source: "sale" | "legacy" | "cashea_online" | "cashea_settlement";
   method: string;
   currency: "USD" | "VES";
   amount: number;

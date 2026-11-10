@@ -15,7 +15,14 @@ handoff de diseño `World Medics ERP.dc.html` (claude.ai/design) **tal cual**.
 - **@react-pdf/renderer** — reportes en PDF con membrete (`components/reportes/report-pdf.tsx`).
 
 ## Supabase
-- Proyecto: **`crm_cubo_labs`** · ref **`yxwedegszxtujplffaac`** · us-west-1.
+- **Producción WM**: ref **`cfggippjujceebovvhsa`** · us-west-2 (bloque "DATOS PRODUCCION WM" de
+  `.env.local`). El proyecto original `crm_cubo_labs` (`yxwedegszxtujplffaac`) ya **no** tiene el
+  esquema `wm`; no usarlo para el ERP.
+- **psql a producción**: el host directo `db.<ref>.supabase.co` sólo tiene IPv6 y no resuelve
+  aquí. Usar el pooler en sesión `aws-1-us-west-2.pooler.supabase.com:5432`, usuario
+  `postgres.cfggippjujceebovvhsa`, y pasar la contraseña por `PGPASSWORD` (tiene caracteres que
+  rompen una URL). Las migraciones son los `.sql` idempotentes de `supabase/` (`psql -1 -f` o
+  `apply_pending.sh`); producción no tiene `supabase_migrations.schema_migrations`.
 - Todas las tablas del ERP viven en el esquema **`wm`** (aislado del CRM en `public`).
   El esquema está expuesto a PostgREST vía `ALTER ROLE authenticator SET pgrst.db_schemas`.
 - Clientes en `lib/supabase/{client,server,middleware}.ts`, todos con `db: { schema: "wm" }`.
@@ -135,6 +142,11 @@ Utilidades extra: `bg-brand`, `text-brand`, `bg-brand-soft`, `text-success`,
   **por cobrar** vía `payment_methods.is_financed`; los ingresos siguen devengados.
   El modal del POS captura el **canal** (`tienda|online`); el módulo `/cashea` y Reportes
   desglosan por canal (comisiones distintas entre tienda y marketplace).
+- **Cierre diario** (`supabase/daily_closures.sql`, `components/cierres/*`): cada renglón lleva un
+  `source` que dice a qué cuenta va. `sale`/`legacy` = caja de la sucursal (lo único que suma al
+  total de caja); `cashea_online` = inicial de una venta Cashea Online con cualquier método
+  («Cashea Online · <método>»), otra cuenta; `cashea_settlement` = depósito conciliado de Cashea.
+  Pantalla y ticket agrupan por cuenta con `lib/closure-groups.ts`.
 
 ## Cómo correr
 ```bash

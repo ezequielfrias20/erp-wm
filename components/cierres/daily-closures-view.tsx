@@ -12,6 +12,7 @@ import { printNode } from "@/components/factura/invoice-template";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { groupClosureRows } from "@/lib/closure-groups";
 import { DailyClosureReceipt, closureDateLabel, closureMoney } from "./daily-closure-receipt";
 
 type BranchOption = { id: string; name: string; city: string; code: string };
@@ -31,13 +32,6 @@ function parseAmount(value: string): number | null {
   return Number.isFinite(amount) ? amount : null;
 }
 
-function totals(rows: DailyClosureLine[]) {
-  return (["USD", "VES"] as const).map((currency) => ({
-    currency,
-    expected: rows.filter((row) => row.currency === currency)
-      .reduce((sum, row) => sum + Number(row.expected), 0),
-  }));
-}
 
 export function DailyClosuresView({
   branches, branch, date, today, preview, closure, history, loadError, canSave, company,
@@ -63,6 +57,7 @@ export function DailyClosuresView({
   const receiptRef = useRef<HTMLDivElement>(null);
   const displayed = saved ?? closure;
   const rows = preview?.rows ?? [];
+  const groups = groupClosureRows(rows, (row) => parseAmount(amounts[rowKey(row)] ?? "") ?? 0);
 
   async function submit() {
     if (!branch || !preview || submitting) return;
@@ -170,41 +165,55 @@ export function DailyClosuresView({
                     <thead className="bg-surface-2 text-left text-xs text-text-2">
                       <tr><th className="px-5 py-3">Modalidad</th><th className="px-4 py-3">Registrado</th><th className="px-4 py-3">Confirmado</th><th className="px-4 py-3">Diferencia</th></tr>
                     </thead>
-                    <tbody className="divide-y divide-border">
-                      {rows.map((row) => {
-                        const amount = parseAmount(amounts[rowKey(row)] ?? "");
-                        const difference = amount === null ? null : amount - Number(row.expected);
-                        return (
-                          <tr key={rowKey(row)}>
-                            <td className="px-5 py-3 font-medium">
-                              {row.method}
-                              <span className="ml-2 text-xs font-normal text-text-3">{row.currency}</span>
-                              {row.source === "cashea_settlement" ? <div className="text-xs font-normal text-text-3">Depósito conciliado, separado de las ventas</div> : null}
-                              {row.source === "legacy" ? <div className="text-xs font-normal text-amber-700">Venta antigua sin detalle de pagos; verifica el monto recibido.</div> : null}
-                            </td>
-                            <td className="px-4 py-3 tabular-nums">{closureMoney(row.expected, row.currency)}</td>
-                            <td className="px-4 py-3">
-                              <Input aria-label={`Monto confirmado de ${row.method} en ${row.currency}`}
-                                inputMode="decimal" value={amounts[rowKey(row)] ?? ""}
-                                onChange={(event) => setAmounts((current) => ({ ...current, [rowKey(row)]: event.target.value }))}
-                                placeholder="Monto recibido" className="h-9 w-32 text-right tabular-nums" />
-                            </td>
-                            <td className={`px-4 py-3 tabular-nums ${difference === null ? "text-text-3" : Math.abs(difference) < 0.005 ? "text-emerald-700" : "text-amber-700"}`}>
-                              {difference === null ? "—" : closureMoney(difference, row.currency)}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
+                    {groups.map((group) => (
+                      <tbody key={group.key} className="divide-y divide-border border-t border-border">
+                        <tr className="bg-surface-2/60">
+                          <th colSpan={4} className="px-5 py-2.5 text-left">
+                            <div className="text-sm font-semibold text-foreground">{group.title}</div>
+                            {group.note ? <div className="text-xs font-normal text-text-3">{group.note}</div> : null}
+                          </th>
+                        </tr>
+                        {group.rows.map((row) => {
+                          const amount = parseAmount(amounts[rowKey(row)] ?? "");
+                          const difference = amount === null ? null : amount - Number(row.expected);
+                          return (
+                            <tr key={rowKey(row)}>
+                              <td className="px-5 py-3 font-medium">
+                                {row.method}
+                                <span className="ml-2 text-xs font-normal text-text-3">{row.currency}</span>
+                                {row.source === "legacy" ? <div className="text-xs font-normal text-amber-700">Venta antigua sin detalle de pagos; verifica el monto recibido.</div> : null}
+                              </td>
+                              <td className="px-4 py-3 tabular-nums">{closureMoney(row.expected, row.currency)}</td>
+                              <td className="px-4 py-3">
+                                <Input aria-label={`Monto confirmado de ${row.method} en ${row.currency}`}
+                                  inputMode="decimal" value={amounts[rowKey(row)] ?? ""}
+                                  onChange={(event) => setAmounts((current) => ({ ...current, [rowKey(row)]: event.target.value }))}
+                                  placeholder="Monto recibido" className="h-9 w-32 text-right tabular-nums" />
+                              </td>
+                              <td className={`px-4 py-3 tabular-nums ${difference === null ? "text-text-3" : Math.abs(difference) < 0.005 ? "text-emerald-700" : "text-amber-700"}`}>
+                                {difference === null ? "—" : closureMoney(difference, row.currency)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {group.totals.map((total) => {
+                          const difference = total.counted - total.expected;
+                          return (
+                            <tr key={total.currency} className="bg-surface-2 font-semibold">
+                              <td className="px-5 py-2.5">Total {group.title} · {total.currency}</td>
+                              <td className="px-4 py-2.5 tabular-nums">{closureMoney(total.expected, total.currency)}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums">
+                                <span className="inline-block w-32 pr-3">{closureMoney(total.counted, total.currency)}</span>
+                              </td>
+                              <td className={`px-4 py-2.5 tabular-nums ${Math.abs(difference) < 0.005 ? "text-emerald-700" : "text-amber-700"}`}>
+                                {closureMoney(difference, total.currency)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    ))}
                   </table>
-                </div>
-                <div className="border-t border-border bg-surface-2 px-5 py-3 text-sm">
-                  {totals(rows).map((total) => (
-                    <div key={total.currency} className="flex justify-between gap-4 py-0.5">
-                      <span>Total registrado {total.currency}</span>
-                      <strong className="tabular-nums">{closureMoney(total.expected, total.currency)}</strong>
-                    </div>
-                  ))}
                 </div>
                 <div className="p-5">
                   <Label htmlFor="closure-notes">Observaciones (opcional)</Label>
@@ -213,7 +222,7 @@ export function DailyClosuresView({
                     placeholder="Anota diferencias o incidencias del día"
                     className="mt-1.5 min-h-20 w-full rounded-md border border-border bg-background p-3 text-sm text-foreground" />
                   <p className="mt-3 text-xs text-text-3">
-                    La inicial de Cashea Online pagada por Pago Móvil aparece por separado. Las demás iniciales figuran bajo el método con que se cobraron. El importe financiado no entra al cierre.
+                    Las iniciales de Cashea Online y el depósito de Cashea van a cuentas distintas: se confirman aparte y no suman al total de caja. La inicial de Cashea en tienda figura en la caja, bajo el método con que se cobró. El importe financiado no entra al cierre.
                   </p>
                   <Button type="button" onClick={submit} disabled={!canSave || submitting} className="mt-4 h-10">
                     {submitting ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}

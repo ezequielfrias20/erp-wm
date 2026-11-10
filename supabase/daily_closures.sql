@@ -27,9 +27,12 @@ revoke all on wm.daily_closures from anon, authenticated;
 grant select on wm.daily_closures to authenticated;
 
 -- Mismos renglones para la vista previa y el guardado. El método financiado
--- Cashea se excluye; la inicial figura bajo el método con que se cobró.
--- La inicial por Pago Móvil de Cashea Online se muestra en su propio renglón.
--- Un depósito conciliado se cuenta el día de settled_at, por separado.
+-- Cashea se excluye. Cada renglón lleva un `source` que dice a qué cuenta va:
+--   sale / legacy      → caja de la sucursal (lo único que suma al total de caja).
+--   cashea_online      → inicial de una venta Cashea Online, con cualquier método
+--                        («Cashea Online · <método>»). Va a otra cuenta, no a la caja.
+--   cashea_settlement  → depósito conciliado de Cashea, contado el día de settled_at.
+-- La inicial de una venta Cashea en tienda sigue bajo su método, en la caja.
 create or replace function wm.daily_closure_preview(p_branch_id uuid, p_date date)
 returns jsonb
 language plpgsql stable security definer set search_path = wm, public
@@ -65,9 +68,9 @@ begin
        and (s.created_at at time zone 'America/Caracas')::date = p_date
        and s.created_at <= v_captured_at
   ), payment_lines as (
-    select 'sale'::text as source,
-           case when c.channel = 'online' and sp.method = 'Pago Móvil'
-                then 'Cashea Online (Pago móvil)' else sp.method end as method,
+    select case when c.channel = 'online' then 'cashea_online' else 'sale' end::text as source,
+           case when c.channel = 'online' then 'Cashea Online · ' || sp.method
+                else sp.method end as method,
            sp.currency,
            sp.amount::numeric as amount, sp.amount_usd::numeric as amount_usd
       from sales_of_day s join wm.sale_payments sp on sp.sale_id = s.id
@@ -97,7 +100,8 @@ begin
       from wm.payment_methods pm
      where pm.enabled and not pm.is_financed and pm.name <> 'Mixto'
     union
-    select 'sale', 'Cashea Online (Pago móvil)', 'VES'
+    -- Pago Móvil es la vía habitual de la inicial online: su renglón sale siempre.
+    select 'cashea_online', 'Cashea Online · Pago Móvil', 'VES'
      where exists (select 1 from wm.payment_methods pm where pm.name = 'Pago Móvil' and pm.enabled)
     union
     select source, method, currency from payment_lines

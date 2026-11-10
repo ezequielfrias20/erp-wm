@@ -74,6 +74,13 @@ Migraciones: `wm_payment_methods_is_financed`, `wm_cashea_orders`, `wm_cashea_or
   en sucursal del **marketplace** de la app (comisiones distintas). Selector en el modal del POS;
   el módulo `/cashea` filtra por canal, muestra badge y tarjetas comparativas **Tienda vs Online**
   (ventas, por cobrar, cobrado, comisión); Reportes (vista + PDF) desglosan Cashea por canal.
+- **Cierre diario y Cashea** (`supabase/daily_closures.sql`, `lib/closure-groups.ts`): la inicial de
+  una venta **Cashea Online** va a otra cuenta, así que el cierre la marca `source='cashea_online'`
+  («Cashea Online · <método>», cualquier método) y el **Depósito Cashea** sigue en
+  `cashea_settlement`. Pantalla y ticket agrupan en **Caja de la sucursal / Cashea Online /
+  Depósito Cashea**, cada bloque con su confirmado, diferencia y total; sólo la caja suma al total
+  de caja. La inicial de Cashea en tienda sigue en la caja bajo su método. Los cierres guardados
+  antes (renglón «Cashea Online (Pago móvil)» con `source='sale'`) se reconocen por el nombre.
 
 ## Fase 15 — Branding dinámico (logo, favicon, color)
 
@@ -104,6 +111,6 @@ Migraciones: `wm_branding_fn`, `wm_settings_logo_dark`. Plan/spec en `docs/super
 
 ## Decisiones clave
 - Solo invitación (sin registro público). Primer admin = Pedro Salas (Super Admin).
-- Esquema `wm` aislado dentro del proyecto Supabase `crm_cubo_labs`.
+- Esquema `wm` aislado (originalmente dentro de `crm_cubo_labs`; hoy producción WM vive en `cfggippjujceebovvhsa`).
 - Tasa BCV en vivo desde dolarapi (`/v1/dolares/oficial`, campo `promedio`).
 - Filtro global por sucursal en todo el sistema.
