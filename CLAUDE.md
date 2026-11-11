@@ -152,6 +152,11 @@ Utilidades extra: `bg-brand`, `text-brand`, `bg-brand-soft`, `text-success`,
   («Cashea Online · <método>»), otra cuenta; `cashea_settlement` = depósito conciliado de Cashea.
   Pantalla y ticket agrupan por cuenta con `lib/closure-groups.ts`.
 
+- **Limpieza del catálogo (ecommerce)**: estructura nueva aditiva en `supabase/catalog_taxonomy.sql`
+  (opciones de variante, familias de color, líneas, atributos, fotos por color, alias de SKU);
+  propuesta y Excel de revisión en `lib/catalog-migration/` + `scripts/catalogo/`. Runbook:
+  `docs/CATALOGO-LIMPIEZA.md`. Conexión a producción desde scripts con `scripts/catalogo/psql.sh`.
+
 ## Cómo correr
 ```bash
 npm run dev      # http://localhost:3000  (→ /login)
