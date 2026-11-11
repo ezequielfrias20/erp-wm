@@ -13,8 +13,10 @@ import {
   PRODUCT_ROWS_WITH_VALIDATION,
   SHEETS,
   STATUS,
+  ORIGINAL_HEADER,
   VALUES_ROWS,
   productColumns,
+  taxonomyHash,
   sheetRef,
   variantColumns,
   type WorkbookColumn,
@@ -45,6 +47,7 @@ function instructions(takenAt: string): string[] {
     "Este archivo propone cómo quedará organizado el catálogo. El sistema ya llenó casi todo a partir de los nombres actuales: tu trabajo es revisar y corregir.",
     "Las columnas con encabezado AZUL se pueden editar. Las de encabezado GRIS son informativas: no las cambies.",
     "Hoja Productos: cada fila es un producto tal como se verá en la tienda. El nombre no lleva color ni talla, y no puede repetirse. Revisa categoría, marca, línea y características (género, corte, tela…).",
+    "Puedes corregir el nombre de un producto, marca o color en su hoja. No hace falta cambiarlo también en Variantes: el sistema los relaciona con las columnas grises «Nombre propuesto» y «Original».",
     "Para UNIR productos: en la hoja Variantes, pon en «Producto (nombre nuevo)» el mismo producto.",
     "Para SEPARAR un producto: agrega una fila nueva en Productos con el nombre nuevo y, en Variantes, asígnale las variantes que le corresponden.",
     "Hoja Variantes: cada fila es una unidad que se cuenta en inventario (por ejemplo Blanco / XS). Revisa el color y la talla u opción.",
@@ -141,6 +144,7 @@ export function buildReviewWorkbook(
         brand: prod.brand ?? "",
         line: prod.line ?? "",
         status: prod.active ? STATUS.active : STATUS.inactive,
+        proposedName: prod.name,
         sources: prod.sourceNames.join(" · "),
         variantCount: prod.variantCount,
         stock: prod.totalStock,
@@ -174,6 +178,7 @@ export function buildReviewWorkbook(
         currentColor: v.currentColor ?? "",
         currentSize: v.currentSize ?? "",
         saleLines: v.saleLines,
+        price: v.price,
         product: v.productName,
         color: v.color ?? "",
         option: v.option ?? "",
@@ -196,9 +201,16 @@ export function buildReviewWorkbook(
   }
   const bCols: WorkbookColumn[] = [
     { key: "brand", header: "Marca", editable: true },
+    { key: "original", header: ORIGINAL_HEADER, editable: false },
     { key: "count", header: "Productos actuales", editable: false },
   ];
-  dataSheet(wb, SHEETS.brands, bCols, p.brands.map((b) => ({ brand: b, count: productsByBrand.get(b) ?? 0 })), { brand: 28 });
+  dataSheet(
+    wb,
+    SHEETS.brands,
+    bCols,
+    p.brands.map((b) => ({ brand: b, original: b, count: productsByBrand.get(b) ?? 0 })),
+    { brand: 28, original: 28 },
+  );
 
   // ── Líneas
   const lCols: WorkbookColumn[] = [
@@ -212,14 +224,21 @@ export function buildReviewWorkbook(
     { key: "name", header: "Color", editable: true },
     { key: "hex", header: "Hex", editable: true },
     { key: "family", header: "Familia", editable: true },
+    { key: "original", header: ORIGINAL_HEADER, editable: false },
     { key: "used", header: "Variantes que lo usan", editable: false },
   ];
   const colors = dataSheet(
     wb,
     SHEETS.colors,
     cCols,
-    p.colors.map((c) => ({ name: c.name, hex: c.hex, family: c.family, used: p.usage.colors[c.name] ?? 0 })),
-    { name: 26, family: 24 },
+    p.colors.map((c) => ({
+      name: c.name,
+      hex: c.hex,
+      family: c.family,
+      original: c.name,
+      used: p.usage.colors[c.name] ?? 0,
+    })),
+    { name: 26, family: 24, original: 26 },
   );
 
   // ── Valores (una columna por atributo)
@@ -276,6 +295,7 @@ export function buildReviewWorkbook(
   info.addRow(["snapshot_taken_at", p.takenAt]);
   info.addRow(["generated_at", meta.generatedAt]);
   info.addRow(["format_version", FORMAT_VERSION]);
+  info.addRow(["taxonomy_hash", taxonomyHash(tax)]);
 
   // ── Validaciones
   const pLast = PRODUCT_ROWS_WITH_VALIDATION;

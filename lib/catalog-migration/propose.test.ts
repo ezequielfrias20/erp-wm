@@ -98,4 +98,38 @@ describe("buildProposal", () => {
     const q = buildProposal(snap, TAXONOMY);
     expect(q.products.find((x) => x.name === "Cosa Rara")?.categoryPath).toBeNull();
   });
+
+  describe("casos que no deben perderse ni fusionarse en silencio", () => {
+    const base = MINI_SNAPSHOT.variants[0];
+    const extra = (sku: string, color: string | null, size: string | null, price = 10, created = "2026-09-01") => ({
+      ...base, id: `v-${sku}`, product_id: "p1", sku, color, size, price, sale_lines: 0, stock: {},
+      created_at: `${created}T00:00:00.000Z`,
+    });
+    const run = (variants: ReturnType<typeof extra>[]) =>
+      buildProposal({ ...MINI_SNAPSHOT, variants: [...MINI_SNAPSHOT.variants, ...variants] }, TAXONOMY);
+
+    it("una talla con dos colores deja nota por el color descartado", () => {
+      const q = run([extra("X-1", null, "M / Rojo / Azul")]);
+      const v = q.variants.find((x) => x.sku === "X-1")!;
+      expect(v).toMatchObject({ option: "M", color: "Rojo" });
+      expect(v.notes.some((n) => n.startsWith("Revisar") && n.includes("Azul"))).toBe(true);
+    });
+
+    it("no propone fusionar variantes con color sin equivalencia; deja nota", () => {
+      const q = run([extra("X-2", "Colorinche", "S"), extra("X-3", "Otrocolor", "S")]);
+      const a = q.variants.find((x) => x.sku === "X-2")!;
+      const b = q.variants.find((x) => x.sku === "X-3")!;
+      expect(a.mergeIntoSku).toBeNull();
+      expect(b.mergeIntoSku).toBeNull();
+      expect([...a.notes, ...b.notes].some((n) => n.startsWith("¿Repetida con"))).toBe(true);
+    });
+
+    it("avisa cuando una fusión junta precios distintos", () => {
+      const q = run([extra("X-4", "Negro", "L", 40, "2026-09-01"), extra("X-5", "Negro", "L", 45, "2026-09-02")]);
+      const loser = q.variants.find((x) => x.sku === "X-5")!;
+      expect(loser.mergeIntoSku).toBe("X-4");
+      expect(loser.price).toBe(45);
+      expect(loser.notes).toContain("Precio distinto: $45 vs $40 (X-4)");
+    });
+  });
 });

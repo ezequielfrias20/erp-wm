@@ -45,6 +45,7 @@ export type ProposedVariant = {
   stockByBranch: Record<string, number>;
   saleLines: number;
   active: boolean;
+  price: number;
   /** = ProposedProduct.name */
   productName: string;
   /** Nombre canónico. */
@@ -175,12 +176,19 @@ export function buildProposal(snapshot: CatalogSnapshot, tax: Taxonomy): Proposa
       let option: string | null = null;
       let sizeColor: string | null = null;
       for (const part of v.size ? classifySize(v.size, source.product.name, tax) : []) {
-        if (part.kind === "option" && !option) option = part.option.label;
-        else if (part.kind === "color" && !sizeColor) sizeColor = part.color;
-        else if (part.kind === "unknown") {
+        if (part.kind === "option") {
+          if (!option) option = part.option.label;
+          else notes.push(`Revisar: «${part.option.label}» también estaba en talla (se descartó)`);
+        } else if (part.kind === "color") {
+          if (!sizeColor) sizeColor = part.color;
+          else notes.push(`Revisar: «${part.color}» también estaba en talla (se descartó)`);
+        } else if (part.kind === "unknown") {
           notes.push(`Revisar: «${part.text}» estaba en talla`);
           unresolvedSizes.add(part.text);
         }
+      }
+      if (v.color && color && sizeColor && sizeColor !== color) {
+        notes.push(`Revisar: la talla dice «${sizeColor}» y el color «${color}»`);
       }
       if (!v.color) color = sizeColor ?? source.parts.color;
       option = option ?? source.parts.option?.label ?? null;
@@ -193,6 +201,7 @@ export function buildProposal(snapshot: CatalogSnapshot, tax: Taxonomy): Proposa
         stockByBranch: v.stock,
         saleLines: v.sale_lines,
         active: v.is_active,
+        price: v.price,
         productName: group.name,
         color,
         option,
@@ -221,8 +230,21 @@ export function buildProposal(snapshot: CatalogSnapshot, tax: Taxonomy): Proposa
         a.sku.localeCompare(b.sku)
       );
     });
+    const survivor = ranked[0];
+    // Si alguna no se pudo leer bien (color sin equivalencia, texto raro en talla), parecer
+    // iguales puede ser sólo falta de datos: se avisa en vez de proponer la fusión.
+    const doubtful = same.some((pv) =>
+      pv.notes.some((n) => n.startsWith("Color «") || n.startsWith("Revisar:")),
+    );
     for (const loser of ranked.slice(1)) {
-      loser.mergeIntoSku = ranked[0].sku;
+      if (doubtful) {
+        loser.notes.push(`¿Repetida con ${survivor.sku}? revisar`);
+        continue;
+      }
+      loser.mergeIntoSku = survivor.sku;
+      if (loser.price !== survivor.price) {
+        loser.notes.push(`Precio distinto: $${loser.price} vs $${survivor.price} (${survivor.sku})`);
+      }
       duplicateVariants++;
     }
   }

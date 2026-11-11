@@ -86,18 +86,24 @@ export type SizePart =
 /** Lee lo que hoy está guardado como «talla»: opciones, colores, texto redundante o desconocido. */
 export function classifySize(size: string, productName: string, tax: Taxonomy): SizePart[] {
   const name = ` ${normalizeKey(productName)} `;
-  return stripBranchPriceSuffix(size)
-    .split("/")
+  const classify = (part: string): SizePart => {
+    const option = matchOption(part, tax);
+    if (option) return { kind: "option", option };
+    const color = matchColor(part, tax);
+    if (color) return { kind: "color", color };
+    if (name.includes(` ${normalizeKey(part)} `)) return { kind: "redundant", text: part };
+    return { kind: "unknown", text: part };
+  };
+  const stripped = stripBranchPriceSuffix(size);
+  // Primero el texto completo: «S/M» o «L/XL» son UNA talla, no dos.
+  const whole = classify(stripped);
+  if (whole.kind === "option" || whole.kind === "color") return [whole];
+  // Las partes compuestas se separan sólo por « / » con espacios.
+  return stripped
+    .split(/\s+\/\s+/)
     .map((part) => part.trim())
     .filter(Boolean)
-    .map((part): SizePart => {
-      const option = matchOption(part, tax);
-      if (option) return { kind: "option", option };
-      const color = matchColor(part, tax);
-      if (color) return { kind: "color", color };
-      if (name.includes(` ${normalizeKey(part)} `)) return { kind: "redundant", text: part };
-      return { kind: "unknown", text: part };
-    });
+    .map(classify);
 }
 
 export type NameParts = { baseName: string; color: string | null; option: ParsedOption | null };

@@ -85,6 +85,15 @@ describe("classifySize", () => {
     ]);
   });
 
+  it("«S/M» y «L/XL» sin espacios son una sola talla, no dos", () => {
+    expect(classifySize("S/M", "Medias Compresivas", T)).toEqual([
+      { kind: "option", option: { type: "talla", label: "S-M" } },
+    ]);
+    expect(classifySize("L/XL", "Medias Compresivas", T)).toEqual([
+      { kind: "option", option: { type: "talla", label: "L-XL" } },
+    ]);
+  });
+
   it("lo que no reconoce queda como desconocido", () => {
     expect(classifySize("Foo", "Bar", T)).toEqual([{ kind: "unknown", text: "Foo" }]);
   });

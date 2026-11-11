@@ -2,6 +2,7 @@
  * Contrato del Excel de revisión del catálogo: nombres de hojas, columnas y rangos de listas.
  * Lo escribe `workbook.ts` (plan 1) y lo lee la limpieza (plan 2): cambiarlo rompe la lectura.
  */
+import { createHash } from "node:crypto";
 import type { Taxonomy } from "./taxonomy";
 
 export const FORMAT_VERSION = 1;
@@ -28,6 +29,9 @@ export const sheetRef = (sheet: string, range: string) => `'${sheet}'!${range}`;
 
 export const PRODUCT_ROWS_WITH_VALIDATION = 1500;
 
+/** Hojas Marcas y Colores: columna gris con el nombre original, para reconocer renombres. */
+export const ORIGINAL_HEADER = "Original";
+
 export const LIST_RANGES = {
   products: sheetRef(SHEETS.products, `$A$2:$A$${PRODUCT_ROWS_WITH_VALIDATION}`),
   brands: sheetRef(SHEETS.brands, "$A$2:$A$300"),
@@ -47,6 +51,8 @@ export const PRODUCT_HEAD: WorkbookColumn[] = [
 
 export const PRODUCT_TAIL: WorkbookColumn[] = [
   { key: "status", header: "Estado", editable: true },
+  /** Nombre que propuso el sistema: si la tienda renombra el producto, plan 2 lo reconoce por aquí. */
+  { key: "proposedName", header: "Nombre propuesto", editable: false },
   { key: "sources", header: "Productos actuales que se unen", editable: false },
   { key: "variantCount", header: "Nº variantes", editable: false },
   { key: "stock", header: "Stock total", editable: false },
@@ -67,6 +73,12 @@ export function productColumns(tax: Taxonomy): WorkbookColumn[] {
   return [...PRODUCT_HEAD, ...attrs, ...PRODUCT_TAIL];
 }
 
+/** Huella de la taxonomía con que se generó el archivo (las RegExp cuentan por su texto). */
+export function taxonomyHash(tax: Taxonomy): string {
+  const json = JSON.stringify(tax, (_k, v) => (v instanceof RegExp ? v.source : v));
+  return createHash("sha256").update(json).digest("hex");
+}
+
 /** Columnas de Variantes: info actual (una de stock por sucursal) + propuesta editable. */
 export function variantColumns(branches: { id: string; name: string }[]): WorkbookColumn[] {
   return [
@@ -76,6 +88,7 @@ export function variantColumns(branches: { id: string; name: string }[]): Workbo
     { key: "currentSize", header: "Talla actual", editable: false },
     ...branches.map((b) => ({ key: `stock:${b.id}`, header: `Stock ${b.name}`, editable: false })),
     { key: "saleLines", header: "Ventas", editable: false },
+    { key: "price", header: "Precio", editable: false },
     { key: "product", header: "Producto (nombre nuevo)", editable: true },
     { key: "color", header: "Color", editable: true },
     { key: "option", header: "Talla / opción", editable: true },
