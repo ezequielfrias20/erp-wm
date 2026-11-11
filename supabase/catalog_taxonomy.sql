@@ -7,7 +7,7 @@
 -- aplica la limpieza (plan 2) desde el Excel revisado. Aquí sólo hay seeds genéricos.
 --
 -- Prueba (aplica dos veces + verifica + ROLLBACK):
---   source scripts/catalogo/pg-env.sh && psql -X -f supabase/tests/catalog_taxonomy_rollback.sql
+--   scripts/catalogo/psql.sh -X -f supabase/tests/catalog_taxonomy_rollback.sql
 
 -- ===== 1. Opciones de variante (segundo eje: talla, amarre…) ================
 create table if not exists wm.option_types (
