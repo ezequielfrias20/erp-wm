@@ -83,6 +83,12 @@ export type Category = {
   color: string | null;
   sort_order: number;
   is_active: boolean;
+  /** Departamento (categoría de primer nivel) al que pertenece; null = es departamento. */
+  parent_id: string | null;
+  /** Tipo del segundo eje de variante (talla, amarre…); null = sin segundo eje. */
+  option_type_id: string | null;
+  /** Si sus productos deben tener color en cada variante. */
+  requires_color: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -90,6 +96,9 @@ export type Category = {
 export type Brand = {
   id: string;
   name: string;
+  slug: string | null;
+  logo_url: string | null;
+  description: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -106,6 +115,102 @@ export type ColorRow = {
   name: string;
   hex: string | null;
   sort_order: number;
+  slug: string | null;
+  family_id: string | null;
+  /** Imagen de muestra para estampados (en vez de hex). */
+  swatch_url: string | null;
+  is_active: boolean;
+}
+
+export type ColorFamily = {
+  id: string;
+  name: string;
+  slug: string;
+  hex: string | null;
+  sort_order: number;
+}
+
+export type OptionType = {
+  id: string;
+  code: string;
+  name: string;
+  sort_order: number;
+}
+
+export type OptionValue = {
+  id: string;
+  option_type_id: string;
+  label: string;
+  slug: string;
+  sort_order: number;
+  is_active: boolean;
+}
+
+export type ProductLine = {
+  id: string;
+  brand_id: string;
+  name: string;
+  slug: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type AttributeRow = {
+  id: string;
+  code: string;
+  name: string;
+  is_multi: boolean;
+  sort_order: number;
+}
+
+export type AttributeValue = {
+  id: string;
+  attribute_id: string;
+  name: string;
+  slug: string;
+  sort_order: number;
+  is_active: boolean;
+}
+
+export type CategoryAttribute = {
+  category_id: string;
+  attribute_id: string;
+  is_required: boolean;
+  sort_order: number;
+}
+
+export type ProductAttributeValue = {
+  product_id: string;
+  attribute_value_id: string;
+}
+
+export type ProductMedia = {
+  id: string;
+  product_id: string;
+  /** null = foto general del producto. */
+  color_id: string | null;
+  path: string;
+  alt: string | null;
+  sort_order: number;
+  created_at: string;
+}
+
+export type VariantSkuAlias = {
+  sku: string;
+  variant_id: string;
+  created_at: string;
+}
+
+export type CatalogMigrationLog = {
+  id: string;
+  run_id: string;
+  entity: string;
+  old_id: string | null;
+  new_id: string | null;
+  old_data: Record<string, unknown>;
+  created_at: string;
 }
 
 export type Supplier = {
@@ -129,9 +234,15 @@ export type Product = {
   is_active: boolean;
   visible_in_catalog: boolean;
   tags: string[];
+  slug: string | null;
+  line_id: string | null;
+  /** Ficha técnica: pares etiqueta → valor, en orden. */
+  specs: ProductSpec[];
   created_at: string;
   updated_at: string;
 }
+
+export type ProductSpec = { label: string; value: string };
 
 export type ProductVariant = {
   id: string;
@@ -144,6 +255,8 @@ export type ProductVariant = {
   price: number;
   cost: number;
   is_active: boolean;
+  color_id: string | null;
+  option_value_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -661,6 +774,17 @@ export type Database = {
       exchange_rates: Tbl<ExchangeRate>;
       audit_log: Tbl<AuditLog>;
       settings: Tbl<Settings>;
+      option_types: Tbl<OptionType>;
+      option_values: Tbl<OptionValue>;
+      color_families: Tbl<ColorFamily>;
+      product_lines: Tbl<ProductLine>;
+      attributes: Tbl<AttributeRow>;
+      attribute_values: Tbl<AttributeValue>;
+      category_attributes: Tbl<CategoryAttribute>;
+      product_attribute_values: Tbl<ProductAttributeValue>;
+      product_media: Tbl<ProductMedia>;
+      variant_sku_aliases: Tbl<VariantSkuAlias>;
+      catalog_migration_log: Tbl<CatalogMigrationLog>;
     };
     Views: {
       v_inventory: Vw<VInventory>;

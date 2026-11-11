@@ -76,6 +76,46 @@ on conflict (name) do update set
   requires_reference = excluded.requires_reference,
   is_financed = excluded.is_financed;
 
+-- ===== Catálogo: opciones de variante y familias de color ===================
+-- Maestros genéricos (sin taxonomía de ningún negocio): talla y amarre como segundo eje
+-- de variante, y las familias para agrupar colores. Igual que supabase/catalog_taxonomy.sql.
+insert into wm.option_types (code, name, sort_order) values
+  ('talla', 'Talla', 1),
+  ('amarre', 'Amarre', 2)
+on conflict (code) do nothing;
+
+insert into wm.option_values (option_type_id, label, slug, sort_order)
+select t.id, v.label, v.slug, v.sort_order
+from wm.option_types t
+join (values
+  ('talla', 'XXS', 'xxs', 1),
+  ('talla', 'XS', 'xs', 2),
+  ('talla', 'S', 's', 3),
+  ('talla', 'S-M', 's-m', 4),
+  ('talla', 'M', 'm', 5),
+  ('talla', 'L', 'l', 6),
+  ('talla', 'L-XL', 'l-xl', 7),
+  ('talla', 'XL', 'xl', 8),
+  ('talla', '2XL', '2xl', 9),
+  ('talla', '3XL', '3xl', 10),
+  ('talla', 'Única', 'unica', 11),
+  ('amarre', 'Moño', 'mono', 1),
+  ('amarre', 'Tiras', 'tiras', 2),
+  ('amarre', 'Elástica', 'elastica', 3)
+) as v(type_code, label, slug, sort_order) on v.type_code = t.code
+on conflict (option_type_id, slug) do nothing;
+
+insert into wm.color_families (name, slug, hex, sort_order) values
+  ('Azules', 'azules', '#2563EB', 1),
+  ('Verdes', 'verdes', '#16A34A', 2),
+  ('Rojos', 'rojos', '#DC2626', 3),
+  ('Rosados', 'rosados', '#EC4899', 4),
+  ('Morados', 'morados', '#7C3AED', 5),
+  ('Amarillos y naranjas', 'amarillos-y-naranjas', '#F59E0B', 6),
+  ('Neutros', 'neutros', '#6B7280', 7),
+  ('Estampados', 'estampados', null, 8)
+on conflict (slug) do nothing;
+
 -- ===== Sucursal por defecto =================================================
 -- El owner la renombra/edita (ciudad, dirección, meta) desde Sucursales.
 insert into wm.branches (code, city, name, is_active) values
