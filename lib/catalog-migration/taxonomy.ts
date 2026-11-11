@@ -57,6 +57,16 @@ export function findCategory(tax: Taxonomy, path: string): CategoryDef | undefin
   return tax.categories.find((c) => categoryPath(c) === path);
 }
 
+/**
+ * Path nuevo para una categoría actual. Usa `Object.hasOwn`: el nombre viene de la base y un
+ * «constructor» o «toString» no debe resolverse contra el prototipo del objeto.
+ */
+export function legacyCategoryFor(tax: Taxonomy, legacyName: string): string | undefined {
+  return Object.hasOwn(tax.legacyCategoryMap, legacyName)
+    ? tax.legacyCategoryMap[legacyName]
+    : undefined;
+}
+
 // ── Departamentos y categorías ──────────────────────────────────────────────
 
 const UNI = "Uniformes";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeKey } from "./parse";
-import { TAXONOMY, categoryPath, findCategory } from "./taxonomy";
+import { TAXONOMY, categoryPath, findCategory, legacyCategoryFor } from "./taxonomy";
 
 /** Las 52 categorías de producción al 2026-11-11. */
 const LEGACY_52 = [
@@ -90,5 +90,11 @@ describe("TAXONOMY", () => {
 
   it("las líneas de cada marca no se repiten", () => {
     for (const b of T.brands) expect(new Set(b.lines.map(normalizeKey)).size).toBe(b.lines.length);
+  });
+
+  it("legacyCategoryFor no confunde nombres con propiedades del prototipo", () => {
+    expect(legacyCategoryFor(T, "Gorros")).toBe("Uniformes › Gorros");
+    expect(legacyCategoryFor(T, "constructor")).toBeUndefined();
+    expect(legacyCategoryFor(T, "toString")).toBeUndefined();
   });
 });
