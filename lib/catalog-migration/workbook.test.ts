@@ -124,3 +124,20 @@ describe("buildReviewWorkbook", () => {
     expect(rows.taxonomy_hash).toMatch(/^[0-9a-f]{64}$/);
   });
 });
+
+describe("validaciones en el XML", () => {
+  it("ninguna columna tiene listas solapadas (Excel pediría «reparar» el archivo)", async () => {
+    const JSZip = (await import("jszip")).default;
+    const wb = buildReviewWorkbook(buildProposal(MINI_SNAPSHOT, TAXONOMY), TAXONOMY, {
+      generatedAt: "2026-11-11T00:00:00Z",
+    });
+    const zip = await JSZip.loadAsync(await wb.xlsx.writeBuffer());
+    const sheets = Object.keys(zip.files).filter((f) => /^xl\/worksheets\/sheet\d+\.xml$/.test(f));
+    for (const file of sheets) {
+      const xml = await zip.file(file)!.async("string");
+      const sqrefs = [...xml.matchAll(/<dataValidation [^>]*sqref="([^"]+)"/g)].map((m) => m[1]);
+      const columns = sqrefs.flatMap((s) => s.split(/\s+/)).map((r) => r.replace(/\d+/g, ""));
+      expect(new Set(columns).size, `${file}: ${sqrefs.join(", ")}`).toBe(columns.length);
+    }
+  });
+});

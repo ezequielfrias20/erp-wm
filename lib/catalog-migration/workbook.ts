@@ -98,18 +98,24 @@ function validate(
 ) {
   const col = columns.findIndex((c) => c.key === key) + 1;
   if (col === 0) throw new Error(`columna desconocida ${key}`);
-  for (let r = 2; r <= lastRow; r++) {
-    ws.getCell(r, col).dataValidation = {
-      type: "list",
-      allowBlank: true,
-      formulae: [range],
-      showErrorMessage: true,
-      errorStyle: "stop",
-      error: "Elige un valor de la lista.",
-      errorTitle: "Valor no válido",
-    };
-  }
+  // Un solo rango por columna. Validar celda por celda dispara un bug de ExcelJS: ordena las
+  // direcciones como texto («B10» < «B2») y escribe rangos solapados que Excel pide «reparar».
+  const letter = colLetter(col);
+  (ws as unknown as WithDataValidations).dataValidations.add(`${letter}2:${letter}${lastRow}`, {
+    type: "list",
+    allowBlank: true,
+    formulae: [range],
+    showErrorMessage: true,
+    errorStyle: "stop",
+    error: "Elige un valor de la lista.",
+    errorTitle: "Valor no válido",
+  });
 }
+
+/** `Worksheet.dataValidations` existe en ExcelJS pero no está en sus tipos. */
+type WithDataValidations = {
+  dataValidations: { add(address: string, validation: ExcelJS.DataValidation): void };
+};
 
 export function buildReviewWorkbook(
   p: Proposal,
