@@ -62,6 +62,16 @@ handoff de diseño `World Medics ERP.dc.html` (claude.ai/design) **tal cual**.
     `wm_authenticated_delete` del bootstrap, ya en `01_schema.sql`), que es lo que usa
     `removeBrandAsset` para borrar logo/favicon. El borrado real se gatea en la app por permisos
     de módulo. No cambia el snapshot.
+19. `catalog_taxonomy` (`supabase/catalog_taxonomy.sql`, aplicada con psql el 2026-11-13) — catálogo
+    clasificado para ecommerce, ADITIVA: tablas `option_types`/`option_values` (2.º eje de variante:
+    talla, amarre), `color_families`, `product_lines` (línea/modelo por marca), `attributes`,
+    `attribute_values`, `category_attributes`, `product_attribute_values`, `product_media` (fotos por
+    producto y color), `variant_sku_aliases`, `catalog_migration_log`; columnas nulas nuevas en
+    `categories` (`parent_id`, `option_type_id`, `requires_color`), `brands` (`slug`, `logo_url`,
+    `description`), `colors` (`slug`, `family_id`, `swatch_url`, `is_active`), `products` (`slug`,
+    `line_id`, `specs`) y `product_variants` (`color_id`, `option_value_id`); RLS + seeds genéricos.
+    Ya plegada en `bootstrap/01_schema.sql` + `02_seed.sql` y en `apply_pending.sh` (negocios nuevos
+    y negocios existentes). Prueba con rollback: `supabase/tests/catalog_taxonomy_rollback.sql`.
 Bootstrap del admin (login) se hizo con `execute_sql` (crea `auth.users` + `auth.identities`).
 
 ### Modelo RLS
@@ -81,7 +91,10 @@ Bootstrap del admin (login) se hizo con `execute_sql` (crea `auth.users` + `auth
 branches, categories, brands, sizes, colors, suppliers, products, product_variants,
 inventory, profiles, customers, customer_events, sales, sale_items, **sale_payments**,
 **cashea_orders**, purchase_orders, purchase_order_items, roles, role_permissions,
-payment_methods, exchange_rates, audit_log, settings. (Detalle de campos en `lib/database.types.ts`.)
+payment_methods, exchange_rates, audit_log, settings, y las del catálogo clasificado: option_types,
+option_values, color_families, product_lines, attributes, attribute_values, category_attributes,
+product_attribute_values, product_media, variant_sku_aliases, catalog_migration_log.
+(Detalle de campos en `lib/database.types.ts`.)
 - `payment_methods` lleva `currency` (`USD|VES`), `requires_reference` e `is_financed`. Métodos VES
   (Efectivo VES, Pago Móvil, Transferencia, Tarjeta débito/crédito) se cobran en bolívares;
   métodos USD (Efectivo USD, Zelle, Binance) en dólares. `Mixto` es meta-método (abre modal).
@@ -151,6 +164,11 @@ Utilidades extra: `bg-brand`, `text-brand`, `bg-brand-soft`, `text-success`,
   total de caja); `cashea_online` = inicial de una venta Cashea Online con cualquier método
   («Cashea Online · <método>»), otra cuenta; `cashea_settlement` = depósito conciliado de Cashea.
   Pantalla y ticket agrupan por cuenta con `lib/closure-groups.ts`.
+
+- **Limpieza del catálogo (ecommerce)**: estructura nueva aditiva en `supabase/catalog_taxonomy.sql`
+  (opciones de variante, familias de color, líneas, atributos, fotos por color, alias de SKU);
+  propuesta y Excel de revisión en `lib/catalog-migration/` + `scripts/catalogo/`. Runbook:
+  `docs/CATALOGO-LIMPIEZA.md`. Conexión a producción desde scripts con `scripts/catalogo/psql.sh`.
 
 ## Cómo correr
 ```bash

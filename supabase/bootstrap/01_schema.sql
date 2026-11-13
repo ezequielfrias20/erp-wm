@@ -69,7 +69,33 @@ create table wm.branches (
   updated_at timestamptz not null default now()
 );
 
--- Catálogos base
+-- Opciones de variante (segundo eje: talla, amarre…) y familias de color
+create table wm.option_types (
+  id uuid primary key default gen_random_uuid(),
+  code text unique not null,
+  name text not null,
+  sort_order int not null default 0
+);
+
+create table wm.option_values (
+  id uuid primary key default gen_random_uuid(),
+  option_type_id uuid not null references wm.option_types(id) on delete restrict,
+  label text not null,
+  slug text not null,
+  sort_order int not null default 0,
+  is_active boolean not null default true,
+  unique (option_type_id, slug)
+);
+
+create table wm.color_families (
+  id uuid primary key default gen_random_uuid(),
+  name text unique not null,
+  slug text unique not null,
+  hex text,
+  sort_order int not null default 0
+);
+
+-- Catálogos base (categorías en árbol: departamento → categoría)
 create table wm.categories (
   id uuid primary key default gen_random_uuid(),
   name text unique not null,
@@ -77,6 +103,9 @@ create table wm.categories (
   color text,
   sort_order int not null default 0,
   is_active boolean not null default true,
+  parent_id uuid references wm.categories(id) on delete restrict,
+  option_type_id uuid references wm.option_types(id) on delete set null,
+  requires_color boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -84,9 +113,24 @@ create table wm.categories (
 create table wm.brands (
   id uuid primary key default gen_random_uuid(),
   name text unique not null,
+  slug text,
+  logo_url text,
+  description text,
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+create table wm.product_lines (
+  id uuid primary key default gen_random_uuid(),
+  brand_id uuid not null references wm.brands(id) on delete cascade,
+  name text not null,
+  slug text not null,
+  sort_order int not null default 0,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (brand_id, slug)
 );
 
 create table wm.sizes (
@@ -99,7 +143,38 @@ create table wm.colors (
   id uuid primary key default gen_random_uuid(),
   name text unique not null,
   hex text,
+  sort_order int not null default 0,
+  slug text,
+  family_id uuid references wm.color_families(id) on delete set null,
+  swatch_url text,
+  is_active boolean not null default true
+);
+
+-- Atributos de filtro (definidos por datos; cada categoría declara cuáles aplican)
+create table wm.attributes (
+  id uuid primary key default gen_random_uuid(),
+  code text unique not null,
+  name text not null,
+  is_multi boolean not null default false,
   sort_order int not null default 0
+);
+
+create table wm.attribute_values (
+  id uuid primary key default gen_random_uuid(),
+  attribute_id uuid not null references wm.attributes(id) on delete cascade,
+  name text not null,
+  slug text not null,
+  sort_order int not null default 0,
+  is_active boolean not null default true,
+  unique (attribute_id, slug)
+);
+
+create table wm.category_attributes (
+  category_id uuid not null references wm.categories(id) on delete cascade,
+  attribute_id uuid not null references wm.attributes(id) on delete cascade,
+  is_required boolean not null default false,
+  sort_order int not null default 0,
+  primary key (category_id, attribute_id)
 );
 
 create table wm.suppliers (
@@ -124,6 +199,9 @@ create table wm.products (
   is_active boolean not null default true,
   visible_in_catalog boolean not null default true,
   tags text[] not null default '{}',
+  slug text,
+  line_id uuid references wm.product_lines(id) on delete set null,
+  specs jsonb not null default '[]'::jsonb,  -- ficha técnica: [{label, value}]
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -139,8 +217,45 @@ create table wm.product_variants (
   price numeric(12,2) not null default 0,
   cost numeric(12,2) not null default 0,
   is_active boolean not null default true,
+  color_id uuid references wm.colors(id) on delete restrict,
+  option_value_id uuid references wm.option_values(id) on delete restrict,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+create table wm.product_attribute_values (
+  product_id uuid not null references wm.products(id) on delete cascade,
+  attribute_value_id uuid not null references wm.attribute_values(id) on delete cascade,
+  primary key (product_id, attribute_value_id)
+);
+
+-- Fotos por producto y color (color_id null = foto general)
+create table wm.product_media (
+  id uuid primary key default gen_random_uuid(),
+  product_id uuid not null references wm.products(id) on delete cascade,
+  color_id uuid references wm.colors(id) on delete set null,
+  path text not null,
+  alt text,
+  sort_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+-- SKU viejos de variantes fusionadas → variante sobreviviente
+create table wm.variant_sku_aliases (
+  sku text primary key,
+  variant_id uuid not null references wm.product_variants(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+-- Registro de la reorganización del catálogo (viejo → nuevo)
+create table wm.catalog_migration_log (
+  id uuid primary key default gen_random_uuid(),
+  run_id uuid not null,
+  entity text not null,
+  old_id uuid,
+  new_id uuid,
+  old_data jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
 );
 
 -- Inventario por variante × sucursal
@@ -452,6 +567,17 @@ create table wm.settings (
 
 -- ===== 2. Índices ===========================================================
 create index on wm.product_variants(product_id);
+create unique index colors_slug_key on wm.colors(slug) where slug is not null;
+create unique index brands_slug_key on wm.brands(slug) where slug is not null;
+create unique index categories_slug_key on wm.categories(slug) where slug is not null;
+create index categories_parent_idx on wm.categories(parent_id);
+create unique index products_slug_key on wm.products(slug) where slug is not null;
+create index products_line_idx on wm.products(line_id);
+create index product_variants_color_idx on wm.product_variants(color_id);
+create index product_variants_option_idx on wm.product_variants(option_value_id);
+create index product_attribute_values_value_idx on wm.product_attribute_values(attribute_value_id);
+create index product_media_product_idx on wm.product_media(product_id, color_id, sort_order);
+create index catalog_migration_log_run_idx on wm.catalog_migration_log(run_id, entity);
 create index on wm.inventory(branch_id);
 create index on wm.inventory(variant_id);
 create index on wm.customers(branch_id);
@@ -500,7 +626,7 @@ do $$
 declare t text;
 begin
   foreach t in array array[
-    'branches','categories','brands','suppliers','products','product_variants',
+    'branches','categories','brands','product_lines','suppliers','products','product_variants',
     'profiles','customers','projects','project_registrations','sales','purchase_orders','settings'
   ] loop
     execute format(
@@ -574,6 +700,16 @@ declare
     "brands":"Inventario",
     "sizes":"Inventario",
     "colors":"Inventario",
+    "option_types":"Inventario",
+    "option_values":"Inventario",
+    "color_families":"Inventario",
+    "product_lines":"Inventario",
+    "attributes":"Inventario",
+    "attribute_values":"Inventario",
+    "category_attributes":"Inventario",
+    "product_attribute_values":"Productos",
+    "product_media":"Productos",
+    "variant_sku_aliases":"Productos",
     "suppliers":"Inventario",
     "products":"Productos",
     "product_variants":"Productos",
@@ -628,6 +764,11 @@ create policy cashea_orders_select on wm.cashea_orders for select using (wm.is_m
 create policy cashea_orders_insert on wm.cashea_orders for insert with check (wm.has_module('Ventas', 2));
 create policy cashea_orders_update on wm.cashea_orders for update
   using (wm.has_module('Reportes', 2)) with check (wm.has_module('Reportes', 2));
+
+-- catalog_migration_log (lectura: miembro; la escribe el script de limpieza como postgres)
+create policy catalog_migration_log_sel on wm.catalog_migration_log
+  for select to authenticated using (wm.is_member());
+grant select on wm.catalog_migration_log to authenticated;
 
 -- ===== 6. claim_profile (enlaza perfil invitado al auth user en primer login) =
 create or replace function wm.claim_profile()

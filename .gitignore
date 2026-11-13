@@ -42,3 +42,6 @@ next-env.d.ts
 
 # agent skills (tooling, not app code)
 .agents/
+
+# Catálogo: fotos de producción y Excel de revisión (datos del negocio)
+backups/catalogo/

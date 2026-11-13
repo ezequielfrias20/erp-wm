@@ -74,7 +74,11 @@ run supabase/projects_courses.sql
 # 6. Cierres diarios de caja por sucursal.
 run supabase/daily_closures.sql
 
-# 7. Estadísticas del planificador al día.
+# 7. Catálogo clasificado (aditivo): opciones de variante, familias de color, líneas,
+#    atributos, fotos por color, alias de SKU y registro de la limpieza.
+run supabase/catalog_taxonomy.sql
+
+# 8. Estadísticas del planificador al día.
 echo ""
 echo "=== ANALYZE ==="
 psql "$DB_URL" -v ON_ERROR_STOP=1 -c "analyze wm.sales; analyze wm.sale_items; analyze wm.sale_payments; analyze wm.inventory; analyze wm.customers; analyze wm.products; analyze wm.product_variants;"
@@ -91,7 +95,9 @@ with esperado(clase, nombre) as (values
   ('rpc','daily_closure_preview'), ('rpc','close_daily'),
   ('tab','project_groups'), ('tab','project_sessions'),
   ('tab','project_orders'),  ('tab','project_checkins'),
-  ('tab','daily_closures')
+  ('tab','daily_closures'),
+  ('tab','option_types'), ('tab','product_media'),
+  ('tab','variant_sku_aliases'), ('col','product_variants.color_id')
 )
 select case when presente then '  OK    ' else '  FALTA ' end || clase || ' ' || nombre
 from (

@@ -19,6 +19,7 @@ Estado por fase. Actualizar al cerrar cada módulo. Leyenda: ✅ hecho · 🚧 e
 | 12 | Configuración (perfil, empresa, marca, apariencia, ventas, inventario, notif, auditoría) | ✅ | 9 secciones; perfil/empresa/ventas/notif/colores persistentes; maestros CRUD; auditoría |
 | 13 | Mejoras operativas (carga masiva, POS avanzado, reportes con rango y factura) | ✅ | Ver detalle abajo; build de producción OK |
 | 14 | Cashea (financiamiento: inicial en caja + cuenta por cobrar, conciliación, comisión) | ✅ | Ver detalle abajo; build de producción OK |
+| 16 | Catálogo clasificado para ecommerce | 🚧 | Plan 1/4 ✅ (esquema aplicado + Excel de revisión); ver detalle abajo |
 
 ## Fase 13 — Mejoras operativas
 
@@ -107,6 +108,22 @@ Migraciones: `wm_branding_fn`, `wm_settings_logo_dark`. Plan/spec en `docs/super
 - **Color primario**: `<style>` server-rendered (`lib/brand-css.ts`) que sobrescribe los tokens
   de marca (`--brand`, `--primary`, `--ring`, `--sidebar-*`, `--chart-1`), igual en claro/oscuro;
   helpers de color con pruebas unitarias (vitest, nuevo runner).
+
+## Fase 16 — Catálogo clasificado para ecommerce (en curso)
+
+Spec: `docs/superpowers/specs/2026-11-11-catalogo-listo-ecommerce-design.md` · Hoja de ruta (4
+planes): `docs/superpowers/plans/2026-11-11-catalogo-00-hoja-de-ruta.md` · Runbook:
+`docs/CATALOGO-LIMPIEZA.md`.
+
+- **Plan 1 ✅** — migración aditiva `catalog_taxonomy` aplicada en producción (2026-11-13), plegada
+  al bootstrap y a `apply_pending.sh`. Propuesta de clasificación y Excel de revisión
+  (`lib/catalog-migration/`, `scripts/catalogo/`): 423 productos → 339, 53 variantes repetidas.
+  Excel enviado a la tienda para revisión.
+- **Plan 2 ⬜** — leer el Excel devuelto, validar el criterio de éxito, simular y aplicar la limpieza.
+- **Plan 3 ⬜** — ERP adaptado (maestros, editor con atributos y fotos por color, filtros).
+- **Plan 4 ⬜** — guardas, retiro de `color`/`size` en texto y `wm.sizes`, plantillas de carga
+  masiva nuevas (ojo: `lib/excel.ts` tiene el mismo bug de ExcelJS de validaciones solapadas que se
+  corrigió en `lib/catalog-migration/workbook.ts`).
 
 ## Cómo reanudar
 1. Leer `CLAUDE.md` (stack, Supabase, RLS, credenciales, convenciones).
