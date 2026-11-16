@@ -195,7 +195,9 @@ Utilidades extra: `bg-brand`, `text-brand`, `bg-brand-soft`, `text-success`,
     acciones `app/(app)/configuracion/catalog-actions.ts`, datos `getCatalogAdminData`, reglas
     `lib/catalog/masters.ts`): categorías (árbol de 2 niveles), marcas y líneas, colores (hex +
     familia), tallas/opciones y características. Escribir exige permiso **Inventario** (= RLS).
-    Sólo se borra lo que no se usa (un color tampoco si tiene fotos); lo usado se desactiva.
+    Sólo se borra lo que no se usa (un color tampoco si tiene fotos); lo usado se desactiva. La
+    base lo garantiza (`supabase/catalog_master_guards.sql`: FK RESTRICT e índices únicos en
+    `lower(name)`). La sección carga sus datos al abrirse (`loadCatalogAdminData`).
     Nombres únicos sin mayúsculas ni acentos; el slug se genera al crear y no cambia al renombrar.
     La sección vieja «Inventario» (tarjetas simples, `addMaster`/`deleteMaster`, `wm.sizes`) se quitó.
   - **Texto legado**: disparadores `SECURITY DEFINER` de `supabase/catalog_view.sql` copian

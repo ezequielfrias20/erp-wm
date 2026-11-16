@@ -140,34 +140,16 @@ planes): `docs/superpowers/plans/2026-11-11-catalogo-00-hoja-de-ruta.md` · Runb
   sincronizado por disparadores, vista `wm.v_catalog` y pantalla `/productos/catalogo`. Spec
   `docs/superpowers/specs/2026-11-16-catalogo-3b-maestros-y-vista-design.md`. Migración
   `supabase/catalog_view.sql` (en `apply_pending.sh` y bootstrap).
-- **Pendientes del 3b ⬜** (revisión final 2026-11-16):
-  1. Ordenar colores, tipos de opción y características (hoy sólo valores, categorías y líneas).
-  2. Mover una categoría de departamento conserva su `sort_order` viejo (asignar el siguiente).
-  3. El departamento muestra «0 productos» (sólo cuenta los asignados directo): mostrar el total.
-  4. Mensajes de uso: característica cuenta pares producto-valor como «productos»; una marca con
-     líneas sin uso se bloquea en la UI aunque el servidor permitiría borrarla.
-  5. Cambiar una característica de «varios valores» a «uno» no avisa de productos con varios.
-  6. Un color sin familia preselecciona la primera familia al editarlo: obligar a elegir.
-  7. Slug a mano: texto sin caracteres válidos → «x» sin aviso; choque de slug de la base sale
-     como «nombre repetido».
-  8. Atomicidad: `deleteOptionType` (valores + tipo) en dos pasos; comprobar-y-borrar sin `restrict`
-     en la base (valores de característica, categorías, marcas, líneas); unicidad sin mayúsculas
-     sólo en la app (índice `lower(name)`).
-  9. Rendimiento: cada acción recarga 13 tablas; reordenar hace N updates; `/configuracion` carga
-     el catálogo aunque se abra «Perfil»; `/productos/catalogo` lee variantes 3 veces.
-  10. `/productos/catalogo`: productos asignados a un departamento o a una categoría inactiva no
-      aparecen al filtrar por departamento.
-  11. La prueba de la migración corre como `postgres`: agregar un caso con rol `authenticated`
-      sólo-Inventario y `assert` de que hay variantes con color y talla.
-- **Pendientes del 3a ✅** (2026-11-16) — los 11 detalles de la revisión final resueltos: borrar un
-  producto limpia sus archivos de fotos sin uso; rutas validadas (`isProductImagePath`) antes de
-  borrar archivos; SKU normalizado a mayúsculas (`normalizeSku`); editar precio/costo/estado de una
-  variante no revalida color ni opción si no cambian (`variantMastersChanged`); nombres de colores
-  inactivos «(inactivo)»; un solo orden de colores para chips y foto principal
-  (`orderProductColors`); motivo del conflicto al importar stock (SKU repetido vs. anterior y
-  actual); cargas en paralelo en POS e inventario; subida de fotos con plazo de 60 s y aviso si se
-  sueltan fotos durante otra subida; aviso «Falta la etiqueta» en la ficha técnica; editor de Mao
-  Stretch (39 colores) verificado en escritorio.
+- **Pendientes del 3b ✅** (2026-11-16) — los 11 detalles de la revisión final resueltos: ordenar
+  colores (dentro de su familia), tipos de opción y características; mover una categoría la deja
+  al final de su nuevo departamento; el departamento muestra el total de productos; mensajes de
+  uso coherentes con el servidor; pasar una característica a «un valor» se bloquea si hay
+  productos con varios; familia de color obligatoria; slug validado; **candados en la base**
+  (`supabase/catalog_master_guards.sql`: borrar maestros en uso → RESTRICT, tipo de opción sin uso
+  se borra entero, nombres únicos sin mayúsculas); acciones con consultas acotadas y
+  Configuración → Catálogo carga al abrirse; `/productos/catalogo` muestra productos de
+  departamento o categoría inactiva («Sin categoría») y lee menos veces; prueba de disparadores
+  más estricta.
 - **Plan 4 ⬜** — guardas, retiro de `color`/`size` en texto y `wm.sizes`, plantillas de carga
   masiva nuevas (ojo: `lib/excel.ts` tiene el mismo bug de ExcelJS de validaciones solapadas que se
   corrigió en `lib/catalog-migration/workbook.ts`).
