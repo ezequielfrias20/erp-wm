@@ -7,6 +7,8 @@ import { getSession } from "@/lib/queries/session";
 import { getActiveBranchId, getProfileBranchScope } from "@/lib/branch";
 import { canEdit, canView } from "@/lib/permissions";
 import { getInventoryOptions } from "@/lib/queries/inventory-options";
+import { resolveImportSkus } from "@/lib/catalog/sku-alias";
+import { fetchAllRows } from "@/lib/supabase/pagination";
 import {
   EMPTY_INVENTORY_OPTIONS,
   type InventoryOptions,
@@ -128,6 +130,7 @@ export async function updateStock(
 }
 
 export type ImportRow = {
+  row?: number;
   sku: string;
   branch: string;
   quantity: number;
@@ -154,11 +157,17 @@ export async function importInventory(rows: ImportRow[]): Promise<ImportResult> 
     branchesQ = branchesQ.eq("id", assignedBranchId);
   }
 
-  const [{ data: variants }, { data: branches }] = await Promise.all([
-    supabase.from("product_variants").select("id, sku"),
+  const [variants, aliases, { data: branches }] = await Promise.all([
+    fetchAllRows<{ id: string; sku: string }>((from, to) =>
+      supabase.from("product_variants").select("id, sku").order("sku").range(from, to),
+    ),
+    fetchAllRows<{ variant_id: string; sku: string }>((from, to) =>
+      supabase.from("variant_sku_aliases").select("variant_id, sku").order("sku").range(from, to),
+    ),
     branchesQ,
   ]);
-  const vMap = new Map((variants ?? []).map((v) => [v.sku.toLowerCase(), v.id]));
+  const variantBySku = new Map(variants.map((variant) => [variant.sku, variant.id]));
+  const variantByAlias = new Map(aliases.map((alias) => [alias.sku, alias.variant_id]));
   const bMap = new Map<string, string>();
   for (const b of branches ?? []) {
     bMap.set(b.city.toLowerCase(), b.id);
@@ -168,16 +177,28 @@ export async function importInventory(rows: ImportRow[]): Promise<ImportResult> 
   const num = (v: number | null | undefined): number | null =>
     v == null || !Number.isFinite(v) ? null : Math.max(0, Math.trunc(v));
 
-  // Resolve rows + keep only matches.
-  const resolved = rows
-    .map((r) => ({
-      variant_id: vMap.get(r.sku.toLowerCase()),
-      branch_id: bMap.get(String(r.branch).trim().toLowerCase()),
-      quantity: Number.isFinite(r.quantity) ? Math.max(0, Math.trunc(r.quantity)) : 0,
-      reserved: num(r.reserved),
-      min_stock: num(r.min_stock),
-    }))
-    .filter((r) => r.variant_id && r.branch_id) as {
+  const numberedRows = rows.map((row, index) => ({
+    ...row,
+    rowNumber: row.row ?? index + 2,
+    branchId: bMap.get(String(row.branch).trim().toLowerCase()),
+  }));
+  const matchedBranches = numberedRows.filter((row) => row.branchId);
+  const resolution = resolveImportSkus(
+    matchedBranches.map((row) => ({ row: row.rowNumber, sku: row.sku, branch: row.branchId! })),
+    variantBySku,
+    variantByAlias,
+  );
+  const variantIdByRow = new Map(resolution.resolved.map(({ row, variantId }) => [row, variantId]));
+  const conflictRows = resolution.conflicts.flatMap((conflict) => conflict.rows).sort((a, b) => a - b);
+  const resolved = numberedRows
+    .filter((row) => row.branchId && variantIdByRow.has(row.rowNumber))
+    .map((row) => ({
+      variant_id: variantIdByRow.get(row.rowNumber)!,
+      branch_id: row.branchId!,
+      quantity: Number.isFinite(row.quantity) ? Math.max(0, Math.trunc(row.quantity)) : 0,
+      reserved: num(row.reserved),
+      min_stock: num(row.min_stock),
+    })) as {
     variant_id: string;
     branch_id: string;
     quantity: number;
@@ -186,8 +207,11 @@ export async function importInventory(rows: ImportRow[]): Promise<ImportResult> 
   }[];
 
   const skipped = rows.length - resolved.length;
+  const conflictError = conflictRows.length
+    ? `Filas en conflicto (SKU anterior y actual de la misma variante en la misma sucursal): ${conflictRows.join(", ")}. Corrige el archivo.`
+    : null;
   if (!resolved.length)
-    return { error: "Ninguna fila coincidió con un SKU y una sucursal válidos.", skipped };
+    return { error: conflictError ?? "Ninguna fila coincidió con un SKU y una sucursal válidos.", skipped };
 
   // Merge with existing reserved/min_stock so una columna omitida no los resetea.
   const variantIds = [...new Set(resolved.map((r) => r.variant_id))];
@@ -220,7 +244,11 @@ export async function importInventory(rows: ImportRow[]): Promise<ImportResult> 
 
   await audit(`Importó inventario (${payload.length} filas)`, "Inventario");
   revalidatePath("/inventario");
-  return { imported: payload.length, skipped };
+  return {
+    imported: payload.length,
+    skipped,
+    ...(conflictError ? { error: `${conflictError} Se importaron ${payload.length} fila(s) sin conflicto.` } : {}),
+  };
 }
 
 /**

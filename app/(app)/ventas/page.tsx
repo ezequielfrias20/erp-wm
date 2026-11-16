@@ -6,7 +6,7 @@ import { canView } from "@/lib/permissions";
 import { fetchBcvRate, BCV_FALLBACK } from "@/lib/bcv";
 import { fetchAllRows } from "@/lib/supabase/pagination";
 import { PosView, type PosProduct } from "@/components/ventas/pos-view";
-import { productImageUrl } from "@/lib/product-images";
+import { getMainPhotoUrls } from "@/lib/queries/catalog";
 
 export const metadata = { title: "Punto de venta · World Medics ERP" };
 
@@ -56,8 +56,7 @@ export default async function VentasPage() {
     .order("name");
   if (branchId) customersQ = customersQ.eq("branch_id", branchId);
 
-  // `sellers` y las versiones de producto iban en serie después de este Promise.all
-  // (dos viajes encadenados de más). Ninguna depende del resto: se traen aquí.
+  // Los vendedores no dependen de las existencias y se cargan en paralelo.
   const [
     branchRes,
     invRows,
@@ -66,7 +65,6 @@ export default async function VentasPage() {
     settingsRes,
     bcv,
     sellersRes,
-    productVersionsRes,
   ] = await Promise.all([
     branchId
       ? supabase.from("branches").select("id, city").eq("id", branchId).maybeSingle()
@@ -106,19 +104,32 @@ export default async function VentasPage() {
       .eq("role", "Vendedor")
       .eq("status", "Activo")
       .order("full_name"),
-    supabase.from("products").select("id, updated_at"),
   ]);
 
   const sellers = sellersRes.data;
-  const versionByProduct = new Map(
-    (productVersionsRes.data ?? []).map((product) => [product.id, product.updated_at]),
-  );
+  const loadedVariantIds = new Set(invRows.map((row) => row.variant_id));
+  const [mainPhotoUrls, aliases] = await Promise.all([
+    getMainPhotoUrls([...new Set(invRows.map((row) => row.product_id))]),
+    loadedVariantIds.size
+      ? fetchAllRows<{ variant_id: string; sku: string }>((from, to) =>
+          supabase.from("variant_sku_aliases").select("variant_id, sku").order("sku").range(from, to),
+        )
+      : Promise.resolve([]),
+  ]);
+  const aliasesByVariant = new Map<string, string[]>();
+  for (const alias of aliases) {
+    if (!loadedVariantIds.has(alias.variant_id)) continue;
+    const list = aliasesByVariant.get(alias.variant_id) ?? [];
+    list.push(alias.sku);
+    aliasesByVariant.set(alias.variant_id, list);
+  }
 
   const products: PosProduct[] = invRows.map((r) => ({
     product_id: r.product_id,
     variant_id: r.variant_id,
-    product_image_url: productImageUrl(r.product_id, versionByProduct.get(r.product_id)),
+    product_image_url: mainPhotoUrls.get(r.product_id) ?? null,
     sku: r.sku,
+    aliases: aliasesByVariant.get(r.variant_id) ?? [],
     product_name: r.product_name,
     category: r.category,
     brand: r.brand,

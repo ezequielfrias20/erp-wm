@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/queries/session";
 import { listProducts, getCatalogRefs } from "@/lib/queries/products";
+import { getCatalogMasters } from "@/lib/queries/catalog";
 import { canView, canEdit } from "@/lib/permissions";
 import { getActiveBranchId } from "@/lib/branch";
 import { ProductsView } from "@/components/productos/products-view";
@@ -16,14 +17,16 @@ export default async function ProductosPage() {
     session.profile.branch_id,
     session.profile.role,
   );
-  const [products, refs] = await Promise.all([
+  const [products, refs, masters] = await Promise.all([
     listProducts(branchId),
     getCatalogRefs(),
+    getCatalogMasters(),
   ]);
 
   return (
     <ProductsView
       products={products}
+      masters={masters}
       categories={refs.categories}
       brands={refs.brands}
       sizes={refs.sizes}

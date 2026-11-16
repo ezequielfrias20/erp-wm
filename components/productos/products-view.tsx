@@ -1,39 +1,21 @@
 "use client";
 
-import { useMemo, useState, useActionState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useFormStatus } from "react-dom";
-import { Plus, Search, Loader2, ChevronRight, X } from "lucide-react";
-import { saveProduct, type FormState } from "@/app/(app)/productos/actions";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Plus, Search, ChevronRight, X, AlertTriangle } from "lucide-react";
 import { TablePagination } from "@/components/ui/table-pagination";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { fmtUSD, fmtNum, initials } from "@/lib/format";
 import { matchesProductQuery } from "@/lib/search";
 import { ProductsBulkBar } from "@/components/productos/bulk-bar";
+import { NewProductDialog } from "@/components/productos/new-product-dialog";
 import type { ProductListItem } from "@/lib/database.types";
+import type { CatalogMasters } from "@/lib/queries/catalog";
 
 type Ref = { id: string; name: string };
 
 export function ProductsView({
   products,
+  masters,
   categories,
   brands,
   sizes,
@@ -41,6 +23,7 @@ export function ProductsView({
   canEdit,
 }: {
   products: ProductListItem[];
+  masters: Pick<CatalogMasters, "departments" | "categories" | "brands">;
   categories: Ref[];
   brands: Ref[];
   sizes: { id: string; label: string }[];
@@ -49,9 +32,12 @@ export function ProductsView({
 }) {
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("");
+  const [department, setDepartment] = useState("");
   const [brand, setBrand] = useState("");
+  const [line, setLine] = useState("");
   const [size, setSize] = useState("");
   const [color, setColor] = useState("");
+  const [incompleteOnly, setIncompleteOnly] = useState(false);
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -59,19 +45,21 @@ export function ProductsView({
 
   const filterOptions = useMemo(
     () => ({
-      categories: uniqueSorted(products.map((p) => p.category)),
-      brands: uniqueSorted(products.map((p) => p.brand)),
       sizes: uniqueSorted(products.flatMap((p) => p.sizes)),
       colors: uniqueSorted(products.flatMap((p) => p.colors.map((c) => c.name))),
     }),
     [products],
   );
-  const hasFilters = Boolean(query.trim() || cat || brand || size || color);
+  const incompleteCount = products.filter((p) => p.is_active && !p.ready).length;
+  const hasFilters = Boolean(query.trim() || department || cat || brand || line || size || color || incompleteOnly);
 
   const filtered = useMemo(() => {
     let list = products;
-    if (cat) list = list.filter((p) => p.category === cat);
-    if (brand) list = list.filter((p) => p.brand === brand);
+    if (department) list = list.filter((p) => p.departmentId === department);
+    if (cat) list = list.filter((p) => p.categoryId === cat);
+    if (brand) list = list.filter((p) => p.brand_id === brand);
+    if (line) list = list.filter((p) => p.lineId === line);
+    if (incompleteOnly) list = list.filter((p) => p.is_active && !p.ready);
     if (size) list = list.filter((p) => p.sizes.includes(size));
     if (color) list = list.filter((p) => p.colors.some((c) => c.name === color));
     if (query.trim()) {
@@ -87,7 +75,7 @@ export function ProductsView({
       );
     }
     return list;
-  }, [products, cat, brand, size, color, query]);
+  }, [products, department, cat, brand, line, size, color, incompleteOnly, query]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -142,22 +130,42 @@ export function ProductsView({
             />
           </div>
           <FilterSelect
+            value={department}
+            onChange={(value) => {
+              setDepartment(value);
+              setCat("");
+              setPage(1);
+            }}
+            placeholder="Departamento"
+            options={masters.departments}
+          />
+          <FilterSelect
             value={cat}
             onChange={(value) => {
               setCat(value);
               setPage(1);
             }}
             placeholder="Categoría"
-            options={filterOptions.categories}
+            options={masters.categories.filter((c) => !department || c.departmentId === department)}
           />
           <FilterSelect
             value={brand}
             onChange={(value) => {
               setBrand(value);
+              setLine("");
               setPage(1);
             }}
             placeholder="Marca"
-            options={filterOptions.brands}
+            options={masters.brands}
+          />
+          <FilterSelect
+            value={line}
+            onChange={(value) => {
+              setLine(value);
+              setPage(1);
+            }}
+            placeholder="Línea"
+            options={masters.brands.filter((b) => !brand || b.id === brand).flatMap((b) => b.lines)}
           />
           <FilterSelect
             value={size}
@@ -165,8 +173,8 @@ export function ProductsView({
               setSize(value);
               setPage(1);
             }}
-            placeholder="Talla"
-            options={filterOptions.sizes}
+            placeholder="Talla / opción"
+            options={filterOptions.sizes.map((name) => ({ id: name, name }))}
           />
           <FilterSelect
             value={color}
@@ -175,17 +183,28 @@ export function ProductsView({
               setPage(1);
             }}
             placeholder="Color"
-            options={filterOptions.colors}
+            options={filterOptions.colors.map((name) => ({ id: name, name }))}
           />
+          <button
+            type="button"
+            aria-pressed={incompleteOnly}
+            onClick={() => { setIncompleteOnly((current) => !current); setPage(1); }}
+            className={`h-11 rounded-[10px] border px-3 text-[12.5px] font-medium sm:h-[38px] ${incompleteOnly ? "border-warning bg-warning-soft text-warning" : "border-border bg-card text-text-2"}`}
+          >
+            Incompletos ({fmtNum(incompleteCount)})
+          </button>
           {hasFilters && (
             <button
               type="button"
               onClick={() => {
                 setQuery("");
+                setDepartment("");
                 setCat("");
                 setBrand("");
+                setLine("");
                 setSize("");
                 setColor("");
+                setIncompleteOnly(false);
                 setPage(1);
               }}
               className="iconbtn flex h-11 w-full items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-3 text-[13px] font-medium text-text-2 sm:h-[38px] sm:w-auto"
@@ -241,6 +260,11 @@ export function ProductsView({
                         <span className="block text-[11px] text-text-3">
                           {p.variant_count} variantes
                         </span>
+                        {p.is_active && !p.ready && (
+                          <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-warning-soft px-1.5 py-0.5 text-[10.5px] font-medium text-warning" title={`${p.missingCount} pendientes para tienda`}>
+                            <AlertTriangle className="size-3" /> {p.missingCount} pendientes
+                          </span>
+                        )}
                       </span>
                     </Link>
                   </td>
@@ -308,11 +332,10 @@ export function ProductsView({
       </div>
 
       {canEdit && (
-        <CreateDialog
+        <NewProductDialog
           open={open}
           onOpenChange={setOpen}
-          categories={categories}
-          brands={brands}
+          masters={masters}
         />
       )}
     </div>
@@ -334,7 +357,7 @@ function FilterSelect({
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
-  options: string[];
+  options: { id: string; name: string }[];
 }) {
   return (
     <select
@@ -344,8 +367,8 @@ function FilterSelect({
     >
       <option value="">{placeholder}: todos</option>
       {options.map((o) => (
-        <option key={o} value={o}>
-          {o}
+        <option key={o.id} value={o.id}>
+          {o.name}
         </option>
       ))}
     </select>
@@ -398,106 +421,5 @@ function VariantSummary({
         </span>
       )}
     </div>
-  );
-}
-
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" disabled={pending} className="font-semibold">
-      {pending && <Loader2 className="size-4 animate-spin" />}
-      Crear y editar
-    </Button>
-  );
-}
-
-function CreateDialog({
-  open,
-  onOpenChange,
-  categories,
-  brands,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  categories: Ref[];
-  brands: Ref[];
-}) {
-  const router = useRouter();
-  const [state, formAction] = useActionState<FormState, FormData>(
-    saveProduct,
-    null,
-  );
-
-  useEffect(() => {
-    if (state?.ok && state.id) {
-      onOpenChange(false);
-      router.push(`/productos/${state.id}`);
-    }
-  }, [state, onOpenChange, router]);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] max-w-[520px] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Nuevo producto</DialogTitle>
-        </DialogHeader>
-        <form action={formAction} className="flex flex-col gap-4">
-          <input type="hidden" name="is_active" value="true" />
-          <input type="hidden" name="visible_in_catalog" value="true" />
-          <input type="hidden" name="create_default_variant" value="true" />
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="name">Nombre del producto</Label>
-            <Input id="name" name="name" placeholder="Ej. Scrub Set Cherokee Workwear" required />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="description">Descripción</Label>
-            <Textarea id="description" name="description" rows={3} />
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <Label>Categoría</Label>
-              <Select name="category_id">
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Marca</Label>
-              <Select name="brand_id">
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar" />
-                </SelectTrigger>
-                <SelectContent>
-                  {brands.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          {state?.error && (
-            <p className="rounded-lg bg-danger-soft px-3 py-2 text-[12.5px] text-danger">
-              {state.error}
-            </p>
-          )}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <SubmitButton />
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }

@@ -44,7 +44,7 @@ import { matchesProductQuery } from "@/lib/search";
 import { cn } from "@/lib/utils";
 import type { VInventory } from "@/lib/database.types";
 
-type InventoryRow = VInventory & { product_image_url: string | null };
+type InventoryRow = VInventory & { product_image_url: string | null; aliases: string[] };
 
 import {
   EMPTY_INVENTORY_OPTIONS,
@@ -172,6 +172,7 @@ export function InventarioView({
         (r) => matchesProductQuery([
           r.product_name,
           r.sku,
+          r.aliases,
           r.category,
           r.brand,
           r.size,
@@ -589,11 +590,11 @@ function uniqueSorted(values: Array<string | null | undefined>) {
 }
 
 function parseInventoryCsv(text: string): ImportRow[] {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  const lines = text.split(/\r?\n/).map((line, index) => ({ text: line, row: index + 1 })).filter((line) => line.text.trim());
   if (!lines.length) return [];
   const split = (l: string) =>
     l.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
-  const header = split(lines[0]).map((h) => h.toLowerCase());
+  const header = split(lines[0].text).map((h) => h.toLowerCase());
   const find = (names: string[]) => header.findIndex((h) => names.includes(h));
   const iSku = find(["sku", "código", "codigo", "producto (sku)"]);
   const iBranch = find(["sucursal", "branch", "tienda", "ciudad"]);
@@ -612,9 +613,10 @@ function parseInventoryCsv(text: string): ImportRow[] {
     i >= 0 && c[i] !== "" && c[i] != null ? Number(c[i]) : null;
 
   return dataLines
-    .map((l) => split(l))
-    .filter((c) => c[cols.sku] && c[cols.branch])
-    .map((c) => ({
+    .map((line) => ({ cells: split(line.text), row: line.row }))
+    .filter(({ cells }) => cells[cols.sku] && cells[cols.branch])
+    .map(({ cells: c, row }) => ({
+      row,
       sku: cleanSku(c[cols.sku]),
       branch: c[cols.branch],
       quantity: Number(c[cols.qty] ?? 0),
@@ -641,7 +643,8 @@ function ImportDialog({
       try {
         const { parseSheet } = await loadExcel();
         const raw = await parseSheet(f, INVENTORY_SHEET);
-        const rows: ImportRow[] = raw.map((r) => ({
+        const rows: ImportRow[] = raw.map((r, index) => ({
+          row: index + 2,
           sku: cleanSku(r[INV_COLS.sku] ?? r["SKU"] ?? ""),
           branch: r[INV_COLS.branch] ?? "",
           quantity: Number(r[INV_COLS.stock] ?? 0),
@@ -857,6 +860,7 @@ function AddStockDialog({
             [
               variant.product_name,
               variant.sku,
+              variant.aliases,
               variant.category,
               variant.brand,
               variant.size,

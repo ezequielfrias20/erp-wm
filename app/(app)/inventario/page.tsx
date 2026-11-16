@@ -5,7 +5,7 @@ import { getActiveBranchId } from "@/lib/branch";
 import { canView, canEdit } from "@/lib/permissions";
 import { InventarioView } from "@/components/inventario/inventario-view";
 import { fetchAllRows } from "@/lib/supabase/pagination";
-import { productImageUrl } from "@/lib/product-images";
+import { getMainPhotoUrls } from "@/lib/queries/catalog";
 import type { VInventory } from "@/lib/database.types";
 
 export const metadata = { title: "Inventario · World Medics ERP" };
@@ -21,33 +21,39 @@ export default async function InventarioPage() {
     session.profile.role,
   );
 
-  // Antes esto eran seis pasos en serie (~3.3 s medidos) porque cada consulta
-  // filtraba por los ids de la anterior. Ahora son tres independientes en paralelo:
-  // el catálogo de variantes y sucursales, que sólo hace falta para la plantilla y
-  // el alta de stock, se pide bajo demanda (ver `loadInventoryOptions`).
-  const [list, productVersions, branchRow] = await Promise.all([
+  // El catálogo completo para la plantilla y el alta de stock se pide bajo demanda
+  // (ver `loadInventoryOptions`). Aquí se cargan sólo las existencias visibles.
+  const [list, branchRow] = await Promise.all([
     fetchAllRows<VInventory>((from, to) => {
       let query = supabase.from("v_inventory").select("*");
       if (branchId) query = query.eq("branch_id", branchId);
       return query.order("product_name").range(from, to);
     }),
-    fetchAllRows<{ id: string; updated_at: string }>((from, to) =>
-      supabase.from("products").select("id, updated_at").range(from, to),
-    ),
     branchId
       ? supabase.from("branches").select("city").eq("id", branchId).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
 
-  const versionByProduct = new Map(
-    productVersions.map((product) => [product.id, product.updated_at]),
-  );
+  const loadedVariantIds = new Set(list.map((row) => row.variant_id));
+  const [mainPhotoUrls, aliases] = await Promise.all([
+    getMainPhotoUrls([...new Set(list.map((row) => row.product_id))]),
+    loadedVariantIds.size
+      ? fetchAllRows<{ variant_id: string; sku: string }>((from, to) =>
+          supabase.from("variant_sku_aliases").select("variant_id, sku").order("sku").range(from, to),
+        )
+      : Promise.resolve([]),
+  ]);
+  const aliasesByVariant = new Map<string, string[]>();
+  for (const alias of aliases) {
+    if (!loadedVariantIds.has(alias.variant_id)) continue;
+    const variantAliases = aliasesByVariant.get(alias.variant_id) ?? [];
+    variantAliases.push(alias.sku);
+    aliasesByVariant.set(alias.variant_id, variantAliases);
+  }
   const rows = list.map((row) => ({
     ...row,
-    product_image_url: productImageUrl(
-      row.product_id,
-      versionByProduct.get(row.product_id),
-    ),
+    product_image_url: mainPhotoUrls.get(row.product_id) ?? null,
+    aliases: aliasesByVariant.get(row.variant_id) ?? [],
   }));
   const categories = [
     ...new Set(list.map((r) => r.category).filter(Boolean)),

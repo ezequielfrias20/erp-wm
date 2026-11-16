@@ -10,6 +10,7 @@ export type InventoryVariantOption = {
   id: string;
   product_id: string;
   sku: string;
+  aliases: string[];
   product_name: string;
   category: string | null;
   brand: string | null;

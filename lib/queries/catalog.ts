@@ -252,16 +252,20 @@ export async function getProductEditorData(id: string): Promise<ProductEditorDat
 export async function getMainPhotoUrls(productIds?: string[]): Promise<Map<string, string>> {
   const result = new Map<string, string>();
   if (productIds && productIds.length === 0) return result;
+  // Con muchos ids el filtro «in» arma una URL demasiado larga (el POS pide ~300): por encima de
+  // este tope se traen todas las filas (son pocas) y se filtra en memoria.
+  const wanted = productIds ? new Set(productIds) : null;
+  const filterIds = productIds && productIds.length <= 100 ? productIds : null;
   const supabase = await createClient();
   const [media, variants] = await Promise.all([
     fetchAllRows<Pick<ProductMedia, "id" | "product_id" | "color_id" | "path" | "sort_order">>((from, to) => {
       let query = supabase.from("product_media").select("id, product_id, color_id, path, sort_order");
-      if (productIds) query = query.in("product_id", productIds);
+      if (filterIds) query = query.in("product_id", filterIds);
       return query.order("product_id").order("sort_order").order("id").range(from, to);
     }),
     fetchAllRows<Pick<ProductVariant, "id" | "product_id" | "color_id" | "sku">>((from, to) => {
       let query = supabase.from("product_variants").select("id, product_id, color_id, sku").eq("is_active", true);
-      if (productIds) query = query.in("product_id", productIds);
+      if (filterIds) query = query.in("product_id", filterIds);
       return query.order("product_id").order("sku").order("id").range(from, to);
     }),
   ]);
@@ -274,6 +278,7 @@ export async function getMainPhotoUrls(productIds?: string[]): Promise<Map<strin
     colorOrderByProduct.set(variant.product_id, order);
   }
   for (const [productId, photos] of mediaByProduct) {
+    if (wanted && !wanted.has(productId)) continue;
     const main = pickMainPhoto(
       photos.map((photo) => ({ ...photo, colorId: photo.color_id, sortOrder: photo.sort_order })),
       colorOrderByProduct.get(productId) ?? [],

@@ -89,6 +89,7 @@ export type PosProduct = {
   variant_id: string;
   product_image_url: string | null;
   sku: string;
+  aliases: string[];
   product_name: string;
   category: string | null;
   brand: string | null;
@@ -389,6 +390,7 @@ export function PosView({
         (p) => matchesProductQuery([
           p.product_name,
           p.sku,
+          p.aliases,
           p.category,
           p.brand,
           p.color,
@@ -669,6 +671,7 @@ export function PosView({
         ...l,
         product_id: current?.product_id ?? l.product_id ?? l.variant_id,
         product_image_url: current?.product_image_url ?? l.product_image_url ?? null,
+        aliases: current?.aliases ?? [],
         brand: l.brand ?? null,
         color: l.color ?? null,
         size: l.size ?? null,

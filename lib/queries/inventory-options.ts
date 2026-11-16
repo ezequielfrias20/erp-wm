@@ -24,7 +24,7 @@ export async function getInventoryOptions(
 ): Promise<InventoryOptions> {
   const supabase = await createClient();
 
-  const [variants, branches, products, categories, brands] = await Promise.all([
+  const [variants, branches, products, categories, brands, aliases] = await Promise.all([
     fetchAllRows<
       Pick<
         ProductVariant,
@@ -57,11 +57,20 @@ export async function getInventoryOptions(
     fetchAllRows<Pick<Brand, "id" | "name">>((from, to) =>
       supabase.from("brands").select("id, name").range(from, to),
     ),
+    fetchAllRows<{ variant_id: string; sku: string }>((from, to) =>
+      supabase.from("variant_sku_aliases").select("variant_id, sku").order("sku").range(from, to),
+    ),
   ]);
 
   const productById = new Map(products.map((product) => [product.id, product]));
   const categoryById = new Map(categories.map((c) => [c.id, c.name]));
   const brandById = new Map(brands.map((b) => [b.id, b.name]));
+  const aliasesByVariant = new Map<string, string[]>();
+  for (const alias of aliases) {
+    const variantAliases = aliasesByVariant.get(alias.variant_id) ?? [];
+    variantAliases.push(alias.sku);
+    aliasesByVariant.set(alias.variant_id, variantAliases);
+  }
 
   const variantOptions: InventoryVariantOption[] = variants
     .filter((variant) => productById.has(variant.product_id))
@@ -71,6 +80,7 @@ export async function getInventoryOptions(
         id: variant.id,
         product_id: variant.product_id,
         sku: variant.sku,
+        aliases: aliasesByVariant.get(variant.id) ?? [],
         product_name: product?.name ?? "",
         category: product?.category_id
           ? categoryById.get(product.category_id) ?? null
