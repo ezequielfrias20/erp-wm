@@ -191,6 +191,19 @@ Utilidades extra: `bg-brand`, `text-brand`, `bg-brand-soft`, `text-success`,
     (`resolveMasterField`). Filtros `.in()` con muchos ids van por grupos de 100 (`lib/chunk.ts`).
   - POS e inventario buscan también por SKU viejo (`variant_sku_aliases`); la importación de stock
     rechaza el archivo entero si trae un SKU viejo y su variante actual en la misma sucursal.
+  - **Maestros (plan 3b)**: Configuración → **Catálogo** (`components/configuracion/catalogo/*`,
+    acciones `app/(app)/configuracion/catalog-actions.ts`, datos `getCatalogAdminData`, reglas
+    `lib/catalog/masters.ts`): categorías (árbol de 2 niveles), marcas y líneas, colores (hex +
+    familia), tallas/opciones y características. Escribir exige permiso **Inventario** (= RLS).
+    Sólo se borra lo que no se usa (un color tampoco si tiene fotos); lo usado se desactiva.
+    Nombres únicos sin mayúsculas ni acentos; el slug se genera al crear y no cambia al renombrar.
+    La sección vieja «Inventario» (tarjetas simples, `addMaster`/`deleteMaster`, `wm.sizes`) se quitó.
+  - **Texto legado**: disparadores `SECURITY DEFINER` de `supabase/catalog_view.sql` copian
+    `colors.name/hex` y `option_values.label` a `product_variants.color/color_hex/size` al renombrar.
+  - **Vista `wm.v_catalog`** (`security_invoker`, sólo `authenticated`): una fila por variante con
+    producto, marca, línea, departamento/categoría, color, opción, características, fotos del color
+    y generales, stock por sucursal. Fuente para el ecommerce. Pantalla de lectura:
+    `/productos/catalogo` (usa las consultas TS del 3a, no la vista).
   - Despliegue: `scripts/catalogo/sync-fotos-sueltas.sql` (idempotente; `-v commit=0|1`) registra
     como General los `product-images/<id>.png` sin fila. El 2026-11-16 no había ninguno por registrar
     (5 archivos sueltos son de productos que ya no existen).

@@ -135,8 +135,30 @@ planes): `docs/superpowers/plans/2026-11-11-catalogo-00-hoja-de-ruta.md` · Runb
   importación de stock que falla cerrada ante alias en conflicto. Spec
   `docs/superpowers/specs/2026-11-16-catalogo-3a-editor-producto-design.md`, plan
   `docs/superpowers/plans/2026-11-16-catalogo-03a-editor-producto.md`. Sin migración.
-- **Plan 3b ⬜** — maestros en Configuración (colores, opciones, atributos, líneas) y vista de
-  lectura del catálogo.
+- **Plan 3b ✅** (2026-11-16) — Configuración → Catálogo (categorías en árbol, marcas y líneas,
+  colores con familia, tallas/opciones, características), borrar sólo lo no usado, texto legado
+  sincronizado por disparadores, vista `wm.v_catalog` y pantalla `/productos/catalogo`. Spec
+  `docs/superpowers/specs/2026-11-16-catalogo-3b-maestros-y-vista-design.md`. Migración
+  `supabase/catalog_view.sql` (en `apply_pending.sh` y bootstrap).
+- **Pendientes del 3b ⬜** (revisión final 2026-11-16):
+  1. Ordenar colores, tipos de opción y características (hoy sólo valores, categorías y líneas).
+  2. Mover una categoría de departamento conserva su `sort_order` viejo (asignar el siguiente).
+  3. El departamento muestra «0 productos» (sólo cuenta los asignados directo): mostrar el total.
+  4. Mensajes de uso: característica cuenta pares producto-valor como «productos»; una marca con
+     líneas sin uso se bloquea en la UI aunque el servidor permitiría borrarla.
+  5. Cambiar una característica de «varios valores» a «uno» no avisa de productos con varios.
+  6. Un color sin familia preselecciona la primera familia al editarlo: obligar a elegir.
+  7. Slug a mano: texto sin caracteres válidos → «x» sin aviso; choque de slug de la base sale
+     como «nombre repetido».
+  8. Atomicidad: `deleteOptionType` (valores + tipo) en dos pasos; comprobar-y-borrar sin `restrict`
+     en la base (valores de característica, categorías, marcas, líneas); unicidad sin mayúsculas
+     sólo en la app (índice `lower(name)`).
+  9. Rendimiento: cada acción recarga 13 tablas; reordenar hace N updates; `/configuracion` carga
+     el catálogo aunque se abra «Perfil»; `/productos/catalogo` lee variantes 3 veces.
+  10. `/productos/catalogo`: productos asignados a un departamento o a una categoría inactiva no
+      aparecen al filtrar por departamento.
+  11. La prueba de la migración corre como `postgres`: agregar un caso con rol `authenticated`
+      sólo-Inventario y `assert` de que hay variantes con color y talla.
 - **Pendientes del 3a ✅** (2026-11-16) — los 11 detalles de la revisión final resueltos: borrar un
   producto limpia sus archivos de fotos sin uso; rutas validadas (`isProductImagePath`) antes de
   borrar archivos; SKU normalizado a mayúsculas (`normalizeSku`); editar precio/costo/estado de una
