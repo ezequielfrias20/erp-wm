@@ -5,7 +5,7 @@
  */
 import { format } from "date-fns";
 import ExcelJS from "exceljs";
-import { attributeRole, missingFields, missingLabels } from "./completeness";
+import { attributeRole, missingFields, missingLabels, variantMissing } from "./completeness";
 import type { Proposal } from "./propose";
 import { categoryPath, type Taxonomy } from "./taxonomy";
 import {
@@ -57,7 +57,7 @@ function pendingInstructions(takenAt: string): string[] {
     "Si el producto no tiene marca, elige «Genérico».",
     "Si cambias la categoría de un producto, cambian sus características obligatorias: revisa la hoja Categorías.",
     "Si un producto ya no se vende, pon Estado = Desactivar y no hace falta completarlo.",
-    "Hoja Variantes: solo vienen las que tienen una nota del sistema (por ejemplo precio en 0, o distinto al de otra igual). Revisa y escribe en «Observaciones de la tienda» lo que corresponda.",
+    "Hoja Variantes: solo vienen las que tienen una nota del sistema (por ejemplo precio en 0, o distinto al de otra igual) o a las que les falta el color o la talla/amarre (celda en AMARILLO). Si una ya no se vende, pon Estado = Desactivar.",
     "¿Falta un valor en una lista (marca, línea, color, característica)? Agrégalo al final de su hoja (Marcas, Líneas, Colores o Valores) y aparecerá en las listas.",
     `Datos tomados el: ${when}.`,
   ];
@@ -198,35 +198,41 @@ export function buildReviewWorkbook(
 
   // ── Variantes
   const vCols = variantColumns(p.branches);
-  const variantRows = [...p.variants]
-    .filter((v) => !pending || (v.active && v.notes.length > 0))
+  const productByName = new Map(p.products.map((prod) => [prod.name, prod]));
+  const gapsOf = (v: Proposal["variants"][number]) => variantMissing(v, productByName.get(v.productName), tax);
+  const sheetVariants = [...p.variants]
+    .filter((v) => !pending || (v.active && (v.notes.length > 0 || gapsOf(v).length > 0)))
     .sort(
       (a, b) =>
         a.productName.localeCompare(b.productName) ||
         (a.color ?? "").localeCompare(b.color ?? "") ||
         (a.option ?? "").localeCompare(b.option ?? ""),
-    )
-    .map((v) => {
-      const row: Record<string, unknown> = {
-        sku: v.sku,
-        currentProduct: v.currentProductName,
-        currentColor: v.currentColor ?? "",
-        currentSize: v.currentSize ?? "",
-        saleLines: v.saleLines,
-        price: v.price,
-        product: v.productName,
-        color: v.color ?? "",
-        option: v.option ?? "",
-        mergeInto: v.mergeIntoSku ?? "",
-        status: v.active ? STATUS.active : STATUS.inactive,
-        notes: v.notes.join(" · "),
-        obs: "",
-      };
-      for (const b of p.branches) row[`stock:${b.id}`] = v.stockByBranch[b.id] ?? 0;
-      return row;
-    });
+    );
+  const variantRows = sheetVariants.map((v) => {
+    const row: Record<string, unknown> = {
+      sku: v.sku,
+      currentProduct: v.currentProductName,
+      currentColor: v.currentColor ?? "",
+      currentSize: v.currentSize ?? "",
+      saleLines: v.saleLines,
+      price: v.price,
+      product: v.productName,
+      color: v.color ?? "",
+      option: v.option ?? "",
+      mergeInto: v.mergeIntoSku ?? "",
+      status: v.active ? STATUS.active : STATUS.inactive,
+      notes: v.notes.join(" · "),
+      obs: "",
+    };
+    for (const b of p.branches) row[`stock:${b.id}`] = v.stockByBranch[b.id] ?? 0;
+    return row;
+  });
   const variants = dataSheet(wb, SHEETS.variants, vCols, variantRows, {
     sku: 20, currentProduct: 34, product: 34, notes: 40, obs: 40,
+  });
+  const vAt = new Map(vCols.map((c, i) => [c.key, i + 1]));
+  sheetVariants.forEach((v, i) => {
+    for (const key of gapsOf(v)) variants.getCell(i + 2, vAt.get(key)!).fill = solid(REQUIRED_FILL);
   });
 
   // ── Marcas

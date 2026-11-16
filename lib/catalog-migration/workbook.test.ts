@@ -219,6 +219,21 @@ describe("Excel de pendientes (scope «incompletos»)", () => {
     expect(rowWhere(ws, 1, "World Medics").getCell(3).value).toBe(2);
   });
 
+  it("variante activa de conjunto sin color va a Variantes con la celda Color en amarillo", async () => {
+    const p = buildProposal(MINI_SNAPSHOT, TAXONOMY);
+    const target = p.variants.find((v) => v.productName === "Mao Mic Dama Recta" && !v.mergeIntoSku)!;
+    const edited = { ...p, variants: p.variants.map((v) => (v === target ? { ...v, color: null } : v)) };
+    const wb = buildReviewWorkbook(edited, TAXONOMY, { generatedAt: "2026-11-15T00:00:00Z", scope: "incomplete" });
+    const out = new ExcelJS.Workbook();
+    await out.xlsx.load(await wb.xlsx.writeBuffer());
+    const ws = out.getWorksheet(SHEETS.variants)!;
+    const vCols = variantColumns(MINI_SNAPSHOT.branches);
+    const vAt = (key: string) => vCols.findIndex((c) => c.key === key) + 1;
+    const row = rowWhere(ws, vAt("sku"), target.sku);
+    expect(fillOf(row.getCell(vAt("color")))).toBe(REQUIRED_FILL);
+    expect(fillOf(row.getCell(vAt("option")))).toBeUndefined();
+  });
+
   it("_info marca el alcance; el Excel completo dice «all» y no lleva «Falta completar»", async () => {
     const info = (wb: ExcelJS.Workbook) =>
       Object.fromEntries(

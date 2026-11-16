@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildProposal, type ProposedProduct } from "./propose";
-import { attributeRole, isIncomplete, missingFields, missingLabels } from "./completeness";
+import { attributeRole, isIncomplete, missingFields, missingLabels, variantMissing } from "./completeness";
 import { TAXONOMY } from "./taxonomy";
 import { MINI_SNAPSHOT } from "./test-fixtures";
 
@@ -59,5 +59,34 @@ describe("attributeRole", () => {
   it("sin categoría todos los atributos quedan disponibles (opcionales)", () => {
     const p: ProposedProduct = { ...product("Gorro Cafe"), categoryPath: null };
     expect(attributeRole(p, "tela", TAXONOMY)).toBe("optional");
+  });
+});
+
+describe("variantMissing", () => {
+  const variantOf = (productName: string) => {
+    const v = proposal.variants.find((x) => x.productName === productName && !x.mergeIntoSku);
+    if (!v) throw new Error(`sin variante de ${productName}`);
+    return v;
+  };
+
+  it("conjunto sin color o sin talla", () => {
+    const v = variantOf("Mao Stretch Dama Recta");
+    const prod = product("Mao Stretch Dama Recta");
+    expect(variantMissing({ ...v, color: null }, prod, TAXONOMY)).toEqual(["color"]);
+    expect(variantMissing({ ...v, option: null }, prod, TAXONOMY)).toEqual(["option"]);
+    expect(variantMissing(v, prod, TAXONOMY)).toEqual([]);
+  });
+
+  it("inactiva, de producto inactivo o que se fusiona: nada", () => {
+    const v = { ...variantOf("Mao Stretch Dama Recta"), color: null };
+    const prod = product("Mao Stretch Dama Recta");
+    expect(variantMissing({ ...v, active: false }, prod, TAXONOMY)).toEqual([]);
+    expect(variantMissing(v, { ...prod, active: false }, TAXONOMY)).toEqual([]);
+    expect(variantMissing({ ...v, mergeIntoSku: "X" }, prod, TAXONOMY)).toEqual([]);
+  });
+
+  it("categoría sin color ni opción: nada", () => {
+    const v = variantOf("Tijeras Trauma GMD Tornasol");
+    expect(variantMissing({ ...v, color: null, option: null }, product("Tijeras Trauma GMD Tornasol"), TAXONOMY)).toEqual([]);
   });
 });
