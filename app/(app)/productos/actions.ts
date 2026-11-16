@@ -3,11 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { audit } from "@/lib/audit";
-import { skuPrefix, buildSku, nextSeqFromSkus, nextSeqFromSkusAndAliases } from "@/lib/sku";
+import { skuPrefix, buildSku, nextSeqFromSkus, nextSeqFromSkusAndAliases, normalizeSku } from "@/lib/sku";
 import type { Product } from "@/lib/database.types";
 import { getSession } from "@/lib/queries/session";
 import { getCatalogMasters, type CatalogMasters } from "@/lib/queries/catalog";
-import { findDuplicate, legacyText, missingCombinations, variantDeleteBlockers, type DeleteBlocker } from "@/lib/catalog/variants";
+import { findDuplicate, legacyText, missingCombinations, variantDeleteBlockers, variantMastersChanged, type DeleteBlocker } from "@/lib/catalog/variants";
+import { mediaFileStillUsed } from "@/lib/catalog/media";
+import { isProductImagePath } from "@/lib/product-images";
 import { canEdit } from "@/lib/permissions";
 import { getProfileBranchScope } from "@/lib/branch";
 import { fetchAllRows } from "@/lib/supabase/pagination";
@@ -233,9 +235,41 @@ export async function deleteProduct(id: string): Promise<FormState> {
   const variants = await fetchAllRows<{ id: string }>((from, to) => supabase.from("product_variants").select("id").eq("product_id", id).order("id").range(from, to));
   const blockers = await deletionBlockers(supabase, variants.map((variant) => variant.id));
   if (blockers.length) return { error: deletionError(blockers, true) };
+  let mediaPaths: string[];
+  try {
+    const media = await fetchAllRows<{ path: string }>((from, to) =>
+      supabase.from("product_media").select("path").eq("product_id", id).order("id").range(from, to));
+    mediaPaths = [...new Set(media.map((photo) => photo.path))];
+  } catch {
+    return { error: "No se pudieron consultar las fotos del producto." };
+  }
   const { error } = await supabase.from("products").delete().eq("id", id);
   if (error) return { error: error.message };
   await audit(`Eliminó el producto ${product.name}`, "Productos", "warn");
+
+  if (mediaPaths.length) {
+    try {
+      const otherMedia = await inChunks(mediaPaths, (part) => fetchAllRows<{ path: string }>((from, to) =>
+        supabase.from("product_media").select("path").in("path", part).order("id").range(from, to)));
+      const otherPaths = otherMedia.map((photo) => photo.path);
+      const unusedPaths = mediaPaths.filter((path) => !mediaFileStillUsed(path, otherPaths));
+      const unsafePaths = unusedPaths.filter((path) => !isProductImagePath(path));
+      const removablePaths = unusedPaths.filter(isProductImagePath);
+      const failedPaths = await inChunks(removablePaths, async (part) => {
+        try {
+          const { error: removeError } = await supabase.storage.from("wm-public").remove(part);
+          return removeError ? part : [];
+        } catch {
+          return part;
+        }
+      });
+      if (unsafePaths.length || failedPaths.length) {
+        await audit(`Quedaron archivos sin borrar al eliminar el producto ${product.name}: ${[...unsafePaths, ...failedPaths].join(", ")}`, "Productos", "warn");
+      }
+    } catch {
+      await audit(`No se pudo comprobar el uso de las fotos ni borrar sus archivos al eliminar el producto ${product.name}: ${mediaPaths.join(", ")}`, "Productos", "warn");
+    }
+  }
   revalidateProductPaths(id);
   return { ok: true };
 }
@@ -246,33 +280,41 @@ export async function saveVariant(
 ): Promise<FormState> {
   const id = String(formData.get("id") ?? "").trim();
   const productId = String(formData.get("product_id") ?? "").trim();
-  let sku = String(formData.get("sku") ?? "").trim();
+  let sku = normalizeSku(String(formData.get("sku") ?? ""));
   if (!productId) return { error: "El producto es obligatorio." };
   const guard = await requireProductsEdit();
   if (guard?.error) return guard;
 
   const supabase = await createClient();
-  const [{ data: product, error: productError }, { data: current, error: currentError }, masters] = await Promise.all([
+  const [{ data: product, error: productError }, { data: current, error: currentError }] = await Promise.all([
     supabase.from("products").select("name, category_id").eq("id", productId).maybeSingle(),
-    id ? supabase.from("product_variants").select("id, sku, is_active").eq("id", id).eq("product_id", productId).maybeSingle() : Promise.resolve({ data: null, error: null }),
-    getCatalogMasters(),
+    id ? supabase.from("product_variants").select("id, sku, is_active, color_id, option_value_id").eq("id", id).eq("product_id", productId).maybeSingle() : Promise.resolve({ data: null, error: null }),
   ]);
   if (productError) return { error: productError.message };
   if (currentError) return { error: currentError.message };
   if (!product) return { error: "Producto no encontrado." };
   if (id && !current) return { error: "Variante no encontrada." };
-  const category = categoryFromMasters(masters, product.category_id);
-  if (!category) return { error: "Selecciona una categoría de segundo nivel válida." };
   const colorId = String(formData.get("color_id") ?? "").trim() || null;
   const optionValueId = String(formData.get("option_value_id") ?? "").trim() || null;
-  const color = colorId ? masters.colors.find((item) => item.id === colorId) ?? null : null;
-  const option = optionValueId
-    ? masters.optionTypes.find((type) => type.id === category.optionTypeId)?.values.find((value) => value.id === optionValueId) ?? null
-    : null;
-  if (colorId && !color) return { error: "Selecciona un color activo válido." };
-  if (category.requiresColor && !color) return { error: "El color es obligatorio para esta categoría." };
-  if (category.optionTypeId && !option) return { error: "Selecciona una opción válida para esta categoría." };
-  if (!category.optionTypeId && optionValueId) return { error: "Esta categoría no admite opciones." };
+  const mastersChanged = variantMastersChanged(
+    current ? { colorId: current.color_id, optionValueId: current.option_value_id } : null,
+    { colorId, optionValueId },
+  );
+  let masterValues = {};
+  if (mastersChanged) {
+    const masters = await getCatalogMasters();
+    const category = categoryFromMasters(masters, product.category_id);
+    if (!category) return { error: "Selecciona una categoría de segundo nivel válida." };
+    const color = colorId ? masters.colors.find((item) => item.id === colorId) ?? null : null;
+    const option = optionValueId
+      ? masters.optionTypes.find((type) => type.id === category.optionTypeId)?.values.find((value) => value.id === optionValueId) ?? null
+      : null;
+    if (colorId && !color) return { error: "Selecciona un color activo válido." };
+    if (category.requiresColor && !color) return { error: "El color es obligatorio para esta categoría." };
+    if (category.optionTypeId && !option) return { error: "Selecciona una opción válida para esta categoría." };
+    if (!category.optionTypeId && optionValueId) return { error: "Esta categoría no admite opciones." };
+    masterValues = { color_id: colorId, option_value_id: optionValueId, ...legacyText(color, option) };
+  }
   const price = Number(formData.get("price") ?? 0);
   const cost = Number(formData.get("cost") ?? 0);
   if (!Number.isFinite(price) || price < 0 || !Number.isFinite(cost) || cost < 0) return { error: "El precio y el costo deben ser números no negativos." };
@@ -284,14 +326,13 @@ export async function saveVariant(
   })), { id: id || undefined, colorId, optionValueId });
   if (duplicate) return { error: `Ya existe una variante con ese color y opción: ${duplicate.sku}.` };
 
-  if (!sku) sku = current?.sku ?? await generateSku(supabase, productId);
+  if (!sku) sku = current ? normalizeSku(current.sku) : await generateSku(supabase, productId);
   const { data: alias, error: aliasError } = await supabase.from("variant_sku_aliases").select("sku").eq("sku", sku).maybeSingle();
   if (aliasError) return { error: aliasError.message };
   if (alias) return { error: "El SKU está reservado como SKU anterior." };
 
   const values = {
-    product_id: productId, sku, color_id: colorId, option_value_id: optionValueId,
-    ...legacyText(color, option), price, cost,
+    sku, price, cost, ...masterValues,
     is_active: formData.has("is_active")
       ? ["on", "true"].includes(String(formData.get("is_active")))
       : current?.is_active ?? true,
@@ -320,7 +361,7 @@ export async function saveVariant(
       if (branchError) return { error: branchError.message };
       if ((branches ?? []).length !== branchIds.size) return { error: "La sucursal seleccionada no existe." };
     }
-    const { data: created, error } = await supabase.from("product_variants").insert(values).select("id").single();
+    const { data: created, error } = await supabase.from("product_variants").insert({ product_id: productId, ...values }).select("id").single();
     if (error) return { error: error.message };
     if (stockRows.length) {
       const { error: stockError } = await supabase.from("inventory").insert(stockRows.map((row) => ({ ...row, variant_id: created.id })));
@@ -330,7 +371,7 @@ export async function saveVariant(
       }
     }
   }
-  await audit(`Actualizó variante ${sku}`, "Productos");
+  await audit(`${id ? "Actualizó" : "Creó"} la variante ${sku} del producto ${product.name}`, "Productos");
   revalidateProductPaths(productId);
   return { ok: true };
 }
@@ -590,7 +631,7 @@ export async function importProducts(input: {
       }
       res.variantsUpdated++;
     } else {
-      let sku = s(row.sku);
+      let sku = normalizeSku(s(row.sku));
       if (!sku) {
         const catName = prod.category_id ? (catById.get(prod.category_id) ?? null) : null;
         const prefix = skuPrefix(catName, pname);

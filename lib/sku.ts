@@ -13,6 +13,11 @@ const STOPWORDS = new Set([
   "de", "del", "la", "el", "los", "las", "con", "para", "y", "set", "the", "a",
 ]);
 
+/** Normaliza un SKU introducido por el usuario para consultas y guardado. */
+export function normalizeSku(sku: string): string {
+  return sku.trim().toUpperCase();
+}
+
 /** Quita acentos/diacríticos y pasa a mayúsculas, dejando sólo A-Z0-9 y espacios. */
 function normalize(s: string): string {
   return s

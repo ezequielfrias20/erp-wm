@@ -2,6 +2,13 @@ export function variantKey(colorId: string | null, optionValueId: string | null)
   return JSON.stringify([colorId, optionValueId]);
 }
 
+export function variantMastersChanged(
+  current: { colorId: string | null; optionValueId: string | null } | null,
+  next: { colorId: string | null; optionValueId: string | null },
+): boolean {
+  return current === null || current.colorId !== next.colorId || current.optionValueId !== next.optionValueId;
+}
+
 export function findDuplicate<T extends { id: string; colorId: string | null; optionValueId: string | null }>(
   existing: T[],
   candidate: { id?: string; colorId: string | null; optionValueId: string | null },

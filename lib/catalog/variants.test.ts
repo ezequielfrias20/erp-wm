@@ -1,5 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { findDuplicate, legacyText, missingCombinations, variantDeleteBlockers, variantKey } from "./variants";
+import { findDuplicate, legacyText, missingCombinations, variantDeleteBlockers, variantKey, variantMastersChanged } from "./variants";
+
+describe("variantMastersChanged", () => {
+  it("exige validar los maestros al crear una variante", () => {
+    expect(variantMastersChanged(null, { colorId: null, optionValueId: null })).toBe(true);
+  });
+
+  it("conserva los maestros cuando ambos identificadores siguen iguales", () => {
+    expect(variantMastersChanged(
+      { colorId: "rojo", optionValueId: null },
+      { colorId: "rojo", optionValueId: null },
+    )).toBe(false);
+  });
+
+  it("detecta el cambio de color o de opción, incluso hacia null", () => {
+    const current = { colorId: "rojo", optionValueId: "M" };
+    expect(variantMastersChanged(current, { colorId: "azul", optionValueId: "M" })).toBe(true);
+    expect(variantMastersChanged(current, { colorId: "rojo", optionValueId: null })).toBe(true);
+  });
+});
 
 describe("variantKey", () => {
   it("distingue null de un identificador literal y separa los ejes", () => {

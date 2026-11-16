@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { audit } from "@/lib/audit";
 import { mediaFileStillUsed, mediaPath, validateMediaFile } from "@/lib/catalog/media";
 import { canEdit } from "@/lib/permissions";
-import { mediaPublicUrl } from "@/lib/product-images";
+import { isProductImagePath, mediaPublicUrl } from "@/lib/product-images";
 import type { ProductMediaItem } from "@/lib/queries/catalog";
 import { getSession } from "@/lib/queries/session";
 import { createClient } from "@/lib/supabase/server";
@@ -108,8 +108,10 @@ export async function uploadProductMedia(
   if (!inserted) {
     let removed = false;
     try {
-      const { error } = await supabase.storage.from("wm-public").remove([path]);
-      removed = !error;
+      if (isProductImagePath(path)) {
+        const { error } = await supabase.storage.from("wm-public").remove([path]);
+        removed = !error;
+      }
     } catch {
       removed = false;
     }
@@ -214,6 +216,10 @@ export async function deleteProductMedia(mediaId: string): Promise<FormState> {
 
   await audit(`Eliminó una foto del producto ${await productLabel(supabase, media.product_id)}`, "Productos", "warn");
   revalidateProductMedia(media.product_id);
+
+  if (!isProductImagePath(media.path)) {
+    return { error: "La foto se quitó del producto, pero no se pudo borrar el archivo." };
+  }
 
   let otherPaths: string[];
   try {

@@ -1,5 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mediaPublicUrl } from "./product-images";
+import { isProductImagePath, mediaPublicUrl } from "./product-images";
+
+describe("isProductImagePath", () => {
+  it("acepta rutas nuevas y fotos antiguas bajo product-images", () => {
+    expect(isProductImagePath("product-images/p1/m1.jpg")).toBe(true);
+    expect(isProductImagePath("product-images/abc.png")).toBe(true);
+  });
+
+  it("rechaza rutas externas, segmentos vacíos, puntos y caracteres inseguros", () => {
+    for (const bad of [
+      "", "product-images", "brand/logo.png", "product-images/../brand/logo.png",
+      "product-images/./m1.jpg", "product-images//m1.jpg",
+      "product-images/p1/m1.jpg?x=1", "product-images/p1/m1.jpg#a",
+      "product-images/p 1/m1.jpg", "https://evil.example/x.png",
+    ]) {
+      expect(isProductImagePath(bad), bad).toBe(false);
+    }
+  });
+});
 
 const BASE = "https://x.supabase.co";
 let saved: string | undefined;
