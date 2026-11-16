@@ -26,10 +26,14 @@ type Props = {
 const NONE = "__none__";
 
 export function ClassificationCard({ product, masters, attributeValueIds, canEdit }: Props) {
-  const [categoryId, setCategoryId] = useState(() => masters.categories.some((item) => item.id === product.category_id) ? product.category_id! : "");
-  const [brandId, setBrandId] = useState(() => masters.brands.some((item) => item.id === product.brand_id) ? product.brand_id! : "");
+  // Los ids actuales se conservan aunque no estén entre los maestros activos (maestro inactivo o
+  // producto asignado a un departamento): el servidor no toca un valor que no cambió.
+  const [categoryId, setCategoryId] = useState(product.category_id ?? "");
+  const [brandId, setBrandId] = useState(product.brand_id ?? "");
   const [lineId, setLineId] = useState(product.line_id ?? "");
   const [selectedValues, setSelectedValues] = useState(attributeValueIds);
+  const currentCategoryUnavailable = Boolean(product.category_id) && !masters.categories.some((item) => item.id === product.category_id);
+  const currentBrandUnavailable = Boolean(product.brand_id) && !masters.brands.some((item) => item.id === product.brand_id);
 
   const category = masters.categories.find((item) => item.id === categoryId);
   const brand = masters.brands.find((item) => item.id === brandId);
@@ -42,6 +46,11 @@ export function ClassificationCard({ product, masters, attributeValueIds, canEdi
     const ownValues = selectedValues.filter((id) => attribute.values.some((value) => value.id === id));
     return attribute.isMulti ? ownValues : ownValues.slice(0, 1);
   });
+  // Valores guardados que ya no están activos: se reenvían mientras la categoría no cambie.
+  const knownValueIds = new Set(masters.attributes.flatMap((attribute) => attribute.values.map((value) => value.id)));
+  const keptValues = categoryId === (product.category_id ?? "") ? attributeValueIds.filter((id) => !knownValueIds.has(id)) : [];
+  const lineUnchanged = brandId === (product.brand_id ?? "") && lineId === (product.line_id ?? "");
+  const submittedLineId = lineUnchanged || brand?.lines.some((line) => line.id === lineId) ? lineId : "";
 
   function changeCategory(value: string) {
     const nextId = value === NONE ? "" : value;
@@ -73,9 +82,9 @@ export function ClassificationCard({ product, masters, attributeValueIds, canEdi
       <div className="mb-4 text-[14px] font-bold tracking-tight text-foreground">Clasificación</div>
       <input type="hidden" name="category_id" value={categoryId} />
       <input type="hidden" name="brand_id" value={brandId} />
-      <input type="hidden" name="line_id" value={brand?.lines.some((line) => line.id === lineId) ? lineId : ""} />
+      <input type="hidden" name="line_id" value={submittedLineId} />
       <input type="hidden" name="attributes_submitted" value="1" />
-      {submittedValues.map((id) => <input key={id} type="hidden" name="attribute_value_ids" value={id} />)}
+      {[...submittedValues, ...keptValues].map((id) => <input key={id} type="hidden" name="attribute_value_ids" value={id} />)}
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
           <Label>Categoría</Label>
@@ -83,6 +92,7 @@ export function ClassificationCard({ product, masters, attributeValueIds, canEdi
             <SelectTrigger className="w-full"><SelectValue placeholder="Sin categoría" /></SelectTrigger>
             <SelectContent>
               <SelectItem value={NONE}>Sin categoría</SelectItem>
+              {currentCategoryUnavailable && <SelectItem value={product.category_id!}>Actual (no asignable)</SelectItem>}
               {masters.departments.map((department) => {
                 const categories = masters.categories.filter((item) => item.departmentId === department.id);
                 return categories.length ? (
@@ -107,6 +117,7 @@ export function ClassificationCard({ product, masters, attributeValueIds, canEdi
             <SelectTrigger className="w-full"><SelectValue placeholder="Sin marca" /></SelectTrigger>
             <SelectContent>
               <SelectItem value={NONE}>Sin marca</SelectItem>
+              {currentBrandUnavailable && <SelectItem value={product.brand_id!}>Actual (inactiva)</SelectItem>}
               {masters.brands.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -119,6 +130,9 @@ export function ClassificationCard({ product, masters, attributeValueIds, canEdi
               <SelectTrigger className="w-full"><SelectValue placeholder="Sin línea" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={NONE}>Sin línea</SelectItem>
+                {product.line_id && brandId === (product.brand_id ?? "") && !brand.lines.some((line) => line.id === product.line_id) && (
+                  <SelectItem value={product.line_id}>Actual (inactiva)</SelectItem>
+                )}
                 {brand.lines.map((line) => <SelectItem key={line.id} value={line.id}>{line.name}</SelectItem>)}
               </SelectContent>
             </Select>

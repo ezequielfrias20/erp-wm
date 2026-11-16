@@ -11,6 +11,8 @@ import { findDuplicate, legacyText, missingCombinations, variantDeleteBlockers, 
 import { canEdit } from "@/lib/permissions";
 import { getProfileBranchScope } from "@/lib/branch";
 import { fetchAllRows } from "@/lib/supabase/pagination";
+import { inChunks } from "@/lib/chunk";
+import { resolveMasterField } from "@/lib/catalog/classification";
 
 export type FormState = { error?: string; ok?: boolean; id?: string; created?: number } | null;
 
@@ -93,13 +95,12 @@ export async function createProduct(_prev: FormState, formData: FormData): Promi
 
 export async function saveProduct(_prev: FormState, formData: FormData): Promise<FormState> {
   const id = String(formData.get("id") ?? "").trim();
-  // El diálogo anterior todavía usa saveProduct para el alta hasta que Task 7 cambie la UI.
   if (!id) return createProduct(_prev, formData);
   const guard = await requireProductsEdit();
   if (guard?.error) return guard;
 
   const supabase = await createClient();
-  const { data: current, error: readError } = await supabase.from("products").select("name, category_id, brand_id").eq("id", id).maybeSingle();
+  const { data: current, error: readError } = await supabase.from("products").select("name, category_id, brand_id, line_id").eq("id", id).maybeSingle();
   if (readError) return { error: readError.message };
   if (!current) return { error: "Producto no encontrado." };
   const masters = await getCatalogMasters();
@@ -111,24 +112,30 @@ export async function saveProduct(_prev: FormState, formData: FormData): Promise
     values.name = field("name");
   }
   if (formData.has("description")) values.description = field("description") || null;
+  // Un valor que no cambió no se valida ni se escribe: un maestro inactivo (o un departamento)
+  // no se pierde al guardar otra cosa del producto.
   if (formData.has("category_id")) {
-    const categoryId = field("category_id") || null;
-    if (categoryId && !categoryFromMasters(masters, categoryId)) return { error: "Selecciona una categoría de segundo nivel válida." };
-    values.category_id = categoryId;
+    const result = resolveMasterField(field("category_id") || null, current.category_id, (categoryId) => Boolean(categoryFromMasters(masters, categoryId)));
+    if (!result.ok) return { error: "Selecciona una categoría de segundo nivel válida." };
+    if (result.write) values.category_id = result.value;
   }
   if (formData.has("brand_id")) {
-    const brandId = field("brand_id") || null;
-    if (brandId && !masters.brands.some((brand) => brand.id === brandId)) return { error: "Selecciona una marca válida." };
-    values.brand_id = brandId;
+    const result = resolveMasterField(field("brand_id") || null, current.brand_id, (brandId) => masters.brands.some((brand) => brand.id === brandId));
+    if (!result.ok) return { error: "Selecciona una marca válida." };
+    if (result.write) values.brand_id = result.value;
   }
-  const brandId = formData.has("brand_id") ? values.brand_id : current.brand_id;
+  const brandId = values.brand_id !== undefined ? values.brand_id : current.brand_id;
+  const brandChanged = brandId !== current.brand_id;
   if (formData.has("line_id")) {
-    const lineId = field("line_id") || null;
-    if (lineId && !masters.brands.find((brand) => brand.id === brandId)?.lines.some((line) => line.id === lineId)) {
-      return { error: "La línea debe pertenecer a la marca seleccionada." };
-    }
-    values.line_id = lineId;
-  } else if (formData.has("brand_id") && current.brand_id !== brandId) {
+    const result = resolveMasterField(
+      field("line_id") || null,
+      brandChanged ? null : current.line_id,
+      (lineId) => Boolean(masters.brands.find((brand) => brand.id === brandId)?.lines.some((line) => line.id === lineId)),
+    );
+    if (!result.ok) return { error: "La línea debe pertenecer a la marca seleccionada." };
+    if (result.write) values.line_id = result.value;
+    else if (brandChanged) values.line_id = null;
+  } else if (brandChanged) {
     // Una línea anterior no puede quedar vinculada a otra marca.
     values.line_id = null;
   }
@@ -153,10 +160,12 @@ export async function saveProduct(_prev: FormState, formData: FormData): Promise
 
   // Sólo el editor nuevo manda «attributes_submitted»: un formulario que trae la categoría pero no
   // las características (el editor viejo, otra pantalla) no debe borrarlas.
-  const replaceAttributes = formData.has("attributes_submitted");
+  // Tampoco se reemplazan si la categoría (sin cambiar) no está entre los maestros: no se sabe qué
+  // características le corresponden y se borrarían todas.
+  const categoryId = (values.category_id !== undefined ? values.category_id : current.category_id) ?? null;
+  const replaceAttributes = formData.has("attributes_submitted") && (categoryId === null || Boolean(categoryFromMasters(masters, categoryId)));
   let attributeValueIds: string[] = [];
   if (replaceAttributes) {
-    const categoryId = (formData.has("category_id") ? values.category_id : current.category_id) ?? null;
     const allowedAttributeIds = new Set(categoryFromMasters(masters, categoryId)?.attributes.map((attribute) => attribute.attributeId) ?? []);
     const requestedIds = [...new Set(formData.getAll("attribute_value_ids").map((entry) => String(entry).trim()).filter(Boolean))];
     if (requestedIds.length) {
@@ -185,20 +194,24 @@ export async function saveProduct(_prev: FormState, formData: FormData): Promise
 
 async function deletionBlockers(supabase: DB, variantIds: string[]): Promise<DeleteBlocker[]> {
   if (!variantIds.length) return [];
-  const [sales, purchases, inventory, aliases] = await Promise.all([
-    supabase.from("sale_items").select("id", { count: "exact", head: true }).in("variant_id", variantIds),
-    supabase.from("purchase_order_items").select("id", { count: "exact", head: true }).in("variant_id", variantIds),
-    fetchAllRows<{ quantity: number }>((from, to) => supabase.from("inventory").select("quantity").in("variant_id", variantIds).order("id").range(from, to)),
-    supabase.from("variant_sku_aliases").select("sku", { count: "exact", head: true }).in("variant_id", variantIds),
+  // Por grupos de 100 ids: con cientos de variantes la URL del filtro «in» se vuelve demasiado larga.
+  const count = (table: "sale_items" | "purchase_order_items" | "variant_sku_aliases") =>
+    inChunks(variantIds, async (part) => {
+      const { count: rows, error } = await supabase.from(table).select("variant_id", { count: "exact", head: true }).in("variant_id", part);
+      if (error) throw new Error(error.message);
+      return [rows ?? 0];
+    }).then((counts) => counts.reduce((sum, value) => sum + value, 0));
+  const [saleLines, purchaseLines, inventory, aliases] = await Promise.all([
+    count("sale_items"),
+    count("purchase_order_items"),
+    inChunks(variantIds, (part) => fetchAllRows<{ quantity: number }>((from, to) => supabase.from("inventory").select("quantity").in("variant_id", part).order("id").range(from, to))),
+    count("variant_sku_aliases"),
   ]);
-  for (const result of [sales, purchases, aliases]) {
-    if (result.error) throw new Error(result.error.message);
-  }
   return variantDeleteBlockers({
-    saleLines: sales.count ?? 0,
-    purchaseLines: purchases.count ?? 0,
+    saleLines,
+    purchaseLines,
     stock: inventory.reduce((sum, row) => sum + Math.max(0, row.quantity), 0),
-    aliases: aliases.count ?? 0,
+    aliases,
   });
 }
 

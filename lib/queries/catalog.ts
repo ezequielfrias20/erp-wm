@@ -25,7 +25,7 @@ import type {
 } from "@/lib/database.types";
 import { mediaPublicUrl } from "@/lib/product-images";
 import { cachedFor, invalidateCache, CACHE_TTL } from "@/lib/server-cache";
-import { chunk } from "@/lib/chunk";
+import { chunk, inChunks } from "@/lib/chunk";
 import { fetchAllRows } from "@/lib/supabase/pagination";
 import { createClient } from "@/lib/supabase/server";
 
@@ -191,23 +191,23 @@ export async function getProductEditorData(id: string, branchScope: string | nul
           supabase.from("option_values").select("id, option_type_id").in("id", optionValueIds).order("id").range(from, to))
       : Promise.resolve([]),
     variantIds.length
-      ? fetchAllRows<Pick<Inventory, "variant_id" | "branch_id" | "quantity">>((from, to) => {
-          let query = supabase.from("inventory").select("variant_id, branch_id, quantity").in("variant_id", variantIds);
+      ? inChunks(variantIds, (part) => fetchAllRows<Pick<Inventory, "variant_id" | "branch_id" | "quantity">>((from, to) => {
+          let query = supabase.from("inventory").select("variant_id, branch_id, quantity").in("variant_id", part);
           if (branchScope) query = query.eq("branch_id", branchScope);
           return query.order("id").range(from, to);
-        })
+        }))
       : Promise.resolve([]),
     variantIds.length
-      ? fetchAllRows<Pick<SaleItem, "variant_id">>((from, to) =>
-          supabase.from("sale_items").select("variant_id").in("variant_id", variantIds).order("id").range(from, to))
+      ? inChunks(variantIds, (part) => fetchAllRows<Pick<SaleItem, "variant_id">>((from, to) =>
+          supabase.from("sale_items").select("variant_id").in("variant_id", part).order("id").range(from, to)))
       : Promise.resolve([]),
     variantIds.length
-      ? fetchAllRows<Pick<PurchaseOrderItem, "variant_id">>((from, to) =>
-          supabase.from("purchase_order_items").select("variant_id").in("variant_id", variantIds).order("id").range(from, to))
+      ? inChunks(variantIds, (part) => fetchAllRows<Pick<PurchaseOrderItem, "variant_id">>((from, to) =>
+          supabase.from("purchase_order_items").select("variant_id").in("variant_id", part).order("id").range(from, to)))
       : Promise.resolve([]),
     variantIds.length
-      ? fetchAllRows<Pick<VariantSkuAlias, "variant_id" | "sku">>((from, to) =>
-          supabase.from("variant_sku_aliases").select("variant_id, sku").in("variant_id", variantIds).order("sku").range(from, to))
+      ? inChunks(variantIds, (part) => fetchAllRows<Pick<VariantSkuAlias, "variant_id" | "sku">>((from, to) =>
+          supabase.from("variant_sku_aliases").select("variant_id, sku").in("variant_id", part).order("sku").range(from, to)))
       : Promise.resolve([]),
   ]);
   if (categoryResult.error) throw new Error(categoryResult.error.message);

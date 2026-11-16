@@ -154,7 +154,7 @@ export function ProductEditor({
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-[18px] lg:grid-cols-[1.6fr_1fr]">
+      <div className="grid grid-cols-1 gap-[18px] lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         {/* Left */}
         <div className="flex flex-col gap-[18px]">
           <ColorsPhotosCard
