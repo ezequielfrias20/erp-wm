@@ -141,3 +141,99 @@ describe("validaciones en el XML", () => {
     }
   });
 });
+
+describe("Excel de pendientes (scope «incompletos»)", () => {
+  const REQUIRED_FILL = "FFFDE68A";
+  const NA_FILL = "FFE5E7EB";
+
+  function pendingProposal() {
+    const p = buildProposal(MINI_SNAPSHOT, TAXONOMY);
+    // Una variante con nota (como «Precio 0») y otra inactiva con nota: sólo la activa va.
+    const [first, second] = p.variants;
+    return {
+      ...p,
+      variants: p.variants.map((v) =>
+        v === first ? { ...v, notes: ["Precio 0"] } : v === second ? { ...v, active: false, notes: ["Precio 0"] } : v,
+      ),
+    };
+  }
+
+  async function pendingRoundTrip() {
+    const p = pendingProposal();
+    const wb = buildReviewWorkbook(p, TAXONOMY, { generatedAt: "2026-11-14T00:00:00Z", scope: "incomplete" });
+    const out = new ExcelJS.Workbook();
+    await out.xlsx.load(await wb.xlsx.writeBuffer());
+    return { wb: out, p };
+  }
+
+  const cols = productColumns(TAXONOMY, { withMissing: true });
+  const at = (key: string) => cols.findIndex((c) => c.key === key) + 1;
+  const fillOf = (cell: ExcelJS.Cell) => (cell.fill as ExcelJS.FillPattern | undefined)?.fgColor?.argb;
+
+  it("Productos trae sólo los activos con algo faltante", async () => {
+    const ws = (await pendingRoundTrip()).wb.getWorksheet(SHEETS.products)!;
+    const names = [];
+    for (let r = 2; r <= ws.rowCount; r++) names.push(ws.getCell(r, 1).value);
+    expect(names.sort()).toEqual(
+      ["Figs Dama", "Gorro Baby Yoda", "Gorro Cafe", "Medias Compresivas 15-20 Mmhg", "Rompe Ampollas 3D Bob Sponja"].sort(),
+    );
+  });
+
+  it("columna gris «Falta completar» justo después del nombre, con lo que falta", async () => {
+    const ws = (await pendingRoundTrip()).wb.getWorksheet(SHEETS.products)!;
+    expect(cols[1]).toEqual({ key: "missing", header: "Falta completar", editable: false });
+    expect(headerRow(ws)).toEqual(cols.map((c) => c.header));
+    expect(rowWhere(ws, 1, "Figs Dama").getCell(at("missing")).value).toBe("Corte, Tela");
+    expect(rowWhere(ws, 1, "Rompe Ampollas 3D Bob Sponja").getCell(at("missing")).value).toBe("Marca");
+  });
+
+  it("obligatorio vacío en amarillo; atributo que no aplica a la categoría en gris", async () => {
+    const ws = (await pendingRoundTrip()).wb.getWorksheet(SHEETS.products)!;
+    const figs = rowWhere(ws, 1, "Figs Dama");
+    expect(fillOf(figs.getCell(at("attr:corte")))).toBe(REQUIRED_FILL);
+    expect(fillOf(figs.getCell(at("attr:tela")))).toBe(REQUIRED_FILL);
+    expect(fillOf(figs.getCell(at("attr:genero")))).toBeUndefined(); // ya lleno
+    expect(fillOf(figs.getCell(at("attr:tematica")))).toBe(NA_FILL); // no aplica a Conjuntos
+    expect(fillOf(rowWhere(ws, 1, "Rompe Ampollas 3D Bob Sponja").getCell(at("brand")))).toBe(REQUIRED_FILL);
+  });
+
+  it("Variantes trae sólo las activas con nota y su lista de productos incluye todos", async () => {
+    const { wb, p } = await pendingRoundTrip();
+    const ws = wb.getWorksheet(SHEETS.variants)!;
+    const vCols = variantColumns(MINI_SNAPSHOT.branches);
+    const sku = vCols.findIndex((c) => c.key === "sku") + 1;
+    const product = vCols.findIndex((c) => c.key === "product") + 1;
+    expect(ws.rowCount).toBe(2);
+    expect(ws.getCell(2, sku).value).toBe(p.variants[0].sku);
+    // El producto de la variante puede no estar en la hoja Productos (está completo): lista aparte.
+    const formula = ws.getCell(2, product).dataValidation.formulae![0] as string;
+    expect(formula).toMatch(/^'_listas'!\$E\$1:\$E\$\d+$/);
+    const lists = wb.getWorksheet(SHEETS.lists)!;
+    const all = [];
+    for (let r = 1; r <= lists.rowCount; r++) if (lists.getCell(r, 5).value) all.push(lists.getCell(r, 5).value);
+    expect(all.sort()).toEqual(p.products.map((x) => x.name).sort());
+  });
+
+  it("Marcas cuenta productos de todo el catálogo, no sólo los pendientes", async () => {
+    const ws = (await pendingRoundTrip()).wb.getWorksheet(SHEETS.brands)!;
+    expect(rowWhere(ws, 1, "World Medics").getCell(3).value).toBe(2);
+  });
+
+  it("_info marca el alcance; el Excel completo dice «all» y no lleva «Falta completar»", async () => {
+    const info = (wb: ExcelJS.Workbook) =>
+      Object.fromEntries(
+        (wb.getWorksheet(SHEETS.info)!.getSheetValues() as unknown[][]).filter(Boolean).map((r) => [r[1], r[2]]),
+      );
+    expect(info((await pendingRoundTrip()).wb).scope).toBe("incomplete");
+    const full = await roundTrip();
+    expect(info(full).scope).toBe("all");
+    expect(headerRow(full.getWorksheet(SHEETS.products)!)).not.toContain("Falta completar");
+  });
+
+  it("las instrucciones explican los colores y la marca Genérico", async () => {
+    const ws = (await pendingRoundTrip()).wb.getWorksheet(SHEETS.instructions)!;
+    const text = (ws.getColumn(1).values as unknown[]).filter(Boolean).join("\n");
+    expect(text).toMatch(/AMARILL/);
+    expect(text).toMatch(/Genérico/);
+  });
+});

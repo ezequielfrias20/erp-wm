@@ -71,6 +71,27 @@ Qué decirle a la persona que revisa:
 
 Guarda el archivo devuelto como `backups/catalogo/revision-devuelta-<fecha>.xlsx`.
 
+### Excel de pendientes (cuando la propuesta ya está aprobada)
+
+Si la tienda aprueba la propuesta sin cambios, no hace falta que revise todo de nuevo: se le
+manda sólo lo que impide cumplir el criterio de éxito.
+
+```bash
+npm run catalogo:excel -- --snapshot backups/catalogo/snapshot-<UTC>.json --pendientes
+# → backups/catalogo/pendientes-catalogo-<fecha>.xlsx
+```
+
+- **Productos:** sólo los activos sin categoría, sin marca o sin algún atributo obligatorio de
+  su categoría (`lib/catalog-migration/completeness.ts`). La columna gris «Falta completar»
+  dice qué falta; la celda obligatoria vacía va en **amarillo** y el atributo que no aplica a
+  la categoría, en **gris**.
+- **Variantes:** sólo las activas con nota del sistema (precio 0, precio distinto al de su
+  repetida…). Su lista de productos es el catálogo completo (`_listas`, columna E).
+- `_info` lleva `scope = incomplete`. Plan 2 aplica la propuesta automática y encima lo que
+  venga en este archivo; lo que no viene en él se aplica tal como se aprobó.
+
+Guarda el archivo devuelto como `backups/catalogo/pendientes-devuelto-<fecha>.xlsx`.
+
 ## 5. Lo que sigue
 
 Plan 2 (simulación y aplicación de la limpieza): lee el archivo devuelto, valida el criterio

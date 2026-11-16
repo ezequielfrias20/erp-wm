@@ -3,10 +3,14 @@
  *
  *   npm run catalogo:excel -- --snapshot backups/catalogo/snapshot-<UTC>.json [--out <xlsx>]
  *
+ * Con `--pendientes` sale el Excel corto: sólo productos activos a los que les falta algo
+ * (categoría, marca o atributos obligatorios, marcados en amarillo) y variantes con nota.
+ *
  * Ver docs/CATALOGO-LIMPIEZA.md.
  */
 import { format } from "date-fns";
 import { parseArgs } from "node:util";
+import { isIncomplete } from "@/lib/catalog-migration/completeness";
 import { buildProposal } from "@/lib/catalog-migration/propose";
 import { loadSnapshot } from "@/lib/catalog-migration/snapshot";
 import { TAXONOMY } from "@/lib/catalog-migration/taxonomy";
@@ -14,17 +18,26 @@ import { buildReviewWorkbook } from "@/lib/catalog-migration/workbook";
 
 async function main() {
   const { values } = parseArgs({
-    options: { snapshot: { type: "string" }, out: { type: "string" } },
+    options: {
+      snapshot: { type: "string" },
+      out: { type: "string" },
+      pendientes: { type: "boolean", default: false },
+    },
   });
   if (!values.snapshot) {
-    console.error("Uso: npm run catalogo:excel -- --snapshot <foto.json> [--out <archivo.xlsx>]");
+    console.error("Uso: npm run catalogo:excel -- --snapshot <foto.json> [--pendientes] [--out <archivo.xlsx>]");
     process.exit(1);
   }
-  const out = values.out ?? `backups/catalogo/revision-catalogo-${format(new Date(), "yyyy-MM-dd")}.xlsx`;
+  const pending = values.pendientes ?? false;
+  const kind = pending ? "pendientes-catalogo" : "revision-catalogo";
+  const out = values.out ?? `backups/catalogo/${kind}-${format(new Date(), "yyyy-MM-dd")}.xlsx`;
 
   const snapshot = await loadSnapshot(values.snapshot);
   const proposal = buildProposal(snapshot, TAXONOMY);
-  const wb = buildReviewWorkbook(proposal, TAXONOMY, { generatedAt: new Date().toISOString() });
+  const wb = buildReviewWorkbook(proposal, TAXONOMY, {
+    generatedAt: new Date().toISOString(),
+    scope: pending ? "incomplete" : "all",
+  });
   await wb.xlsx.writeFile(out);
 
   const s = proposal.stats;
@@ -34,6 +47,13 @@ async function main() {
   console.log(`Productos sin categoría: ${s.missingCategory}`);
   console.log(`Productos sin marca: ${s.missingBrand}`);
   console.log(`Productos activos con atributos obligatorios vacíos: ${s.missingRequiredAttributes}`);
+  if (pending) {
+    const products = proposal.products.filter((prod) => isIncomplete(prod, TAXONOMY)).length;
+    const variants = proposal.variants.filter((v) => v.active && v.notes.length > 0).length;
+    console.log(`\nExcel de pendientes: ${products} productos y ${variants} variantes`);
+    console.log(`Excel: ${out}`);
+    return;
+  }
 
   const countNotes = (prefix: string) => {
     const counts = new Map<string, number>();

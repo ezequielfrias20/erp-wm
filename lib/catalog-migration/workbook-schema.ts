@@ -22,6 +22,13 @@ export const SHEETS = {
 
 export const STATUS = { active: "Activo", inactive: "Desactivar" } as const;
 
+/**
+ * Alcance del archivo (va en `_info` como `scope`). «incomplete» = Excel de pendientes: sólo los
+ * productos activos sin clasificar del todo y las variantes activas con nota. Lo que no viene en
+ * él se aplica tal como lo propuso el sistema.
+ */
+export type WorkbookScope = "all" | "incomplete";
+
 export type WorkbookColumn = { key: string; header: string; editable: boolean };
 
 /** Referencia a otra hoja, siempre entre comillas (los nombres llevan acentos). */
@@ -49,6 +56,9 @@ export const PRODUCT_HEAD: WorkbookColumn[] = [
   { key: "line", header: "Línea / modelo", editable: true },
 ];
 
+/** Columna informativa del Excel de pendientes: qué le falta al producto. */
+export const MISSING_COLUMN: WorkbookColumn = { key: "missing", header: "Falta completar", editable: false };
+
 export const PRODUCT_TAIL: WorkbookColumn[] = [
   { key: "status", header: "Estado", editable: true },
   /** Nombre que propuso el sistema: si la tienda renombra el producto, plan 2 lo reconoce por aquí. */
@@ -63,14 +73,16 @@ export const PRODUCT_TAIL: WorkbookColumn[] = [
 /**
  * Columnas de Productos: las fijas + una por atributo (`attr:<code>`), en el orden de la
  * taxonomía. Los atributos de selección múltiple llevan una segunda columna `attr:<code>#2`.
+ * `withMissing` (Excel de pendientes) agrega «Falta completar» justo después del nombre.
  */
-export function productColumns(tax: Taxonomy): WorkbookColumn[] {
+export function productColumns(tax: Taxonomy, opts: { withMissing?: boolean } = {}): WorkbookColumn[] {
   const attrs = tax.attributes.flatMap((a) => {
     const cols: WorkbookColumn[] = [{ key: `attr:${a.code}`, header: a.name, editable: true }];
     if (a.isMulti) cols.push({ key: `attr:${a.code}#2`, header: `${a.name} 2`, editable: true });
     return cols;
   });
-  return [...PRODUCT_HEAD, ...attrs, ...PRODUCT_TAIL];
+  const [name, ...rest] = PRODUCT_HEAD;
+  return [name, ...(opts.withMissing ? [MISSING_COLUMN] : []), ...rest, ...attrs, ...PRODUCT_TAIL];
 }
 
 /** Huella de la taxonomía con que se generó el archivo (las RegExp cuentan por su texto). */

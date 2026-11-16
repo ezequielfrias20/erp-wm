@@ -5,6 +5,7 @@
  */
 import { format } from "date-fns";
 import ExcelJS from "exceljs";
+import { attributeRole, missingFields, missingLabels } from "./completeness";
 import type { Proposal } from "./propose";
 import { categoryPath, type Taxonomy } from "./taxonomy";
 import {
@@ -20,12 +21,17 @@ import {
   sheetRef,
   variantColumns,
   type WorkbookColumn,
+  type WorkbookScope,
 } from "./workbook-schema";
 
 const BRAND = "FF0EA5E9";
 const GREY_HEAD = "FFE5E7EB";
 const GREY_HEAD_TEXT = "FF374151";
 const GREY_CELL = "FFF3F4F6";
+/** Celda obligatoria vacía (hay que llenarla). */
+const REQUIRED_FILL = "FFFDE68A";
+/** Atributo que no aplica a la categoría del producto. */
+const NA_FILL = "FFE5E7EB";
 
 const solid = (argb: string): ExcelJS.Fill => ({ type: "pattern", pattern: "solid", fgColor: { argb } });
 
@@ -38,6 +44,23 @@ function colLetter(index: number): string {
     n = Math.floor((n - 1) / 26);
   }
   return s;
+}
+
+function pendingInstructions(takenAt: string): string[] {
+  const when = format(new Date(takenAt), "dd/MM/yyyy HH:mm");
+  return [
+    "Pendientes del catálogo — World Medics",
+    "La propuesta de organización ya está aprobada. Este archivo trae SOLO los productos a los que les falta algo para poder filtrarse en la tienda en línea. Lo que no aparece aquí queda tal como se aprobó.",
+    "Hoja Productos: la columna «Falta completar» dice qué le falta a cada producto.",
+    "Celdas en AMARILLO = obligatorias y vacías: hay que elegir un valor de la lista. Celdas en GRIS dentro de las características = no aplican a la categoría de ese producto: déjalas vacías.",
+    "Las columnas con encabezado AZUL se pueden editar. Las de encabezado GRIS son informativas: no las cambies.",
+    "Si el producto no tiene marca, elige «Genérico».",
+    "Si cambias la categoría de un producto, cambian sus características obligatorias: revisa la hoja Categorías.",
+    "Si un producto ya no se vende, pon Estado = Desactivar y no hace falta completarlo.",
+    "Hoja Variantes: solo vienen las que tienen una nota del sistema (por ejemplo precio en 0, o distinto al de otra igual). Revisa y escribe en «Observaciones de la tienda» lo que corresponda.",
+    "¿Falta un valor en una lista (marca, línea, color, característica)? Agrégalo al final de su hoja (Marcas, Líneas, Colores o Valores) y aparecerá en las listas.",
+    `Datos tomados el: ${when}.`,
+  ];
 }
 
 function instructions(takenAt: string): string[] {
@@ -120,8 +143,10 @@ type WithDataValidations = {
 export function buildReviewWorkbook(
   p: Proposal,
   tax: Taxonomy,
-  meta: { generatedAt: string },
+  meta: { generatedAt: string; scope?: WorkbookScope },
 ): ExcelJS.Workbook {
+  const scope = meta.scope ?? "all";
+  const pending = scope === "incomplete";
   const wb = new ExcelJS.Workbook();
   wb.creator = "World Medics ERP";
   wb.created = new Date(meta.generatedAt);
@@ -129,7 +154,7 @@ export function buildReviewWorkbook(
   // ── Instrucciones
   const intro = wb.addWorksheet(SHEETS.instructions);
   intro.getColumn(1).width = 120;
-  instructions(p.takenAt).forEach((line, i) => {
+  (pending ? pendingInstructions : instructions)(p.takenAt).forEach((line, i) => {
     const cell = intro.getCell(i + 1, 1);
     cell.value = line;
     cell.alignment = { wrapText: true, vertical: "top" };
@@ -137,40 +162,44 @@ export function buildReviewWorkbook(
   });
 
   // ── Productos
-  const pCols = productColumns(tax);
-  const productRows = [...p.products]
+  const pCols = productColumns(tax, { withMissing: pending });
+  const sheetProducts = [...p.products]
+    .filter((prod) => !pending || (prod.active && missingFields(prod, tax).length > 0))
     .sort(
       (a, b) =>
         (a.categoryPath ?? "~").localeCompare(b.categoryPath ?? "~") || a.name.localeCompare(b.name),
-    )
-    .map((prod) => {
-      const row: Record<string, unknown> = {
-        name: prod.name,
-        category: prod.categoryPath ?? "",
-        brand: prod.brand ?? "",
-        line: prod.line ?? "",
-        status: prod.active ? STATUS.active : STATUS.inactive,
-        proposedName: prod.name,
-        sources: prod.sourceNames.join(" · "),
-        variantCount: prod.variantCount,
-        stock: prod.totalStock,
-        notes: prod.notes.join(" · "),
-        obs: "",
-      };
-      for (const a of tax.attributes) {
-        const values = prod.attributes[a.code] ?? [];
-        row[`attr:${a.code}`] = values[0] ?? "";
-        if (a.isMulti) row[`attr:${a.code}#2`] = values[1] ?? "";
-      }
-      return row;
-    });
-  const products = dataSheet(wb, SHEETS.products, pCols, productRows, {
-    name: 34, category: 34, sources: 50, notes: 50, obs: 40,
+    );
+  const productRows = sheetProducts.map((prod) => {
+    const row: Record<string, unknown> = {
+      name: prod.name,
+      missing: missingLabels(prod, tax).join(", "),
+      category: prod.categoryPath ?? "",
+      brand: prod.brand ?? "",
+      line: prod.line ?? "",
+      status: prod.active ? STATUS.active : STATUS.inactive,
+      proposedName: prod.name,
+      sources: prod.sourceNames.join(" · "),
+      variantCount: prod.variantCount,
+      stock: prod.totalStock,
+      notes: prod.notes.join(" · "),
+      obs: "",
+    };
+    for (const a of tax.attributes) {
+      const values = prod.attributes[a.code] ?? [];
+      row[`attr:${a.code}`] = values[0] ?? "";
+      if (a.isMulti) row[`attr:${a.code}#2`] = values[1] ?? "";
+    }
+    return row;
   });
+  const products = dataSheet(wb, SHEETS.products, pCols, productRows, {
+    name: 34, missing: 30, category: 34, sources: 50, notes: 50, obs: 40,
+  });
+  markRequired(products, pCols, sheetProducts, tax);
 
   // ── Variantes
   const vCols = variantColumns(p.branches);
   const variantRows = [...p.variants]
+    .filter((v) => !pending || (v.active && v.notes.length > 0))
     .sort(
       (a, b) =>
         a.productName.localeCompare(b.productName) ||
@@ -294,6 +323,8 @@ export function buildReviewWorkbook(
   const optionsRange = writeList(2, Object.values(tax.optionValues).flat());
   const statusRange = writeList(3, [STATUS.active, STATUS.inactive]);
   const familiesRange = writeList(4, tax.colorFamilies);
+  // En pendientes, la hoja Productos no trae todos: las variantes eligen de la lista completa.
+  const allProductsRange = pending ? writeList(5, p.products.map((prod) => prod.name)) : null;
 
   // ── _info (oculta)
   const info = wb.addWorksheet(SHEETS.info);
@@ -302,6 +333,7 @@ export function buildReviewWorkbook(
   info.addRow(["generated_at", meta.generatedAt]);
   info.addRow(["format_version", FORMAT_VERSION]);
   info.addRow(["taxonomy_hash", taxonomyHash(tax)]);
+  info.addRow(["scope", scope]);
 
   // ── Validaciones
   const pLast = PRODUCT_ROWS_WITH_VALIDATION;
@@ -317,7 +349,7 @@ export function buildReviewWorkbook(
   });
 
   const vLast = variantRows.length + 1;
-  validate(variants, vCols, "product", LIST_RANGES.products, vLast);
+  validate(variants, vCols, "product", allProductsRange ?? LIST_RANGES.products, vLast);
   validate(variants, vCols, "color", LIST_RANGES.colors, vLast);
   validate(variants, vCols, "option", optionsRange, vLast);
   validate(variants, vCols, "status", statusRange, vLast);
@@ -326,4 +358,28 @@ export function buildReviewWorkbook(
   validate(colors, cCols, "family", familiesRange, 500);
 
   return wb;
+}
+
+/**
+ * Pinta lo que la tienda debe mirar: obligatorio vacío en amarillo y, en las características,
+ * gris lo que no aplica a la categoría del producto.
+ */
+function markRequired(
+  ws: ExcelJS.Worksheet,
+  columns: WorkbookColumn[],
+  rows: Proposal["products"],
+  tax: Taxonomy,
+) {
+  const at = new Map(columns.map((c, i) => [c.key, i + 1]));
+  rows.forEach((prod, i) => {
+    const r = i + 2;
+    for (const key of missingFields(prod, tax)) ws.getCell(r, at.get(key)!).fill = solid(REQUIRED_FILL);
+    for (const a of tax.attributes) {
+      if (attributeRole(prod, a.code, tax) !== "n/a") continue;
+      for (const key of [`attr:${a.code}`, `attr:${a.code}#2`]) {
+        const col = at.get(key);
+        if (col) ws.getCell(r, col).fill = solid(NA_FILL);
+      }
+    }
+  });
 }
