@@ -19,7 +19,7 @@ Estado por fase. Actualizar al cerrar cada módulo. Leyenda: ✅ hecho · 🚧 e
 | 12 | Configuración (perfil, empresa, marca, apariencia, ventas, inventario, notif, auditoría) | ✅ | 9 secciones; perfil/empresa/ventas/notif/colores persistentes; maestros CRUD; auditoría |
 | 13 | Mejoras operativas (carga masiva, POS avanzado, reportes con rango y factura) | ✅ | Ver detalle abajo; build de producción OK |
 | 14 | Cashea (financiamiento: inicial en caja + cuenta por cobrar, conciliación, comisión) | ✅ | Ver detalle abajo; build de producción OK |
-| 16 | Catálogo clasificado para ecommerce | 🚧 | Plan 1/4 ✅ (esquema aplicado + Excel de revisión); ver detalle abajo |
+| 16 | Catálogo clasificado para ecommerce | 🚧 | Planes 1 y 2 ✅ (limpieza aplicada en producción 2026-11-16); plan 3 en curso; ver detalle abajo |
 
 ## Fase 13 — Mejoras operativas
 
@@ -119,7 +119,15 @@ planes): `docs/superpowers/plans/2026-11-11-catalogo-00-hoja-de-ruta.md` · Runb
   al bootstrap y a `apply_pending.sh`. Propuesta de clasificación y Excel de revisión
   (`lib/catalog-migration/`, `scripts/catalogo/`): 423 productos → 339, 53 variantes repetidas.
   Excel enviado a la tienda para revisión.
-- **Plan 2 ⬜** — leer el Excel devuelto, validar el criterio de éxito, simular y aplicar la limpieza.
+- **Plan 2 ✅** — limpieza aplicada en producción el **2026-11-16 07:15** (Caracas), corrida
+  `369b3933-e5b2-433d-9f4d-6d90fae975c6`, respaldo en el esquema `wm_respaldo_catalogo_20261116`
+  (restauración ensayada: `scripts/catalogo/restaurar.sh`). Resultado: 423 → 339 productos (338
+  activos), 1.128 → 1.072 variantes (56 fusionadas, con su SKU como alias), 3 departamentos + 18
+  categorías, 88 colores con familia, 304 atributos, 177 fotos en `product_media` (65 por color).
+  Criterio de éxito verificado: 0 faltantes, 0 repetidas; stock (2.681) y líneas de venta (5.572)
+  iguales. Entradas: propuesta aprobada + `pendientes-final-2026-11-15.xlsx` + decisiones del usuario
+  y de la tienda (`backups/catalogo/decisiones-usuario-2026-11-15.txt`). Faltan fotos: 24 de 260
+  combinaciones producto × color tienen la suya; 233 de 338 productos activos no tienen ninguna.
 - **Plan 3 ⬜** — ERP adaptado (maestros, editor con atributos y fotos por color, filtros).
 - **Plan 4 ⬜** — guardas, retiro de `color`/`size` en texto y `wm.sizes`, plantillas de carga
   masiva nuevas (ojo: `lib/excel.ts` tiene el mismo bug de ExcelJS de validaciones solapadas que se
