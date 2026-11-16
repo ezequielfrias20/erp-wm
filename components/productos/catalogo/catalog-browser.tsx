@@ -98,9 +98,11 @@ export function CatalogBrowser({ data }: { data: CatalogBrowseData }) {
   const [brandId, setBrandId] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [uncategorizedOnly, setUncategorizedOnly] = useState(false);
+  const [unassignedOnly, setUnassignedOnly] = useState(false);
   const [readyOnly, setReadyOnly] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const filtered = useMemo(() => filterCatalogProducts(data.products, { query, brandId, departmentId, categoryId, readyOnly }), [data.products, query, brandId, departmentId, categoryId, readyOnly]);
+  const filtered = useMemo(() => filterCatalogProducts(data.products, { query, brandId, departmentId, categoryId, uncategorizedOnly, unassignedOnly, readyOnly }), [data.products, query, brandId, departmentId, categoryId, uncategorizedOnly, unassignedOnly, readyOnly]);
   const selected = data.products.find((product) => product.id === selectedId);
 
   return <div className="mx-auto max-w-[1560px] min-w-0 px-4 pt-4 pb-10 sm:px-5 sm:pt-5 lg:px-[30px] lg:pt-[26px]">
@@ -111,14 +113,14 @@ export function CatalogBrowser({ data }: { data: CatalogBrowseData }) {
     <div className="grid min-w-0 gap-5 lg:grid-cols-[230px_minmax(0,1fr)]">
       <aside className="min-w-0 self-start rounded-2xl border border-border bg-card p-3 shadow-card-sm">
         <h2 className="mb-2 px-2 text-xs font-bold uppercase tracking-wider text-text-3">Categorías</h2>
-        <button type="button" onClick={() => { setDepartmentId(""); setCategoryId(""); }} aria-current={!departmentId && !categoryId ? "page" : undefined} className={`flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm ${!departmentId && !categoryId ? "bg-brand-soft font-semibold text-brand" : "hover:bg-surface-2"}`}><span>Todo</span><span>{fmtNum(data.products.length)}</span></button>
+        <button type="button" onClick={() => { setDepartmentId(""); setCategoryId(""); setUncategorizedOnly(false); setUnassignedOnly(false); }} aria-current={!departmentId && !categoryId && !unassignedOnly ? "page" : undefined} className={`flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm ${!departmentId && !categoryId && !unassignedOnly ? "bg-brand-soft font-semibold text-brand" : "hover:bg-surface-2"}`}><span>Todo</span><span>{fmtNum(data.products.length)}</span></button>
         <div className="max-h-72 overflow-y-auto lg:max-h-[calc(100vh-15rem)]">{data.departments.map((department) => {
-          const count = department.categories.reduce((sum, category) => sum + category.productCount, 0);
           return <div key={department.id} className="mt-1">
-            <button type="button" onClick={() => { setDepartmentId(department.id); setCategoryId(""); }} aria-current={departmentId === department.id && !categoryId ? "page" : undefined} className={`flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-left text-sm font-semibold ${departmentId === department.id && !categoryId ? "bg-brand-soft text-brand" : "hover:bg-surface-2"}`}><span className="min-w-0 break-words">{department.name}</span><span>{fmtNum(count)}</span></button>
-            {department.categories.map((category) => <button key={category.id} type="button" onClick={() => { setDepartmentId(department.id); setCategoryId(category.id); }} aria-current={categoryId === category.id ? "page" : undefined} className={`flex w-full items-center justify-between gap-2 rounded-lg py-2 pr-2 pl-5 text-left text-sm ${categoryId === category.id ? "bg-brand-soft font-semibold text-brand" : "text-text-2 hover:bg-surface-2"}`}><span className="min-w-0 break-words">{category.name}</span><span>{fmtNum(category.productCount)}</span></button>)}
+            <button type="button" onClick={() => { setDepartmentId(department.id); setCategoryId(""); setUncategorizedOnly(false); setUnassignedOnly(false); }} aria-current={departmentId === department.id && !categoryId && !uncategorizedOnly ? "page" : undefined} className={`flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-left text-sm font-semibold ${departmentId === department.id && !categoryId && !uncategorizedOnly ? "bg-brand-soft text-brand" : "hover:bg-surface-2"}`}><span className="min-w-0 break-words">{department.name}</span><span>{fmtNum(department.productCount)}</span></button>
+            {department.categories.map((category) => <button key={category.id} type="button" onClick={() => { setDepartmentId(department.id); setCategoryId(category.id); setUncategorizedOnly(false); setUnassignedOnly(false); }} aria-current={categoryId === category.id ? "page" : undefined} className={`flex w-full items-center justify-between gap-2 rounded-lg py-2 pr-2 pl-5 text-left text-sm ${categoryId === category.id ? "bg-brand-soft font-semibold text-brand" : "text-text-2 hover:bg-surface-2"}`}><span className="min-w-0 break-words">{category.name}</span><span>{fmtNum(category.productCount)}</span></button>)}
+            {department.uncategorizedCount > 0 && <button type="button" onClick={() => { setDepartmentId(department.id); setCategoryId(""); setUncategorizedOnly(true); setUnassignedOnly(false); }} aria-current={departmentId === department.id && uncategorizedOnly ? "page" : undefined} className={`flex w-full items-center justify-between gap-2 rounded-lg py-2 pr-2 pl-5 text-left text-sm ${departmentId === department.id && uncategorizedOnly ? "bg-brand-soft font-semibold text-brand" : "text-text-2 hover:bg-surface-2"}`}><span className="min-w-0 break-words">Sin categoría</span><span>{fmtNum(department.uncategorizedCount)}</span></button>}
           </div>;
-        })}</div>
+        })}{data.unassignedCount > 0 && <button type="button" onClick={() => { setDepartmentId(""); setCategoryId(""); setUncategorizedOnly(false); setUnassignedOnly(true); }} aria-current={unassignedOnly ? "page" : undefined} className={`mt-1 flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-left text-sm font-semibold ${unassignedOnly ? "bg-brand-soft text-brand" : "hover:bg-surface-2"}`}><span>Sin departamento</span><span>{fmtNum(data.unassignedCount)}</span></button>}</div>
       </aside>
       <main className="min-w-0">
         <div className="mb-4 flex min-w-0 flex-col gap-3 rounded-2xl border border-border bg-card p-3 shadow-card-sm sm:flex-row sm:flex-wrap sm:items-center">
