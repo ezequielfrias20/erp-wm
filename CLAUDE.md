@@ -240,3 +240,11 @@ sin parpadeo) vía `getBranding()` (`lib/queries/branding.ts`, cacheado por requ
   (seed) caen a un *fallback* usando `sales.payment_method` + `total` (moneda inferida por
   `payment_methods.currency`). Ventas nuevas guardan el desglose real de pagos.
 - Los borradores del POS viven sólo en el navegador (localStorage), no en la BD.
+
+## Reparto con Codex
+- Tú entiendes el problema, planeas, decides la arquitectura y revisas lo que vuelve.
+- La construcción repetitiva, los refactors grandes y los errores atorados van a Codex.
+- Ese pase lo haces tú con el subagente codex-rescue, por tu cuenta. No esperas a que el usuario lo pida.
+- Nada de lo que vuelve de Codex se da por bueno sin tu revisión.
+- Al usuario le cuentas qué le pediste a Codex y qué volvió.
+- Si Codex falla dos veces en la misma tarea, la tarea vuelve a ti. No hay tercer intento.
