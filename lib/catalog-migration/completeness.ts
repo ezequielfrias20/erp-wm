@@ -3,7 +3,7 @@
  * spec: todo producto activo con categoría, marca y los atributos obligatorios de su categoría.
  * Lo usan el Excel de pendientes (qué filas van y qué celdas se marcan) y la limpieza (plan 2).
  */
-import type { ProposedProduct } from "./propose";
+import type { ProposedProduct, ProposedVariant } from "./propose";
 import { findCategory, type CategoryDef, type Taxonomy } from "./taxonomy";
 
 /** Claves de columna de la hoja Productos: `category`, `brand` o `attr:<code>`. */
@@ -53,4 +53,22 @@ export function attributeRole(
   const link = category.attributes.find((a) => a.code === code);
   if (!link) return "n/a";
   return link.required ? "required" : "optional";
+}
+
+/**
+ * Color u opción que exige la categoría del producto y la variante no tiene. Sólo cuenta para
+ * variantes activas de productos activos con categoría válida que no se fusionan en otra.
+ */
+export function variantMissing(
+  v: ProposedVariant,
+  product: ProposedProduct | undefined,
+  tax: Taxonomy,
+): ("color" | "option")[] {
+  if (!v.active || v.mergeIntoSku || !product?.active) return [];
+  const category = categoryOf(product, tax);
+  if (!category) return [];
+  const missing: ("color" | "option")[] = [];
+  if (category.requiresColor && !v.color) missing.push("color");
+  if (category.optionType && !v.option) missing.push("option");
+  return missing;
 }
