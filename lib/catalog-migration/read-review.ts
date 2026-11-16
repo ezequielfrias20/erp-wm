@@ -44,9 +44,9 @@ export type ReviewEdits = {
   products: ProductEdit[];
   variants: VariantEdit[];
   /** `original: null` = marca agregada por la tienda. */
-  brands: { name: string; original: string | null }[];
+  brands: { row: number; name: string; original: string | null }[];
   lines: { brand: string; line: string }[];
-  colors: { name: string; hex: string; family: string; original: string | null }[];
+  colors: { row: number; name: string; hex: string; family: string; original: string | null }[];
   /** código de atributo → valores de la hoja Valores. */
   values: Record<string, string[]>;
 };
@@ -139,13 +139,14 @@ function readWorkbook(wb: ExcelJS.Workbook, file: string, tax: Taxonomy): Review
   // ── Maestros
   const brands = sheet(wb, SHEETS.brands, ["Marca", ORIGINAL_HEADER])
     .rows.filter((r) => r.get("Marca"))
-    .map((r) => ({ name: r.get("Marca"), original: r.get(ORIGINAL_HEADER) || null }));
+    .map((r) => ({ row: r.row, name: r.get("Marca"), original: r.get(ORIGINAL_HEADER) || null }));
   const lines = sheet(wb, SHEETS.lines, ["Marca", "Línea / modelo"])
     .rows.filter((r) => r.get("Línea / modelo"))
     .map((r) => ({ brand: r.get("Marca"), line: r.get("Línea / modelo") }));
   const colors = sheet(wb, SHEETS.colors, ["Color", "Hex", "Familia", ORIGINAL_HEADER])
     .rows.filter((r) => r.get("Color"))
     .map((r) => ({
+      row: r.row,
       name: r.get("Color"),
       hex: r.get("Hex"),
       family: r.get("Familia"),

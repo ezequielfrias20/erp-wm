@@ -89,8 +89,8 @@ describe("readReviewBuffer", () => {
       values.getCell(r, tela).value = "FIONx";
     });
     const edits = await readReviewBuffer(buf, "x.xlsx", TAXONOMY);
-    expect(edits.brands).toContainEqual({ name: "FR Medic Group", original: null });
-    expect(edits.brands).toContainEqual({ name: "Figs", original: "Figs" });
+    expect(edits.brands).toContainEqual({ row: expect.any(Number), name: "FR Medic Group", original: null });
+    expect(edits.brands).toContainEqual({ row: expect.any(Number), name: "Figs", original: "Figs" });
     expect(edits.values.tela).toContain("FIONx");
     expect(edits.colors.find((c) => c.name === "Amarillo")).toMatchObject({ original: "Amarillo" });
     expect(edits.lines.length).toBeGreaterThan(0);

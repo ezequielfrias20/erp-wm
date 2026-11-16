@@ -12,7 +12,7 @@ import { normalizeKey } from "./parse";
 import type { Proposal, ProposedProduct } from "./propose";
 import type { ProductEdit, ReviewEdits, VariantEdit } from "./read-review";
 import { categoryPath, type Taxonomy } from "./taxonomy";
-import { SHEETS } from "./workbook-schema";
+import { SHEETS, taxonomyHash } from "./workbook-schema";
 
 export type EditIssue = { file: string; sheet: string; row: number; column: string; message: string };
 
@@ -55,12 +55,21 @@ export function applyEdits(
   const issues: EditIssue[] = [];
   /** nombre viejo → nombre nuevo (encadenable entre archivos). */
   const renamed = new Map<string, string>();
+  const expectedHash = taxonomyHash(inputTax);
 
   for (const file of edits) {
     const issue = (sheet: string, row: number, column: string, message: string) =>
       issues.push({ file: file.file, sheet, row, column, message });
 
-    applyMasters(file, proposal, tax);
+    // Un archivo hecho con otra taxonomía puede traer categorías, columnas o valores que ya no
+    // significan lo mismo: no se aplica nada de él. (La fecha de la foto sí difiere a propósito:
+    // eso lo cubren detectDrift y la guarda del SQL.)
+    if (file.taxonomyHash !== expectedHash) {
+      issue(SHEETS.info, 4, "taxonomy_hash", "El archivo se generó con otra versión de la taxonomía: vuelve a generarlo");
+      continue;
+    }
+
+    applyMasters(file, proposal, tax, issue);
 
     // ── Índices (después de los maestros del archivo)
     const categories = new Index(tax.categories.map(categoryPath));
@@ -135,9 +144,23 @@ export function applyEdits(
 }
 
 /** Marcas, líneas, colores y valores agregados o renombrados en el archivo. */
-function applyMasters(file: ReviewEdits, proposal: Proposal, tax: Taxonomy) {
+function applyMasters(
+  file: ReviewEdits,
+  proposal: Proposal,
+  tax: Taxonomy,
+  issue: (sheet: string, row: number, column: string, message: string) => void,
+) {
+  const sameKey = (a: string, b: string) => normalizeKey(a) === normalizeKey(b);
   for (const b of file.brands) {
     if (b.original && b.original !== b.name) {
+      if (!proposal.brands.includes(b.original)) {
+        issue(SHEETS.brands, b.row, "Marca", `La marca original «${b.original}» no existe`);
+        continue;
+      }
+      if (proposal.brands.some((x) => x !== b.original && sameKey(x, b.name))) {
+        issue(SHEETS.brands, b.row, "Marca", `Ya existe la marca «${b.name}»: renombrar no fusiona marcas`);
+        continue;
+      }
       proposal.brands = proposal.brands.map((x) => (x === b.original ? b.name : x));
       for (const def of tax.brands) if (def.name === b.original) def.name = b.name;
       for (const p of proposal.products) if (p.brand === b.original) p.brand = b.name;
@@ -155,17 +178,34 @@ function applyMasters(file: ReviewEdits, proposal: Proposal, tax: Taxonomy) {
     if (!exists) proposal.lines.push({ brand, line: l.line });
   }
   for (const c of file.colors) {
+    const hexOk = !c.hex || /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(c.hex);
+    const family = c.family ? tax.colorFamilies.find((f) => sameKey(f, c.family)) : "";
+    if (!hexOk) issue(SHEETS.colors, c.row, "Hex", `«${c.hex}» no es un color hex (#RRGGBB)`);
+    if (family === undefined) issue(SHEETS.colors, c.row, "Familia", `«${c.family}» no es una familia de color`);
+    if (!hexOk || family === undefined) continue;
     const existing = tax.colors.find((x) => x.name === (c.original ?? c.name));
+    if (c.original && !existing) {
+      issue(SHEETS.colors, c.row, "Color", `El color original «${c.original}» no existe`);
+      continue;
+    }
     if (existing) {
       if (c.original && c.original !== c.name) {
+        if (tax.colors.some((x) => x !== existing && sameKey(x.name, c.name))) {
+          issue(SHEETS.colors, c.row, "Color", `Ya existe el color «${c.name}»: renombrar no fusiona colores`);
+          continue;
+        }
         existing.aliases.push(existing.name);
         existing.name = c.name;
         for (const v of proposal.variants) if (v.color === c.original) v.color = c.name;
       }
       if (c.hex) existing.hex = c.hex;
-      if (c.family) existing.family = c.family;
-    } else if (!tax.colors.some((x) => normalizeKey(x.name) === normalizeKey(c.name))) {
-      tax.colors.push({ name: c.name, hex: c.hex, family: c.family, aliases: [] });
+      if (family) existing.family = family;
+    } else if (!tax.colors.some((x) => sameKey(x.name, c.name))) {
+      if (!c.hex || !family) {
+        issue(SHEETS.colors, c.row, c.hex ? "Familia" : "Hex", `El color nuevo «${c.name}» necesita hex y familia`);
+        continue;
+      }
+      tax.colors.push({ name: c.name, hex: c.hex, family, aliases: [] });
     }
   }
   proposal.colors = tax.colors;

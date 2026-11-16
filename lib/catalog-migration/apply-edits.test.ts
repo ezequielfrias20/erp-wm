@@ -3,6 +3,7 @@ import { applyEdits } from "./apply-edits";
 import { buildProposal } from "./propose";
 import type { ProductEdit, ReviewEdits, VariantEdit } from "./read-review";
 import { TAXONOMY } from "./taxonomy";
+import { taxonomyHash } from "./workbook-schema";
 import { MINI_SNAPSHOT } from "./test-fixtures";
 
 const base = buildProposal(MINI_SNAPSHOT, TAXONOMY);
@@ -43,7 +44,7 @@ function file(over: Partial<ReviewEdits> = {}, name = "pendientes.xlsx"): Review
     file: name,
     scope: "incomplete",
     snapshotTakenAt: MINI_SNAPSHOT.taken_at,
-    taxonomyHash: "x",
+    taxonomyHash: taxonomyHash(TAXONOMY),
     products: [],
     variants: [],
     brands: [],
@@ -94,9 +95,9 @@ describe("applyEdits", () => {
   it("marca, valor y color nuevos se agregan a la taxonomía", () => {
     const { proposal, tax, issues } = applyEdits(base, TAXONOMY, [
       file({
-        brands: [{ name: "FR Medic Group", original: null }],
+        brands: [{ row: 12, name: "FR Medic Group", original: null }],
         values: { tela: ["Stretch", "FIONx"] },
-        colors: [{ name: "Capibara", hex: "#AA8866", family: "Estampados", original: null }],
+        colors: [{ row: 90, name: "Capibara", hex: "#AA8866", family: "Estampados", original: null }],
         products: [
           productRow("Rompe Ampollas 3D Bob Sponja", { brand: "FR Medic Group" }),
           productRow("Figs Dama", { attributes: { genero: ["Dama"], corte: ["Recta"], tela: ["fionx"] } }),
@@ -168,8 +169,59 @@ describe("applyEdits", () => {
   it("no modifica la propuesta ni la taxonomía de entrada", () => {
     const before = JSON.stringify(base);
     const taxBrands = TAXONOMY.brands.length;
-    applyEdits(base, TAXONOMY, [file({ brands: [{ name: "Otra", original: null }], products: [productRow("Figs Dama", { brand: "Otra" })] })]);
+    applyEdits(base, TAXONOMY, [file({ brands: [{ row: 13, name: "Otra", original: null }], products: [productRow("Figs Dama", { brand: "Otra" })] })]);
     expect(JSON.stringify(base)).toBe(before);
     expect(TAXONOMY.brands).toHaveLength(taxBrands);
+  });
+});
+
+describe("applyEdits: integridad de los maestros", () => {
+  it("archivo generado con otra taxonomía es issue y no se aplica", () => {
+    const { proposal, issues } = applyEdits(base, TAXONOMY, [
+      file({ taxonomyHash: "otra", products: [productRow("Rompe Ampollas 3D Bob Sponja", { brand: "Figs" })] }),
+    ]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ sheet: "_info", message: expect.stringMatching(/otra versión de la taxonomía/) });
+    expect(proposal.products.find((p) => p.name === "Rompe Ampollas 3D Bob Sponja")!.brand).toBeNull();
+  });
+
+  it("renombrar una marca a otra que ya existe es issue y no fusiona", () => {
+    const { proposal, issues } = applyEdits(base, TAXONOMY, [
+      file({ brands: [{ row: 3, name: "World Medics", original: "Figs" }] }),
+    ]);
+    expect(issues[0]).toMatchObject({ sheet: "Marcas", row: 3, column: "Marca" });
+    expect(proposal.products.find((p) => p.name === "Figs Dama")!.brand).toBe("Figs");
+  });
+
+  it("renombrar una marca u otro color cuyo original no existe es issue", () => {
+    const { issues } = applyEdits(base, TAXONOMY, [
+      file({
+        brands: [{ row: 4, name: "Nueva", original: "No Existe" }],
+        colors: [{ row: 5, name: "Nuevo", hex: "#112233", family: "Azules", original: "No Existe" }],
+      }),
+    ]);
+    expect(issues.map((i) => i.sheet).sort()).toEqual(["Colores", "Marcas"]);
+  });
+
+  it("renombrar un color a otro que ya existe es issue", () => {
+    const { issues } = applyEdits(base, TAXONOMY, [
+      file({ colors: [{ row: 6, name: "Negro", hex: "", family: "", original: "Amarillo" }] }),
+    ]);
+    expect(issues[0]).toMatchObject({ sheet: "Colores", row: 6, column: "Color" });
+  });
+
+  it("hex inválido o familia desconocida es issue y conserva lo anterior", () => {
+    const before = TAXONOMY.colors.find((c) => c.name === "Amarillo")!;
+    const { tax, issues } = applyEdits(base, TAXONOMY, [
+      file({
+        colors: [
+          { row: 7, name: "Amarillo", hex: "red;background:url(x)", family: "Inventada", original: "Amarillo" },
+          { row: 8, name: "Capibara", hex: "#12345", family: "Estampados", original: null },
+        ],
+      }),
+    ]);
+    expect(issues.map((i) => `${i.row}:${i.column}`).sort()).toEqual(["7:Familia", "7:Hex", "8:Hex"]);
+    expect(tax.colors.find((c) => c.name === "Amarillo")).toMatchObject({ hex: before.hex, family: before.family });
+    expect(tax.colors.some((c) => c.name === "Capibara")).toBe(false);
   });
 });
