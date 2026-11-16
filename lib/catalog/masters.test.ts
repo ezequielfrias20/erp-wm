@@ -9,7 +9,27 @@ import {
   normalizeHex,
   sameName,
   uniqueSlug,
+  singleValueChangeError,
+  manualSlugError,
 } from "./masters";
+
+describe("singleValueChangeError", () => {
+  it("avisa cuántos productos tienen varios valores al pasar a uno", () => {
+    expect(singleValueChangeError(true, false, 3)).toBe("3 productos tienen varios valores de esta característica. Déjales uno antes de cambiarla a un solo valor.");
+  });
+  it("permite los otros cambios", () => {
+    expect(singleValueChangeError(true, false, 0)).toBeNull();
+    expect(singleValueChangeError(false, false, 3)).toBeNull();
+    expect(singleValueChangeError(true, true, 3)).toBeNull();
+  });
+});
+
+describe("manualSlugError", () => {
+  it("rechaza un slug sin letras ni números válidos", () => {
+    expect(manualSlugError("!? _--")).toBe("El slug debe tener letras o números.");
+    expect(manualSlugError("á-é 123")).toBeNull();
+  });
+});
 
 describe("normalizeHex", () => {
   it.each([

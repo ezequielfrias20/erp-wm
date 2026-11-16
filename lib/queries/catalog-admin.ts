@@ -38,7 +38,7 @@ export async function getCatalogAdminData(): Promise<CatalogAdminData> {
     fetchAllRows<ProductLine>((from, to) => db.from("product_lines").select("*").order("id").range(from, to)),
     fetchAllRows<Pick<ProductVariant, "color_id" | "option_value_id">>((from, to) => db.from("product_variants").select("color_id, option_value_id").order("id").range(from, to)),
     fetchAllRows<Pick<Product, "category_id" | "brand_id" | "line_id">>((from, to) => db.from("products").select("category_id, brand_id, line_id").order("id").range(from, to)),
-    fetchAllRows<Pick<ProductAttributeValue, "attribute_value_id">>((from, to) => db.from("product_attribute_values").select("attribute_value_id").order("product_id").order("attribute_value_id").range(from, to)),
+    fetchAllRows<Pick<ProductAttributeValue, "product_id" | "attribute_value_id">>((from, to) => db.from("product_attribute_values").select("product_id, attribute_value_id").order("product_id").order("attribute_value_id").range(from, to)),
     fetchAllRows<Pick<ProductMedia, "color_id">>((from, to) => db.from("product_media").select("color_id").not("color_id", "is", null).order("id").range(from, to)),
   ]);
   const colorUses = counts(variants, (row) => row.color_id);
@@ -50,6 +50,15 @@ export async function getCatalogAdminData(): Promise<CatalogAdminData> {
   const attributeValueUses = counts(productAttributeValues, (row) => row.attribute_value_id);
   const optionCategoryUses = counts(categories, (row) => row.option_type_id);
   const attributeCategoryUses = counts(categoryAttributes, (row) => row.attribute_id);
+  const attributeByValue = new Map(attributeValues.map((row) => [row.id, row.attribute_id]));
+  const productsByAttribute = new Map<string, Map<string, number>>();
+  for (const row of productAttributeValues) {
+    const attributeId = attributeByValue.get(row.attribute_value_id);
+    if (!attributeId) continue;
+    const products = productsByAttribute.get(attributeId) ?? new Map<string, number>();
+    products.set(row.product_id, (products.get(row.product_id) ?? 0) + 1);
+    productsByAttribute.set(attributeId, products);
+  }
   const categoryAttributesById = new Map<string, AdminCategory["attributes"]>();
   for (const row of categoryAttributes) {
     const list = categoryAttributesById.get(row.category_id) ?? [];
@@ -80,6 +89,8 @@ export async function getCatalogAdminData(): Promise<CatalogAdminData> {
     attributes: ordered(attributes, (row) => row.sort_order, (row) => row.name).map((row) => ({
       id: row.id, code: row.code, name: row.name, isMulti: row.is_multi, sortOrder: row.sort_order,
       categoryCount: attributeCategoryUses.get(row.id) ?? 0,
+      productCount: productsByAttribute.get(row.id)?.size ?? 0,
+      multiValueProductCount: [...(productsByAttribute.get(row.id)?.values() ?? [])].filter((count) => count > 1).length,
       values: ordered(attributeValues.filter((value) => value.attribute_id === row.id), (value) => value.sort_order, (value) => value.name).map((value) => ({
         id: value.id, name: value.name, slug: value.slug, sortOrder: value.sort_order,
         isActive: value.is_active, productCount: attributeValueUses.get(value.id) ?? 0,
@@ -87,6 +98,7 @@ export async function getCatalogAdminData(): Promise<CatalogAdminData> {
     })),
     departments: categories.filter((row) => row.parent_id === null).map((row) => ({
       ...itemById.get(row.id)!,
+      totalProductCount: (categoryUses.get(row.id) ?? 0) + categories.filter((child) => child.parent_id === row.id).reduce((sum, child) => sum + (categoryUses.get(child.id) ?? 0), 0),
       categories: categories.filter((child) => child.parent_id === row.id).map((child) => itemById.get(child.id)!),
     })).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "es", { numeric: true })),
     brands: brands.sort((a, b) => a.name.localeCompare(b.name, "es", { numeric: true })).map((row) => ({

@@ -1,5 +1,16 @@
 import { slugify } from "@/lib/catalog-migration/cleanup-plan";
 
+export function manualSlugError(input: string): string | null {
+  return slugify(input) === "x" && !/[a-z0-9]/.test(input.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase())
+    ? "El slug debe tener letras o números." : null;
+}
+
+export function singleValueChangeError(wasMulti: boolean, isMulti: boolean, multiValueProducts: number): string | null {
+  return wasMulti && !isMulti && multiValueProducts > 0
+    ? `${multiValueProducts} productos tienen varios valores de esta característica. Déjales uno antes de cambiarla a un solo valor.`
+    : null;
+}
+
 export function normalizeHex(input: string): string | null {
   const value = input.trim().replace(/^#/, "");
   if (/^[0-9a-fA-F]{3}$/.test(value)) {

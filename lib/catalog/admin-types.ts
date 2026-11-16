@@ -54,6 +54,10 @@ export type AdminAttribute = {
   isMulti: boolean;
   sortOrder: number;
   categoryCount: number;
+  /** Productos distintos con algún valor de esta característica. */
+  productCount: number;
+  /** Productos con más de un valor de esta característica (impide pasarla a «un solo valor»). */
+  multiValueProductCount: number;
   values: AdminAttributeValue[];
 };
 
@@ -77,6 +81,8 @@ export type AdminDepartment = {
   isActive: boolean;
   /** Productos asignados directamente al departamento (no a una de sus categorías). */
   productCount: number;
+  /** Productos del departamento: directos + los de todas sus categorías. */
+  totalProductCount: number;
   categories: AdminCategory[];
 };
 
