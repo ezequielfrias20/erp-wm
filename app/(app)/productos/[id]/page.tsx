@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/queries/session";
 import { getProductDetail, getCatalogRefs } from "@/lib/queries/products";
+import { getProductEditorData, getCatalogMasters } from "@/lib/queries/catalog";
 import { canView, canEdit } from "@/lib/permissions";
 import { getActiveBranchId } from "@/lib/branch";
 import { ProductEditor } from "@/components/productos/product-editor";
@@ -20,20 +21,21 @@ export default async function ProductDetailPage({
     session.profile.branch_id,
     session.profile.role,
   );
-  const [detail, refs] = await Promise.all([
+  const [editorData, masters, detail, refs] = await Promise.all([
+    getProductEditorData(id),
+    getCatalogMasters(),
     getProductDetail(id, branchId),
     getCatalogRefs(),
   ]);
-  if (!detail?.product) notFound();
+  if (!editorData || !detail?.product) notFound();
 
   return (
     <ProductEditor
-      product={detail.product}
+      editorData={editorData}
+      masters={masters}
       productImageUrl={productImageUrl(detail.product.id, detail.product.updated_at)}
       variants={detail.variants}
       byBranch={detail.byBranch}
-      categories={refs.categories}
-      brands={refs.brands}
       sizes={refs.sizes}
       colors={refs.colors}
       canEdit={canEdit(session.permissions, "Productos")}

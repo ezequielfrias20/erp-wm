@@ -44,34 +44,40 @@ import {
 } from "@/components/ui/select";
 import { fmtUSD, fmtNum } from "@/lib/format";
 import { PRODUCT_IMAGE_ACCEPTED_TYPES } from "@/lib/product-images";
-import type { Product, ProductVariant } from "@/lib/database.types";
+import type { ProductVariant } from "@/lib/database.types";
+import type { CatalogMasters, ProductEditorData } from "@/lib/queries/catalog";
+import { ClassificationCard } from "@/components/productos/editor/classification-card";
+import { SpecsEditor } from "@/components/productos/editor/specs-editor";
+import { ReadinessBadge } from "@/components/productos/editor/readiness-badge";
 
-type Ref = { id: string; name: string };
 type SizeRef = { id: string; label: string };
 type ColorRef = { id: string; name: string; hex: string | null };
 type VariantWithStock = ProductVariant & { stock: number };
 
 export function ProductEditor({
-  product,
+  editorData,
+  masters,
   variants,
   byBranch,
-  categories,
-  brands,
   sizes,
   colors,
   canEdit,
   productImageUrl,
 }: {
-  product: Product;
+  editorData: ProductEditorData;
+  masters: CatalogMasters;
   productImageUrl: string | null;
   variants: VariantWithStock[];
   byBranch: { city: string; qty: number }[];
-  categories: Ref[];
-  brands: Ref[];
   sizes: SizeRef[];
   colors: ColorRef[];
   canEdit: boolean;
 }) {
+  const { product } = editorData;
+  const colorsById = new Map([
+    ...variants.filter((variant) => variant.color_id && variant.color).map((variant) => [variant.color_id!, variant.color!] as const),
+    ...masters.colors.map((color) => [color.id, color.name] as const),
+  ]);
   const router = useRouter();
   const [active, setActive] = useState(product.is_active);
   const [visible, setVisible] = useState(product.visible_in_catalog);
@@ -89,9 +95,12 @@ export function ProductEditor({
     null,
   );
   useEffect(() => {
-    if (state?.ok) toast.success("Producto guardado");
+    if (state?.ok) {
+      toast.success("Producto guardado");
+      router.refresh();
+    }
     else if (state?.error) toast.error(state.error);
-  }, [state]);
+  }, [state, router]);
 
   const totalStock = variants.reduce((a, v) => a + v.stock, 0);
   const minPrice = variants.length ? Math.min(...variants.map((v) => v.price)) : 0;
@@ -202,6 +211,12 @@ export function ProductEditor({
               >
                 {active ? "Activo" : "Inactivo"}
               </span>
+              <ReadinessBadge
+                readiness={editorData.readiness}
+                masters={masters}
+                colorsById={colorsById}
+                categoryId={product.category_id}
+              />
             </div>
           </div>
         </div>
@@ -223,7 +238,7 @@ export function ProductEditor({
       <div className="grid grid-cols-1 gap-[18px] lg:grid-cols-[1.6fr_1fr]">
         {/* Left */}
         <div className="flex flex-col gap-[18px]">
-          <Card title="Galería del producto">
+          <Card id="galeria-producto" title="Galería del producto">
             <div className="grid grid-cols-4 gap-3">
               <div className="flex aspect-square items-center justify-center overflow-hidden rounded-xl border border-border bg-surface-2 text-text-3">
                 {productImageUrl && !imageFailed ? (
@@ -266,7 +281,7 @@ export function ProductEditor({
             </div>
           </Card>
 
-          <Card title="Información">
+          <Card id="informacion" title="Información">
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="name">Nombre del producto</Label>
@@ -287,10 +302,12 @@ export function ProductEditor({
                   disabled={!canEdit}
                 />
               </div>
+              <SpecsEditor specs={product.specs ?? []} canEdit={canEdit} />
             </div>
           </Card>
 
           <Card
+            id="variantes"
             title="Variantes"
             subtitle={`${variants.length} variantes`}
             action={
@@ -408,59 +425,7 @@ export function ProductEditor({
             </div>
           </Card>
 
-          <Card title="Organización">
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label>Categoría</Label>
-                <Select
-                  name="category_id"
-                  defaultValue={product.category_id ?? undefined}
-                  disabled={!canEdit}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sin categoría" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label>Marca</Label>
-                <Select
-                  name="brand_id"
-                  defaultValue={product.brand_id ?? undefined}
-                  disabled={!canEdit}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sin marca" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {brands.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>
-                        {b.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="tags">Etiquetas (separadas por coma)</Label>
-                <Input
-                  id="tags"
-                  name="tags"
-                  defaultValue={product.tags.join(", ")}
-                  placeholder="antifluido, enfermería"
-                  disabled={!canEdit}
-                />
-              </div>
-              <input type="hidden" name="tax_rate" value={product.tax_rate} />
-            </div>
-          </Card>
+          <ClassificationCard product={product} masters={masters} attributeValueIds={editorData.attributeValueIds} canEdit={canEdit} />
 
           <Card title="Inventario" subtitle={`${fmtNum(totalStock)} uds`}>
             <div className="flex flex-col gap-3">
@@ -495,6 +460,8 @@ export function ProductEditor({
           variant={editingVariant}
           sizes={sizes}
           colors={colors}
+          masters={masters}
+          categoryId={product.category_id}
         />
       )}
     </form>
@@ -512,18 +479,20 @@ function SaveButton() {
 }
 
 function Card({
+  id,
   title,
   subtitle,
   action,
   children,
 }: {
+  id?: string;
   title: string;
   subtitle?: string;
   action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <div className="fadeup rounded-2xl border border-border bg-card p-5 shadow-card-sm">
+    <div id={id} className="fadeup rounded-2xl border border-border bg-card p-5 shadow-card-sm">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <div className="text-[14px] font-bold tracking-tight text-foreground">
@@ -562,6 +531,8 @@ function VariantDialog({
   variant,
   sizes,
   colors,
+  masters,
+  categoryId,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -569,26 +540,26 @@ function VariantDialog({
   variant: VariantWithStock | null;
   sizes: SizeRef[];
   colors: ColorRef[];
+  masters: CatalogMasters;
+  categoryId: string | null;
 }) {
+  const optionTypeId = masters.categories.find((category) => category.id === categoryId)?.optionTypeId;
+  const optionType = masters.optionTypes.find((type) => type.id === optionTypeId);
   const [state, formAction] = useActionState<FormState, FormData>(
     saveVariant,
     null,
   );
-  const [selectedColorName, setSelectedColorName] = useState(
-    variant?.color ?? "",
+  const [selectedColorId, setSelectedColorId] = useState(
+    variant?.color_id ?? masters.colors.find((color) => color.name === variant?.color)?.id ?? "",
   );
-  const [selectedSize, setSelectedSize] = useState(variant?.size ?? "");
-  const hasLegacySize = Boolean(
-    selectedSize && !sizes.some((size) => size.label === selectedSize),
+  const [selectedOptionId, setSelectedOptionId] = useState(
+    optionType ? (variant?.option_value_id ?? (
+      optionType.values.find((value) => value.label === (sizes.find((size) => size.label === variant?.size)?.label ?? variant?.size))?.id
+    ) ?? "") : "",
   );
-  const selectedColor = colors.find((color) => color.name === selectedColorName);
-  const selectedColorHex =
-    selectedColor?.hex ??
-    (selectedColorName === variant?.color ? variant?.color_hex : null) ??
-    "";
-  const hasLegacyColor = Boolean(
-    selectedColorName && !selectedColor && variant?.color === selectedColorName,
-  );
+  const selectedColor = masters.colors.find((color) => color.id === selectedColorId);
+  const selectedColorHex = selectedColor?.hex ?? "";
+  const selectedColorName = selectedColor?.name ?? "";
 
   useEffect(() => {
     if (state?.ok) onOpenChange(false);
@@ -604,7 +575,7 @@ function VariantDialog({
           <input type="hidden" name="product_id" value={productId} />
           {variant && <input type="hidden" name="id" value={variant.id} />}
           <div className="rounded-[10px] border border-border bg-surface-2 px-3 py-2 text-[12px] text-text-2">
-            La variante se muestra como <strong>Color / Talla</strong>. El SKU es el
+            La variante se muestra como <strong>Color / {optionType?.name ?? "Opción"}</strong>. El SKU es el
             identificador interno y puede generarse solo.
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -615,23 +586,21 @@ function VariantDialog({
               placeholder="Auto si se deja vacío"
             />
             <div className="flex flex-col gap-1.5">
-              <Label>Talla de la variante</Label>
-              <input type="hidden" name="size" value={selectedSize} />
+              <Label>{optionType?.name ?? "Opción"} de la variante</Label>
+              <input type="hidden" name="option_value_id" value={selectedOptionId} />
               <Select
-                value={selectedSize || "none"}
-                onValueChange={(value) => setSelectedSize(value === "none" ? "" : value)}
+                value={selectedOptionId || "none"}
+                onValueChange={(value) => setSelectedOptionId(value === "none" ? "" : value)}
+                disabled={!optionType}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecciona una talla" />
+                  <SelectValue placeholder={`Selecciona ${optionType?.name?.toLowerCase() ?? "una opción"}`} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Sin talla</SelectItem>
-                  {hasLegacySize && (
-                    <SelectItem value={selectedSize}>{selectedSize}</SelectItem>
-                  )}
-                  {sizes.map((size) => (
-                    <SelectItem key={size.id} value={size.label}>
-                      {size.label}
+                  <SelectItem value="none">Sin {optionType?.name?.toLowerCase() ?? "opción"}</SelectItem>
+                  {optionType?.values.map((value) => (
+                    <SelectItem key={value.id} value={value.id}>
+                      {value.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -641,12 +610,11 @@ function VariantDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label>Color de la variante</Label>
-              <input type="hidden" name="color" value={selectedColorName} />
-              <input type="hidden" name="color_hex" value={selectedColorHex} />
+              <input type="hidden" name="color_id" value={selectedColorId} />
               <Select
-                value={selectedColorName || "none"}
+                value={selectedColorId || "none"}
                 onValueChange={(value) =>
-                  setSelectedColorName(value === "none" ? "" : value)
+                  setSelectedColorId(value === "none" ? "" : value)
                 }
               >
                 <SelectTrigger className="w-full">
@@ -654,22 +622,11 @@ function VariantDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Sin color</SelectItem>
-                  {hasLegacyColor && (
-                    <SelectItem value={selectedColorName}>
+                  {masters.colors.map((color) => (
+                    <SelectItem key={color.id} value={color.id}>
                       <span
                         className="size-3 rounded-full border border-border"
-                        style={{
-                          background: variant?.color_hex ?? "var(--surface-2)",
-                        }}
-                      />
-                      {selectedColorName}
-                    </SelectItem>
-                  )}
-                  {colors.map((color) => (
-                    <SelectItem key={color.id} value={color.name}>
-                      <span
-                        className="size-3 rounded-full border border-border"
-                        style={{ background: color.hex ?? "var(--surface-2)" }}
+                        style={{ background: colors.find((ref) => ref.id === color.id)?.hex ?? color.hex ?? "var(--surface-2)" }}
                       />
                       {color.name}
                     </SelectItem>
