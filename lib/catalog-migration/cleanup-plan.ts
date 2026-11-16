@@ -49,6 +49,8 @@ export type CleanupPlan = {
     mergeIds: string[];
     name: string;
     slug: string;
+    /** La del sobreviviente o, si no tiene, la primera no vacía de los fusionados. */
+    description: string | null;
     /** Nombre de la categoría de 2.º nivel (null sólo en inactivos sin clasificar). */
     category: string | null;
     brand: string | null;
@@ -173,6 +175,7 @@ export function buildCleanupPlan(s: CatalogSnapshot, p: Proposal, tax: Taxonomy,
       mergeIds: merged.map((x) => x.id),
       name: prod.name,
       slug: uniqueSlug(prod.name),
+      description: sources.map((x) => x.description?.trim()).find((d) => d) ?? null,
       category: category?.name ?? null,
       brand: prod.brand,
       line: prod.line,

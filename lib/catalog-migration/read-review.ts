@@ -8,7 +8,6 @@ import type { Taxonomy } from "./taxonomy";
 import {
   ORIGINAL_HEADER,
   SHEETS,
-  STATUS,
   productColumns,
   type WorkbookScope,
 } from "./workbook-schema";
@@ -23,7 +22,8 @@ export type ProductEdit = {
   line: string;
   /** código → valores no vacíos (incluye la columna «#2» de los múltiples). */
   attributes: Record<string, string[]>;
-  active: boolean;
+  /** Texto de la columna Estado tal cual (lo valida apply-edits). */
+  status: string;
 };
 
 export type VariantEdit = {
@@ -33,7 +33,8 @@ export type VariantEdit = {
   color: string;
   option: string;
   mergeInto: string;
-  active: boolean;
+  /** Texto de la columna Estado tal cual (lo valida apply-edits). */
+  status: string;
 };
 
 export type ReviewEdits = {
@@ -111,7 +112,7 @@ function readWorkbook(wb: ExcelJS.Workbook, file: string, tax: Taxonomy): Review
         brand: r.get(header("brand")),
         line: r.get(header("line")),
         attributes,
-        active: r.get(header("status")) === STATUS.active,
+        status: r.get(header("status")),
       };
     });
 
@@ -133,7 +134,7 @@ function readWorkbook(wb: ExcelJS.Workbook, file: string, tax: Taxonomy): Review
       color: r.get(V.color),
       option: r.get(V.option),
       mergeInto: r.get(V.mergeInto),
-      active: r.get(V.status) === STATUS.active,
+      status: r.get(V.status),
     }));
 
   // ── Maestros

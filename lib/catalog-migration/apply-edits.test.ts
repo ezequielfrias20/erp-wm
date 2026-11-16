@@ -20,7 +20,7 @@ function productRow(name: string, over: Partial<ProductEdit> = {}): ProductEdit 
     brand: p.brand ?? "",
     line: p.line ?? "",
     attributes: Object.fromEntries(Object.entries(p.attributes).filter(([, v]) => v.length)),
-    active: p.active,
+    status: p.active ? "Activo" : "Desactivar",
     ...over,
   };
 }
@@ -34,7 +34,7 @@ function variantRow(sku: string, over: Partial<VariantEdit> = {}): VariantEdit {
     color: v.color ?? "",
     option: v.option ?? "",
     mergeInto: v.mergeIntoSku ?? "",
-    active: v.active,
+    status: v.active ? "Activo" : "Desactivar",
     ...over,
   };
 }
@@ -132,7 +132,7 @@ describe("applyEdits", () => {
   it("variante: color y opción canónicos, desactivar y producto inexistente", () => {
     const sku = figsVariant();
     const ok = applyEdits(base, TAXONOMY, [
-      file({ variants: [variantRow(sku, { color: "azul cielo", option: "xs", active: false })] }),
+      file({ variants: [variantRow(sku, { color: "azul cielo", option: "xs", status: "Desactivar" })] }),
     ]);
     expect(ok.issues).toEqual([]);
     expect(ok.proposal.variants.find((v) => v.sku === sku)).toMatchObject({ color: "Azul Cielo", option: "XS", active: false });
@@ -223,5 +223,48 @@ describe("applyEdits: integridad de los maestros", () => {
     expect(issues.map((i) => `${i.row}:${i.column}`).sort()).toEqual(["7:Familia", "7:Hex", "8:Hex"]);
     expect(tax.colors.find((c) => c.name === "Amarillo")).toMatchObject({ hex: before.hex, family: before.family });
     expect(tax.colors.some((c) => c.name === "Capibara")).toBe(false);
+  });
+});
+
+describe("applyEdits: identidad de productos y estado", () => {
+  it("renombres que reutilizan un nombre liberado: cada variante va a su producto de origen", () => {
+    const gxx3 = base.variants.find((v) => v.sku === "GXX-3")!; // Gorro Anestesia
+    const gxx4 = base.variants.find((v) => v.sku === "GXX-4")!; // Gorro Cafe
+    const { proposal, issues } = applyEdits(base, TAXONOMY, [
+      file({
+        products: [
+          productRow("Gorro Cafe", { name: "Gorro Cafe Oscuro" }),
+          productRow("Gorro Anestesia", { name: "Gorro Cafe" }),
+        ],
+        variants: [variantRow(gxx3.sku, { product: "Gorro Anestesia" }), variantRow(gxx4.sku, { product: "Gorro Cafe" })],
+      }),
+    ]);
+    expect(issues).toEqual([]);
+    expect(proposal.variants.find((v) => v.sku === "GXX-3")!.productName).toBe("Gorro Cafe");
+    expect(proposal.variants.find((v) => v.sku === "GXX-4")!.productName).toBe("Gorro Cafe Oscuro");
+  });
+
+  it("un archivo posterior que deshace un renombre termina (no se cuelga) y gana el último", () => {
+    const { proposal } = applyEdits(base, TAXONOMY, [
+      file({ products: [productRow("Gorro Cafe", { name: "Gorro Marron" })] }, "completo.xlsx"),
+      file({ products: [productRow("Gorro Cafe")], variants: [variantRow("GXX-4", { product: "Gorro Marron" })] }, "pendientes.xlsx"),
+    ]);
+    expect(proposal.products.some((p) => p.name === "Gorro Cafe")).toBe(true);
+    expect(proposal.variants.find((v) => v.sku === "GXX-4")!.productName).toBe("Gorro Cafe");
+  });
+
+  it("estado: se compara sin mayúsculas; vacío o desconocido es issue y conserva el anterior", () => {
+    const ok = applyEdits(base, TAXONOMY, [file({ products: [productRow("Figs Dama", { status: "desactivar" })] })]);
+    expect(ok.issues).toEqual([]);
+    expect(ok.proposal.products.find((p) => p.name === "Figs Dama")!.active).toBe(false);
+
+    for (const status of ["Activa", "", "Activo."]) {
+      const bad = applyEdits(base, TAXONOMY, [
+        file({ products: [productRow("Figs Dama", { status })], variants: [variantRow("GXX-4", { status })] }),
+      ]);
+      expect(bad.issues.map((i) => `${i.sheet}:${i.column}`).sort()).toEqual(["Productos:Estado", "Variantes:Estado"]);
+      expect(bad.proposal.products.find((p) => p.name === "Figs Dama")!.active).toBe(true);
+      expect(bad.proposal.variants.find((v) => v.sku === "GXX-4")!.active).toBe(true);
+    }
   });
 });

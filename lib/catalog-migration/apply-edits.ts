@@ -12,7 +12,7 @@ import { normalizeKey } from "./parse";
 import type { Proposal, ProposedProduct } from "./propose";
 import type { ProductEdit, ReviewEdits, VariantEdit } from "./read-review";
 import { categoryPath, type Taxonomy } from "./taxonomy";
-import { SHEETS, taxonomyHash } from "./workbook-schema";
+import { SHEETS, STATUS, taxonomyHash } from "./workbook-schema";
 
 export type EditIssue = { file: string; sheet: string; row: number; column: string; message: string };
 
@@ -43,7 +43,16 @@ const COL = {
   mergeInto: "Fusionar con SKU",
   sku: "SKU",
   proposedName: "Nombre propuesto",
+  status: "Estado",
 } as const;
+
+/** «Activo»/«Desactivar» sin mayúsculas ni acentos; cualquier otra cosa (o vacío) → null. */
+function parseStatus(text: string): boolean | null {
+  const key = normalizeKey(text);
+  if (key === normalizeKey(STATUS.active)) return true;
+  if (key === normalizeKey(STATUS.inactive)) return false;
+  return null;
+}
 
 export function applyEdits(
   input: Proposal,
@@ -53,8 +62,10 @@ export function applyEdits(
   const proposal = structuredClone(input);
   const tax = structuredClone(inputTax);
   const issues: EditIssue[] = [];
-  /** nombre viejo → nombre nuevo (encadenable entre archivos). */
-  const renamed = new Map<string, string>();
+  // Identidad estable: el nombre que propuso el sistema (columna gris «Nombre propuesto» en
+  // Productos; valor prellenado en Variantes). Los nombres nuevos pueden cambiar, repetirse
+  // entre archivos o reutilizar un nombre liberado: nunca se encadenan.
+  const byProposed = new Map(proposal.products.map((p) => [p.name, p]));
   const expectedHash = taxonomyHash(inputTax);
 
   for (const file of edits) {
@@ -85,16 +96,11 @@ export function applyEdits(
 
     // ── Productos
     for (const e of file.products) {
-      const resolveName = (n: string) => {
-        let name = n;
-        while (renamed.has(name)) name = renamed.get(name)!;
-        return name;
-      };
       if (!e.proposedName) {
         issue(SHEETS.products, e.row, COL.proposedName, `Producto nuevo «${e.name}»: no soportado en esta ronda`);
         continue;
       }
-      const product = proposal.products.find((p) => p.name === resolveName(e.proposedName));
+      const product = byProposed.get(e.proposedName);
       if (!product) {
         issue(SHEETS.products, e.row, COL.proposedName, `«${e.proposedName}» ya no existe en el catálogo`);
         continue;
@@ -108,14 +114,12 @@ export function applyEdits(
         attrName,
         nameTaken: (name) => proposal.products.some((p) => p !== product && p.name === name),
         rename: (from, to) => {
-          renamed.set(from, to);
           for (const v of proposal.variants) if (v.productName === from) v.productName = to;
         },
       });
     }
 
     // ── Variantes
-    const productNames = () => new Set(proposal.products.map((p) => p.name));
     for (const e of file.variants) {
       const variant = proposal.variants.find((v) => v.sku === e.sku);
       if (!variant) {
@@ -124,11 +128,8 @@ export function applyEdits(
       }
       applyVariantEdit(e, variant, {
         issue: (column, message) => issue(SHEETS.variants, e.row, column, message),
-        resolveProduct: (n) => {
-          let name = n;
-          while (renamed.has(name)) name = renamed.get(name)!;
-          return productNames().has(name) ? name : undefined;
-        },
+        // Primero por nombre propuesto (lo prellenado), después por nombre actual (lo escrito).
+        resolveProduct: (n) => byProposed.get(n)?.name ?? proposal.products.find((p) => p.name === n)?.name,
         colors,
         options,
         skus: new Set(proposal.variants.map((v) => v.sku)),
@@ -244,7 +245,9 @@ function applyProductEdit(e: ProductEdit, product: ProposedProduct, ctx: Product
   product.categoryPath = pick(e.category, ctx.categories, COL.category, product.categoryPath);
   product.brand = pick(e.brand, ctx.brands, COL.brand, product.brand);
   product.line = pick(e.line, ctx.linesOf(product.brand), COL.line, product.line);
-  product.active = e.active;
+  const active = parseStatus(e.status);
+  if (active === null) ctx.issue(COL.status, `«${e.status}» no es un estado válido (Activo o Desactivar)`);
+  else product.active = active;
 
   const attributes: Record<string, string[]> = {};
   for (const [code, index] of ctx.attrValues) {
@@ -305,5 +308,7 @@ function applyVariantEdit(e: VariantEdit, variant: Proposal["variants"][number],
   else if (ctx.skus.has(e.mergeInto)) variant.mergeIntoSku = e.mergeInto;
   else ctx.issue(COL.mergeInto, `El SKU «${e.mergeInto}» no existe`);
 
-  variant.active = e.active;
+  const active = parseStatus(e.status);
+  if (active === null) ctx.issue(COL.status, `«${e.status}» no es un estado válido (Activo o Desactivar)`);
+  else variant.active = active;
 }

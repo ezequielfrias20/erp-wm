@@ -82,8 +82,8 @@ create temp table _legacy_color on commit drop as
   select value::uuid as id from jsonb_array_elements_text((select doc->'legacyColorIds' from _plan));
 create temp table _prod on commit drop as
   select * from jsonb_to_recordset((select doc->'products' from _plan))
-    as x(id uuid, "mergeIds" jsonb, name text, slug text, category text, brand text, line text,
-         "isActive" boolean, attributes jsonb);
+    as x(id uuid, "mergeIds" jsonb, name text, slug text, description text, category text, brand text,
+         line text, "isActive" boolean, attributes jsonb);
 create temp table _merge_prod on commit drop as
   select p.id as into_id, m.value::uuid as id from _prod p, jsonb_array_elements_text(p."mergeIds") m;
 create temp table _var on commit drop as
@@ -197,7 +197,8 @@ update wm.product_variants v set product_id = x."productId"
   from _var x where v.id = x.id and v.product_id is distinct from x."productId";
 
 update wm.products p
-   set name = x.name, slug = x.slug, category_id = c.id, brand_id = b.id, line_id = l.id, is_active = x."isActive"
+   set name = x.name, slug = x.slug, category_id = c.id, brand_id = b.id, line_id = l.id, is_active = x."isActive",
+       description = coalesce(x.description, p.description)
   from _prod x
   left join wm.categories c on c.name = x.category and c.parent_id is not null
   left join wm.brands b on b.name = x.brand
@@ -300,6 +301,9 @@ begin
    where (x.category is not null and p.category_id is null) or (x.brand is not null and p.brand_id is null)
       or (x.line is not null and p.line_id is null);
   if n > 0 then problems := problems || format('%s productos con categoría, marca o línea sin resolver', n); end if;
+  select count(*) into n from _prod x join wm.products p on p.id = x.id
+   where x.description is not null and p.description is distinct from x.description;
+  if n > 0 then problems := problems || format('%s descripciones sin pasar al producto que queda', n); end if;
   select count(*) into n from _prod x cross join jsonb_array_elements(x.attributes) a;
   if n <> (select count(*) from wm.product_attribute_values) then
     problems := problems || format('atributos: plan %s, guardados %s', n, (select count(*) from wm.product_attribute_values));

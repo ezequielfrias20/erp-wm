@@ -41,7 +41,7 @@ describe("readReviewBuffer", () => {
         name: "Figs Dama",
         category: "Uniformes › Conjuntos",
         brand: "Figs",
-        active: true,
+        status: "Activo",
       });
       expect(figs.attributes.genero).toEqual(["Dama"]);
       expect(figs.row).toBeGreaterThan(1);
@@ -74,7 +74,7 @@ describe("readReviewBuffer", () => {
       color: "Amarillo",
       option: "M",
       mergeInto: "UNI-MAOSTR-0017",
-      active: true,
+      status: "Activo",
     });
   });
 

@@ -119,6 +119,21 @@ describe("buildCleanupPlan", () => {
     });
   });
 
+  it("descripción: la del sobreviviente o, si no tiene, la primera de los fusionados", () => {
+    const merged = planFor((s) => {
+      s.products.find((p) => p.id === "p3")!.description = "Tela FIONx";
+    }).plan.products.find((p) => p.name === "Figs Dama")!;
+    expect(merged).toMatchObject({ id: "p2", description: "Tela FIONx" });
+
+    const own = planFor((s) => {
+      s.products.find((p) => p.id === "p2")!.description = "Propia";
+      s.products.find((p) => p.id === "p3")!.description = "Otra";
+    }).plan.products.find((p) => p.name === "Figs Dama")!;
+    expect(own.description).toBe("Propia");
+
+    expect(planFor().plan.products.find((p) => p.name === "Oximetro GMD")!.description).toBeNull();
+  });
+
   it("guarda con conteos y la última edición de la foto", () => {
     const { plan, snapshot } = planFor();
     const max = [...snapshot.products, ...snapshot.variants].map((x) => x.updated_at).sort().at(-1);
