@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, Search, ChevronRight, X, AlertTriangle } from "lucide-react";
+import { Plus, Search, ChevronRight, X, AlertTriangle, LayoutGrid } from "lucide-react";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { fmtUSD, fmtNum, initials } from "@/lib/format";
 import { matchesProductQuery } from "@/lib/search";
@@ -95,8 +95,15 @@ export function ProductsView({
             {fmtNum(filtered.length)} de {fmtNum(products.length)} productos en catálogo
           </p>
         </div>
-        {canEdit && (
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/productos/catalogo"
+            className="hoverlift flex h-11 items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-[15px] text-[13px] font-semibold text-foreground sm:h-[38px]"
+          >
+            <LayoutGrid className="size-4" /> Ver catálogo
+          </Link>
+          {canEdit && (
+            <>
             <ProductsBulkBar
               lists={{
                 categories: categories.map((c) => c.name),
@@ -111,8 +118,9 @@ export function ProductsView({
             >
               <Plus className="size-4" /> Nuevo producto
             </button>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
 
       <div className="fadeup overflow-hidden rounded-2xl border border-border bg-card shadow-card-sm">
