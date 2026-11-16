@@ -23,7 +23,22 @@ describe("resolveImportSkus", () => {
     expect(resolveImportSkus([
       { row: 2, sku: "gor-gortir-0002 ", branch: "centro" },
       { row: 3, sku: "GOR-GORTIR-0001", branch: "centro" },
-    ], real, aliases)).toEqual({ resolved: [], conflicts: [{ rows: [2, 3], variantId: "v1" }], unknown: [] });
+    ], real, aliases)).toEqual({ resolved: [], conflicts: [{ rows: [2, 3], variantId: "v1", reason: "alias" }], unknown: [] });
+  });
+
+  it("marca como duplicado el mismo SKU aunque cambien mayúsculas y espacios", () => {
+    expect(resolveImportSkus([
+      { row: 2, sku: " gor-gortir-0001 ", branch: "centro" },
+      { row: 3, sku: "GOR-GORTIR-0001", branch: "centro" },
+    ], real, aliases)).toEqual({ resolved: [], conflicts: [{ rows: [2, 3], variantId: "v1", reason: "duplicate" }], unknown: [] });
+  });
+
+  it("marca como alias un grupo mixto de SKU repetido y SKU anterior", () => {
+    expect(resolveImportSkus([
+      { row: 2, sku: "GOR-GORTIR-0001", branch: "centro" },
+      { row: 3, sku: "gor-gortir-0001 ", branch: "centro" },
+      { row: 4, sku: "GOR-GORTIR-0002", branch: "centro" },
+    ], real, aliases)).toEqual({ resolved: [], conflicts: [{ rows: [2, 3, 4], variantId: "v1", reason: "alias" }], unknown: [] });
   });
 
   it("resuelve alias y SKU real en sucursales diferentes", () => {
@@ -40,7 +55,7 @@ describe("resolveImportSkus", () => {
     expect(resolveImportSkus([
       { row: 4, sku: "GOR-GORTIR-0002", branch: "Maracay" },
       { row: 5, sku: "GOR-GORTIR-0001", branch: " maracay " },
-    ], real, aliases)).toEqual({ resolved: [], conflicts: [{ rows: [4, 5], variantId: "v1" }], unknown: [] });
+    ], real, aliases)).toEqual({ resolved: [], conflicts: [{ rows: [4, 5], variantId: "v1", reason: "alias" }], unknown: [] });
   });
 
   it("separa filas con SKU desconocido", () => {

@@ -23,7 +23,7 @@ export default async function InventarioPage() {
 
   // El catálogo completo para la plantilla y el alta de stock se pide bajo demanda
   // (ver `loadInventoryOptions`). Aquí se cargan sólo las existencias visibles.
-  const [list, branchRow] = await Promise.all([
+  const [list, branchRow, mainPhotoUrls, aliases] = await Promise.all([
     fetchAllRows<VInventory>((from, to) => {
       let query = supabase.from("v_inventory").select("*");
       if (branchId) query = query.eq("branch_id", branchId);
@@ -32,17 +32,13 @@ export default async function InventarioPage() {
     branchId
       ? supabase.from("branches").select("city").eq("id", branchId).maybeSingle()
       : Promise.resolve({ data: null }),
+    getMainPhotoUrls(),
+    fetchAllRows<{ variant_id: string; sku: string }>((from, to) =>
+      supabase.from("variant_sku_aliases").select("variant_id, sku").order("sku").range(from, to),
+    ),
   ]);
 
   const loadedVariantIds = new Set(list.map((row) => row.variant_id));
-  const [mainPhotoUrls, aliases] = await Promise.all([
-    getMainPhotoUrls([...new Set(list.map((row) => row.product_id))]),
-    loadedVariantIds.size
-      ? fetchAllRows<{ variant_id: string; sku: string }>((from, to) =>
-          supabase.from("variant_sku_aliases").select("variant_id, sku").order("sku").range(from, to),
-        )
-      : Promise.resolve([]),
-  ]);
   const aliasesByVariant = new Map<string, string[]>();
   for (const alias of aliases) {
     if (!loadedVariantIds.has(alias.variant_id)) continue;

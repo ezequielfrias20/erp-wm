@@ -65,6 +65,8 @@ export default async function VentasPage() {
     settingsRes,
     bcv,
     sellersRes,
+    mainPhotoUrls,
+    aliases,
   ] = await Promise.all([
     branchId
       ? supabase.from("branches").select("id, city").eq("id", branchId).maybeSingle()
@@ -104,18 +106,14 @@ export default async function VentasPage() {
       .eq("role", "Vendedor")
       .eq("status", "Activo")
       .order("full_name"),
+    getMainPhotoUrls(),
+    fetchAllRows<{ variant_id: string; sku: string }>((from, to) =>
+      supabase.from("variant_sku_aliases").select("variant_id, sku").order("sku").range(from, to),
+    ),
   ]);
 
   const sellers = sellersRes.data;
   const loadedVariantIds = new Set(invRows.map((row) => row.variant_id));
-  const [mainPhotoUrls, aliases] = await Promise.all([
-    getMainPhotoUrls([...new Set(invRows.map((row) => row.product_id))]),
-    loadedVariantIds.size
-      ? fetchAllRows<{ variant_id: string; sku: string }>((from, to) =>
-          supabase.from("variant_sku_aliases").select("variant_id, sku").order("sku").range(from, to),
-        )
-      : Promise.resolve([]),
-  ]);
   const aliasesByVariant = new Map<string, string[]>();
   for (const alias of aliases) {
     if (!loadedVariantIds.has(alias.variant_id)) continue;

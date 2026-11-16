@@ -197,12 +197,20 @@ export async function importInventory(rows: ImportRow[]): Promise<ImportResult> 
 
   // Con conflictos no se importa nada: el archivo se corrige y se vuelve a subir entero.
   if (resolution.conflicts.length) {
-    const labels = resolution.conflicts
-      .flatMap((conflict) => conflict.rows)
-      .map((index) => numberedRows[index].label)
-      .sort((x, y) => x - y);
+    const labelsByReason = new Map<"duplicate" | "alias", number[]>();
+    for (const conflict of resolution.conflicts) {
+      const labels = labelsByReason.get(conflict.reason) ?? [];
+      labels.push(...conflict.rows.map((index) => numberedRows[index].label));
+      labelsByReason.set(conflict.reason, labels);
+    }
+    const details = [...labelsByReason].map(([reason, labels]) => {
+      const motive = reason === "duplicate"
+        ? "SKU repetido en la misma sucursal"
+        : "SKU anterior y actual de la misma variante en la misma sucursal";
+      return `(${motive}): ${labels.sort((x, y) => x - y).join(", ")}`;
+    });
     return {
-      error: `Filas en conflicto (SKU anterior y actual de la misma variante en la misma sucursal): ${labels.join(", ")}. Corrige el archivo; no se importó nada.`,
+      error: `Filas en conflicto ${details.join("; ")}. Corrige el archivo; no se importó nada.`,
       skipped: rows.length,
     };
   }
