@@ -25,6 +25,7 @@ import type {
 } from "@/lib/database.types";
 import { mediaPublicUrl } from "@/lib/product-images";
 import { cachedFor, invalidateCache, CACHE_TTL } from "@/lib/server-cache";
+import { chunk } from "@/lib/chunk";
 import { fetchAllRows } from "@/lib/supabase/pagination";
 import { createClient } from "@/lib/supabase/server";
 
@@ -146,7 +147,11 @@ export type ProductEditorData = {
   branches: { id: string; city: string }[];
 };
 
-export async function getProductEditorData(id: string): Promise<ProductEditorData | null> {
+/**
+ * `branchScope`: sucursal a la que está limitado el usuario (`getProfileBranchScope`); con ella,
+ * stock y sucursales se limitan a esa sucursal. `null` = puede ver todas.
+ */
+export async function getProductEditorData(id: string, branchScope: string | null = null): Promise<ProductEditorData | null> {
   const supabase = await createClient();
   const [{ data: product, error: productError }, variants, media, productAttributes, branches] = await Promise.all([
     supabase.from("products").select("*").eq("id", id).maybeSingle(),
@@ -156,8 +161,11 @@ export async function getProductEditorData(id: string): Promise<ProductEditorDat
       supabase.from("product_media").select("*").eq("product_id", id).order("sort_order").order("id").range(from, to)),
     fetchAllRows<ProductAttributeValue>((from, to) =>
       supabase.from("product_attribute_values").select("product_id, attribute_value_id").eq("product_id", id).order("attribute_value_id").range(from, to)),
-    fetchAllRows<Pick<Branch, "id" | "city">>((from, to) =>
-      supabase.from("branches").select("id, city").order("city").order("id").range(from, to)),
+    fetchAllRows<Pick<Branch, "id" | "city">>((from, to) => {
+      let query = supabase.from("branches").select("id, city");
+      if (branchScope) query = query.eq("id", branchScope);
+      return query.order("city").order("id").range(from, to);
+    }),
   ]);
   if (productError) throw new Error(productError.message);
   if (!product) return null;
@@ -183,8 +191,11 @@ export async function getProductEditorData(id: string): Promise<ProductEditorDat
           supabase.from("option_values").select("id, option_type_id").in("id", optionValueIds).order("id").range(from, to))
       : Promise.resolve([]),
     variantIds.length
-      ? fetchAllRows<Pick<Inventory, "variant_id" | "branch_id" | "quantity">>((from, to) =>
-          supabase.from("inventory").select("variant_id, branch_id, quantity").in("variant_id", variantIds).order("id").range(from, to))
+      ? fetchAllRows<Pick<Inventory, "variant_id" | "branch_id" | "quantity">>((from, to) => {
+          let query = supabase.from("inventory").select("variant_id, branch_id, quantity").in("variant_id", variantIds);
+          if (branchScope) query = query.eq("branch_id", branchScope);
+          return query.order("id").range(from, to);
+        })
       : Promise.resolve([]),
     variantIds.length
       ? fetchAllRows<Pick<SaleItem, "variant_id">>((from, to) =>
@@ -252,23 +263,30 @@ export async function getProductEditorData(id: string): Promise<ProductEditorDat
 export async function getMainPhotoUrls(productIds?: string[]): Promise<Map<string, string>> {
   const result = new Map<string, string>();
   if (productIds && productIds.length === 0) return result;
-  // Con muchos ids el filtro «in» arma una URL demasiado larga (el POS pide ~300): por encima de
-  // este tope se traen todas las filas (son pocas) y se filtra en memoria.
-  const wanted = productIds ? new Set(productIds) : null;
-  const filterIds = productIds && productIds.length <= 100 ? productIds : null;
   const supabase = await createClient();
-  const [media, variants] = await Promise.all([
-    fetchAllRows<Pick<ProductMedia, "id" | "product_id" | "color_id" | "path" | "sort_order">>((from, to) => {
+  type MediaRow = Pick<ProductMedia, "id" | "product_id" | "color_id" | "path" | "sort_order">;
+  type VariantRow = Pick<ProductVariant, "id" | "product_id" | "color_id" | "sku">;
+  const loadMedia = (ids: string[] | null) =>
+    fetchAllRows<MediaRow>((from, to) => {
       let query = supabase.from("product_media").select("id, product_id, color_id, path, sort_order");
-      if (filterIds) query = query.in("product_id", filterIds);
+      if (ids) query = query.in("product_id", ids);
       return query.order("product_id").order("sort_order").order("id").range(from, to);
-    }),
-    fetchAllRows<Pick<ProductVariant, "id" | "product_id" | "color_id" | "sku">>((from, to) => {
+    });
+  const loadVariants = (ids: string[] | null) =>
+    fetchAllRows<VariantRow>((from, to) => {
       let query = supabase.from("product_variants").select("id, product_id, color_id, sku").eq("is_active", true);
-      if (filterIds) query = query.in("product_id", filterIds);
+      if (ids) query = query.in("product_id", ids);
       return query.order("product_id").order("sku").order("id").range(from, to);
-    }),
+    });
+  // Con ids se filtra siempre, por grupos de 100 (un «in» con cientos de ids arma una URL
+  // demasiado larga). Sin ids, todo el catálogo (lista de productos).
+  const groups = productIds ? chunk([...new Set(productIds)], 100) : [null];
+  const [mediaGroups, variantGroups] = await Promise.all([
+    Promise.all(groups.map(loadMedia)),
+    Promise.all(groups.map(loadVariants)),
   ]);
+  const media = mediaGroups.flat();
+  const variants = variantGroups.flat();
   const mediaByProduct = groupBy(media, (row) => row.product_id);
   const colorOrderByProduct = new Map<string, string[]>();
   for (const variant of variants) {
@@ -278,7 +296,6 @@ export async function getMainPhotoUrls(productIds?: string[]): Promise<Map<strin
     colorOrderByProduct.set(variant.product_id, order);
   }
   for (const [productId, photos] of mediaByProduct) {
-    if (wanted && !wanted.has(productId)) continue;
     const main = pickMainPhoto(
       photos.map((photo) => ({ ...photo, colorId: photo.color_id, sortOrder: photo.sort_order })),
       colorOrderByProduct.get(productId) ?? [],

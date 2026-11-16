@@ -9,6 +9,7 @@ import { canEdit, canView } from "@/lib/permissions";
 import { getInventoryOptions } from "@/lib/queries/inventory-options";
 import { resolveImportSkus } from "@/lib/catalog/sku-alias";
 import { fetchAllRows } from "@/lib/supabase/pagination";
+import { chunk } from "@/lib/chunk";
 import {
   EMPTY_INVENTORY_OPTIONS,
   type InventoryOptions,
@@ -177,50 +178,66 @@ export async function importInventory(rows: ImportRow[]): Promise<ImportResult> 
   const num = (v: number | null | undefined): number | null =>
     v == null || !Number.isFinite(v) ? null : Math.max(0, Math.trunc(v));
 
+  // La fila del archivo (`row`) sólo se usa para los mensajes; el cruce interno usa la posición
+  // en el arreglo, que la calcula el servidor.
+  const rowLabel = (row: ImportRow, index: number) =>
+    Number.isInteger(row.row) && (row.row as number) > 0 ? (row.row as number) : index + 2;
   const numberedRows = rows.map((row, index) => ({
     ...row,
-    rowNumber: row.row ?? index + 2,
+    index,
+    label: rowLabel(row, index),
     branchId: bMap.get(String(row.branch).trim().toLowerCase()),
   }));
   const matchedBranches = numberedRows.filter((row) => row.branchId);
   const resolution = resolveImportSkus(
-    matchedBranches.map((row) => ({ row: row.rowNumber, sku: row.sku, branch: row.branchId! })),
+    matchedBranches.map((row) => ({ row: row.index, sku: row.sku, branch: row.branchId! })),
     variantBySku,
     variantByAlias,
   );
-  const variantIdByRow = new Map(resolution.resolved.map(({ row, variantId }) => [row, variantId]));
-  const conflictRows = resolution.conflicts.flatMap((conflict) => conflict.rows).sort((a, b) => a - b);
+
+  // Con conflictos no se importa nada: el archivo se corrige y se vuelve a subir entero.
+  if (resolution.conflicts.length) {
+    const labels = resolution.conflicts
+      .flatMap((conflict) => conflict.rows)
+      .map((index) => numberedRows[index].label)
+      .sort((x, y) => x - y);
+    return {
+      error: `Filas en conflicto (SKU anterior y actual de la misma variante en la misma sucursal): ${labels.join(", ")}. Corrige el archivo; no se importó nada.`,
+      skipped: rows.length,
+    };
+  }
+
+  const variantIdByIndex = new Map(resolution.resolved.map(({ row, variantId }) => [row, variantId]));
   const resolved = numberedRows
-    .filter((row) => row.branchId && variantIdByRow.has(row.rowNumber))
+    .filter((row) => row.branchId && variantIdByIndex.has(row.index))
     .map((row) => ({
-      variant_id: variantIdByRow.get(row.rowNumber)!,
+      variant_id: variantIdByIndex.get(row.index)!,
       branch_id: row.branchId!,
       quantity: Number.isFinite(row.quantity) ? Math.max(0, Math.trunc(row.quantity)) : 0,
       reserved: num(row.reserved),
       min_stock: num(row.min_stock),
-    })) as {
-    variant_id: string;
-    branch_id: string;
-    quantity: number;
-    reserved: number | null;
-    min_stock: number | null;
-  }[];
+    }));
 
   const skipped = rows.length - resolved.length;
-  const conflictError = conflictRows.length
-    ? `Filas en conflicto (SKU anterior y actual de la misma variante en la misma sucursal): ${conflictRows.join(", ")}. Corrige el archivo.`
-    : null;
   if (!resolved.length)
-    return { error: conflictError ?? "Ninguna fila coincidió con un SKU y una sucursal válidos.", skipped };
+    return { error: "Ninguna fila coincidió con un SKU y una sucursal válidos.", skipped };
 
   // Merge with existing reserved/min_stock so una columna omitida no los resetea.
   const variantIds = [...new Set(resolved.map((r) => r.variant_id))];
-  const { data: existing } = await supabase
-    .from("inventory")
-    .select("variant_id, branch_id, reserved, min_stock")
-    .in("variant_id", variantIds);
+  const existing = (
+    await Promise.all(
+      chunk(variantIds, 100).map(async (ids) => {
+        const { data, error } = await supabase
+          .from("inventory")
+          .select("variant_id, branch_id, reserved, min_stock")
+          .in("variant_id", ids);
+        if (error) throw new Error(error.message);
+        return data ?? [];
+      }),
+    )
+  ).flat();
   const existingMap = new Map(
-    (existing ?? []).map((e) => [
+    existing.map((e) => [
       `${e.variant_id}:${e.branch_id}`,
       { reserved: e.reserved, min_stock: e.min_stock },
     ]),
@@ -244,11 +261,7 @@ export async function importInventory(rows: ImportRow[]): Promise<ImportResult> 
 
   await audit(`Importó inventario (${payload.length} filas)`, "Inventario");
   revalidatePath("/inventario");
-  return {
-    imported: payload.length,
-    skipped,
-    ...(conflictError ? { error: `${conflictError} Se importaron ${payload.length} fila(s) sin conflicto.` } : {}),
-  };
+  return { imported: payload.length, skipped };
 }
 
 /**
