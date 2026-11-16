@@ -71,3 +71,12 @@ export function nextSeqFromSkus(prefix: string, existing: string[]): number {
   }
   return max + 1;
 }
+
+/** Calcula el siguiente correlativo incluyendo SKU vigentes y anteriores. */
+export function nextSeqFromSkusAndAliases(
+  prefix: string,
+  skus: string[],
+  aliases: string[],
+): number {
+  return nextSeqFromSkus(prefix, [...skus, ...aliases]);
+}

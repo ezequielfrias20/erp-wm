@@ -3,16 +3,21 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { audit } from "@/lib/audit";
-import { skuPrefix, buildSku, nextSeqFromSkus } from "@/lib/sku";
+import { skuPrefix, buildSku, nextSeqFromSkus, nextSeqFromSkusAndAliases } from "@/lib/sku";
+import type { Product } from "@/lib/database.types";
 import { getSession } from "@/lib/queries/session";
+import { getCatalogMasters, type CatalogMasters } from "@/lib/queries/catalog";
+import { findDuplicate, legacyText, missingCombinations, variantDeleteBlockers, type DeleteBlocker } from "@/lib/catalog/variants";
 import { canEdit } from "@/lib/permissions";
+import { getProfileBranchScope } from "@/lib/branch";
+import { fetchAllRows } from "@/lib/supabase/pagination";
 import {
   PRODUCT_IMAGE_ACCEPTED_TYPES,
   PRODUCT_IMAGE_MAX_SIZE,
   productImagePath,
 } from "@/lib/product-images";
 
-export type FormState = { error?: string; ok?: boolean; id?: string } | null;
+export type FormState = { error?: string; ok?: boolean; id?: string; created?: number } | null;
 
 type DB = Awaited<ReturnType<typeof createClient>>;
 
@@ -25,98 +30,205 @@ async function requireProductsEdit(): Promise<FormState> {
   return null;
 }
 
-/** Genera un SKU [CAT]-[slug]-[0001] para una nueva variante de `productId`. */
-async function generateSku(supabase: DB, productId: string): Promise<string> {
-  const { data: product } = await supabase
-    .from("products")
-    .select("name, category_id")
-    .eq("id", productId)
-    .maybeSingle();
+type SkuProduct = { name: string; category_id: string | null };
+
+async function nextProductSku(supabase: DB, product: SkuProduct): Promise<{ categoryName: string | null; next: number }> {
   let catName: string | null = null;
   if (product?.category_id) {
-    const { data: cat } = await supabase
+    const { data: cat, error: categoryError } = await supabase
       .from("categories")
       .select("name")
       .eq("id", product.category_id)
       .maybeSingle();
+    if (categoryError) throw new Error(categoryError.message);
     catName = cat?.name ?? null;
   }
-  const prefix = skuPrefix(catName, product?.name);
-  const { data: existing } = await supabase
-    .from("product_variants")
-    .select("sku")
-    .like("sku", `${prefix}-%`);
-  const seq = nextSeqFromSkus(
-    prefix,
-    (existing ?? []).map((v) => v.sku),
-  );
-  return buildSku(catName, product?.name, seq);
+  const prefix = skuPrefix(catName, product.name);
+  const [existing, aliases] = await Promise.all([
+    fetchAllRows<{ sku: string }>((from, to) => supabase.from("product_variants").select("sku").like("sku", `${prefix}-%`).order("sku").range(from, to)),
+    fetchAllRows<{ sku: string }>((from, to) => supabase.from("variant_sku_aliases").select("sku").like("sku", `${prefix}-%`).order("sku").range(from, to)),
+  ]);
+  return {
+    categoryName: catName,
+    next: nextSeqFromSkusAndAliases(prefix, existing.map((v) => v.sku), aliases.map((v) => v.sku)),
+  };
 }
 
-export async function saveProduct(
-  _prev: FormState,
-  formData: FormData,
-): Promise<FormState> {
-  const id = String(formData.get("id") ?? "").trim();
+/** Genera un SKU [CAT]-[slug]-[0001] para una nueva variante de `productId`. */
+async function generateSku(supabase: DB, productId: string): Promise<string> {
+  const { data: product, error } = await supabase.from("products").select("name, category_id").eq("id", productId).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!product) throw new Error("Producto no encontrado.");
+  const { categoryName, next } = await nextProductSku(supabase, product);
+  return buildSku(categoryName, product.name, next);
+}
+
+function revalidateProductPaths(id: string): void {
+  revalidatePath(`/productos/${id}`);
+  revalidatePath("/productos");
+  revalidatePath("/inventario");
+  revalidatePath("/ventas");
+}
+
+function categoryFromMasters(masters: CatalogMasters, id: string | null) {
+  return masters.categories.find((category) => category.id === id) ?? null;
+}
+
+export async function createProduct(_prev: FormState, formData: FormData): Promise<FormState> {
   const name = String(formData.get("name") ?? "").trim();
+  const categoryId = String(formData.get("category_id") ?? "").trim();
+  const brandId = String(formData.get("brand_id") ?? "").trim();
   if (!name) return { error: "El nombre es obligatorio." };
+  if (!categoryId) return { error: "La categoría es obligatoria." };
+  if (!brandId) return { error: "La marca es obligatoria." };
   const guard = await requireProductsEdit();
   if (guard?.error) return guard;
 
-  const values = {
-    name,
-    description: String(formData.get("description") ?? "").trim() || null,
-    category_id: String(formData.get("category_id") ?? "").trim() || null,
-    brand_id: String(formData.get("brand_id") ?? "").trim() || null,
-    tax_rate: Number(formData.get("tax_rate") ?? 16),
-    is_active: formData.get("is_active") === "on" || formData.get("is_active") === "true",
-    visible_in_catalog:
-      formData.get("visible_in_catalog") === "on" ||
-      formData.get("visible_in_catalog") === "true",
-    tags: String(formData.get("tags") ?? "")
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean),
-  };
+  const masters = await getCatalogMasters();
+  if (!categoryFromMasters(masters, categoryId)) return { error: "Selecciona una categoría de segundo nivel válida." };
+  if (!masters.brands.some((brand) => brand.id === brandId)) return { error: "Selecciona una marca válida." };
 
   const supabase = await createClient();
-  if (id) {
+  const { data, error } = await supabase.from("products").insert({ name, category_id: categoryId, brand_id: brandId }).select("id").single();
+  if (error) return { error: error.message };
+  await audit(`Creó el producto ${name}`, "Productos");
+  revalidateProductPaths(data.id);
+  return { ok: true, id: data.id };
+}
+
+export async function saveProduct(_prev: FormState, formData: FormData): Promise<FormState> {
+  const id = String(formData.get("id") ?? "").trim();
+  // El diálogo anterior todavía usa saveProduct para el alta hasta que Task 7 cambie la UI.
+  if (!id) return createProduct(_prev, formData);
+  const guard = await requireProductsEdit();
+  if (guard?.error) return guard;
+
+  const supabase = await createClient();
+  const { data: current, error: readError } = await supabase.from("products").select("name, category_id, brand_id").eq("id", id).maybeSingle();
+  if (readError) return { error: readError.message };
+  if (!current) return { error: "Producto no encontrado." };
+  const masters = await getCatalogMasters();
+  const values: Partial<Product> = {};
+  const field = (name: string) => String(formData.get(name) ?? "").trim();
+
+  if (formData.has("name")) {
+    if (!field("name")) return { error: "El nombre es obligatorio." };
+    values.name = field("name");
+  }
+  if (formData.has("description")) values.description = field("description") || null;
+  if (formData.has("category_id")) {
+    const categoryId = field("category_id") || null;
+    if (categoryId && !categoryFromMasters(masters, categoryId)) return { error: "Selecciona una categoría de segundo nivel válida." };
+    values.category_id = categoryId;
+  }
+  if (formData.has("brand_id")) {
+    const brandId = field("brand_id") || null;
+    if (brandId && !masters.brands.some((brand) => brand.id === brandId)) return { error: "Selecciona una marca válida." };
+    values.brand_id = brandId;
+  }
+  const brandId = formData.has("brand_id") ? values.brand_id : current.brand_id;
+  if (formData.has("line_id")) {
+    const lineId = field("line_id") || null;
+    if (lineId && !masters.brands.find((brand) => brand.id === brandId)?.lines.some((line) => line.id === lineId)) {
+      return { error: "La línea debe pertenecer a la marca seleccionada." };
+    }
+    values.line_id = lineId;
+  } else if (formData.has("brand_id") && current.brand_id !== brandId) {
+    // Una línea anterior no puede quedar vinculada a otra marca.
+    values.line_id = null;
+  }
+  if (formData.has("tax_rate")) {
+    const taxRate = Number(field("tax_rate"));
+    if (!Number.isFinite(taxRate) || taxRate < 0) return { error: "La tasa de impuesto no es válida." };
+    values.tax_rate = taxRate;
+  }
+  if (formData.has("is_active")) values.is_active = ["on", "true"].includes(field("is_active"));
+  if (formData.has("visible_in_catalog")) values.visible_in_catalog = ["on", "true"].includes(field("visible_in_catalog"));
+  if (formData.has("tags")) values.tags = field("tags").split(",").map((tag) => tag.trim()).filter(Boolean);
+  if (formData.has("specs")) {
+    let specs: unknown;
+    try { specs = JSON.parse(field("specs")); } catch { return { error: "La ficha técnica no es válida." }; }
+    if (!Array.isArray(specs) || specs.some((item) => item === null || typeof item !== "object" || typeof item.label !== "string" || typeof item.value !== "string")) {
+      return { error: "La ficha técnica no es válida." };
+    }
+    values.specs = specs
+      .map((item: { label: string; value: string }) => ({ label: item.label.trim(), value: item.value.trim() }))
+      .filter((item) => item.label);
+  }
+
+  // Sólo el editor nuevo manda «attributes_submitted»: un formulario que trae la categoría pero no
+  // las características (el editor viejo, otra pantalla) no debe borrarlas.
+  const replaceAttributes = formData.has("attributes_submitted");
+  let attributeValueIds: string[] = [];
+  if (replaceAttributes) {
+    const categoryId = (formData.has("category_id") ? values.category_id : current.category_id) ?? null;
+    const allowedAttributeIds = new Set(categoryFromMasters(masters, categoryId)?.attributes.map((attribute) => attribute.attributeId) ?? []);
+    const requestedIds = [...new Set(formData.getAll("attribute_value_ids").map((entry) => String(entry).trim()).filter(Boolean))];
+    if (requestedIds.length) {
+      const { data: selectedValues, error: valueError } = await supabase.from("attribute_values").select("id, attribute_id").in("id", requestedIds);
+      if (valueError) return { error: valueError.message };
+      attributeValueIds = (selectedValues ?? []).filter((value) => allowedAttributeIds.has(value.attribute_id)).map((value) => value.id);
+    }
+  }
+
+  if (Object.keys(values).length) {
     const { error } = await supabase.from("products").update(values).eq("id", id);
     if (error) return { error: error.message };
-    await audit(`Editó el producto ${name}`, "Productos");
-    revalidatePath(`/productos/${id}`);
-    revalidatePath("/productos");
-    return { ok: true, id };
-  } else {
-    const { data, error } = await supabase
-      .from("products")
-      .insert(values)
-      .select("id")
-      .single();
-    if (error) return { error: error.message };
-    if (formData.get("create_default_variant") === "true") {
-      const sku = await generateSku(supabase, data.id);
-      await supabase.from("product_variants").insert({
-        product_id: data.id,
-        sku,
-      });
-    }
-    await audit(`Creó el producto ${name}`, "Productos");
-    revalidatePath("/productos");
-    revalidatePath("/inventario");
-    return { ok: true, id: data.id };
   }
+  if (replaceAttributes) {
+    const { error: deleteError } = await supabase.from("product_attribute_values").delete().eq("product_id", id);
+    if (deleteError) return { error: deleteError.message };
+    if (attributeValueIds.length) {
+      const { error: insertError } = await supabase.from("product_attribute_values").insert(attributeValueIds.map((attribute_value_id) => ({ product_id: id, attribute_value_id })));
+      if (insertError) return { error: insertError.message };
+    }
+  }
+  await audit(`Editó el producto ${String(values.name ?? current.name)}`, "Productos");
+  revalidateProductPaths(id);
+  return { ok: true, id };
+}
+
+async function deletionBlockers(supabase: DB, variantIds: string[]): Promise<DeleteBlocker[]> {
+  if (!variantIds.length) return [];
+  const [sales, purchases, inventory, aliases] = await Promise.all([
+    supabase.from("sale_items").select("id", { count: "exact", head: true }).in("variant_id", variantIds),
+    supabase.from("purchase_order_items").select("id", { count: "exact", head: true }).in("variant_id", variantIds),
+    fetchAllRows<{ quantity: number }>((from, to) => supabase.from("inventory").select("quantity").in("variant_id", variantIds).order("id").range(from, to)),
+    supabase.from("variant_sku_aliases").select("sku", { count: "exact", head: true }).in("variant_id", variantIds),
+  ]);
+  for (const result of [sales, purchases, aliases]) {
+    if (result.error) throw new Error(result.error.message);
+  }
+  return variantDeleteBlockers({
+    saleLines: sales.count ?? 0,
+    purchaseLines: purchases.count ?? 0,
+    stock: inventory.reduce((sum, row) => sum + Math.max(0, row.quantity), 0),
+    aliases: aliases.count ?? 0,
+  });
+}
+
+const blockerLabels: Record<DeleteBlocker, string> = {
+  sales: "ventas", purchases: "compras", stock: "stock", aliases: "SKU anteriores",
+};
+
+function deletionError(blockers: DeleteBlocker[], product = false): string {
+  return `No se puede borrar: tiene ${blockers.map((blocker) => blockerLabels[blocker]).join(", ")}. ${product ? "Desactívalo" : "Desactívala"} en su lugar.`;
 }
 
 export async function deleteProduct(id: string): Promise<FormState> {
   const guard = await requireProductsEdit();
   if (guard?.error) return guard;
-
   const supabase = await createClient();
+  const { data: product, error: productError } = await supabase.from("products").select("id, name").eq("id", id).maybeSingle();
+  if (productError) return { error: productError.message };
+  if (!product) return { error: "Producto no encontrado." };
+  const variants = await fetchAllRows<{ id: string }>((from, to) => supabase.from("product_variants").select("id").eq("product_id", id).order("id").range(from, to));
+  const blockers = await deletionBlockers(supabase, variants.map((variant) => variant.id));
+  if (blockers.length) return { error: deletionError(blockers, true) };
   const { error } = await supabase.from("products").delete().eq("id", id);
   if (error) return { error: error.message };
-  await audit("Eliminó un producto", "Productos", "warn");
-  revalidatePath("/productos");
+  await audit(`Eliminó el producto ${product.name}`, "Productos", "warn");
+  revalidateProductPaths(id);
   return { ok: true };
 }
 
@@ -183,28 +295,140 @@ export async function saveVariant(
   if (guard?.error) return guard;
 
   const supabase = await createClient();
-  // SKU opcional: si no viene, se autogenera [CAT]-[slug]-[0001].
-  if (!sku) sku = await generateSku(supabase, productId);
+  const [{ data: product, error: productError }, { data: current, error: currentError }, masters] = await Promise.all([
+    supabase.from("products").select("name, category_id").eq("id", productId).maybeSingle(),
+    id ? supabase.from("product_variants").select("id, sku, is_active").eq("id", id).eq("product_id", productId).maybeSingle() : Promise.resolve({ data: null, error: null }),
+    getCatalogMasters(),
+  ]);
+  if (productError) return { error: productError.message };
+  if (currentError) return { error: currentError.message };
+  if (!product) return { error: "Producto no encontrado." };
+  if (id && !current) return { error: "Variante no encontrada." };
+  const category = categoryFromMasters(masters, product.category_id);
+  if (!category) return { error: "Selecciona una categoría de segundo nivel válida." };
+  const colorId = String(formData.get("color_id") ?? "").trim() || null;
+  const optionValueId = String(formData.get("option_value_id") ?? "").trim() || null;
+  const color = colorId ? masters.colors.find((item) => item.id === colorId) ?? null : null;
+  const option = optionValueId
+    ? masters.optionTypes.find((type) => type.id === category.optionTypeId)?.values.find((value) => value.id === optionValueId) ?? null
+    : null;
+  if (colorId && !color) return { error: "Selecciona un color activo válido." };
+  if (category.requiresColor && !color) return { error: "El color es obligatorio para esta categoría." };
+  if (category.optionTypeId && !option) return { error: "Selecciona una opción válida para esta categoría." };
+  if (!category.optionTypeId && optionValueId) return { error: "Esta categoría no admite opciones." };
+  const price = Number(formData.get("price") ?? 0);
+  const cost = Number(formData.get("cost") ?? 0);
+  if (!Number.isFinite(price) || price < 0 || !Number.isFinite(cost) || cost < 0) return { error: "El precio y el costo deben ser números no negativos." };
+
+  const existing = await fetchAllRows<{ id: string; sku: string; color_id: string | null; option_value_id: string | null }>((from, to) =>
+    supabase.from("product_variants").select("id, sku, color_id, option_value_id").eq("product_id", productId).order("id").range(from, to));
+  const duplicate = findDuplicate(existing.map((variant) => ({
+    id: variant.id, sku: variant.sku, colorId: variant.color_id, optionValueId: variant.option_value_id,
+  })), { id: id || undefined, colorId, optionValueId });
+  if (duplicate) return { error: `Ya existe una variante con ese color y opción: ${duplicate.sku}.` };
+
+  if (!sku) sku = current?.sku ?? await generateSku(supabase, productId);
+  const { data: alias, error: aliasError } = await supabase.from("variant_sku_aliases").select("sku").eq("sku", sku).maybeSingle();
+  if (aliasError) return { error: aliasError.message };
+  if (alias) return { error: "El SKU está reservado como SKU anterior." };
 
   const values = {
-    product_id: productId,
-    sku,
-    color: String(formData.get("color") ?? "").trim() || null,
-    color_hex: String(formData.get("color_hex") ?? "").trim() || null,
-    size: String(formData.get("size") ?? "").trim() || null,
-    price: Number(formData.get("price") ?? 0),
-    cost: Number(formData.get("cost") ?? 0),
+    product_id: productId, sku, color_id: colorId, option_value_id: optionValueId,
+    ...legacyText(color, option), price, cost,
+    is_active: formData.has("is_active")
+      ? ["on", "true"].includes(String(formData.get("is_active")))
+      : current?.is_active ?? true,
   };
   if (id) {
-    const { error } = await supabase.from("product_variants").update(values).eq("id", id);
+    const { error } = await supabase.from("product_variants").update(values).eq("id", id).eq("product_id", productId);
     if (error) return { error: error.message };
   } else {
-    const { error } = await supabase.from("product_variants").insert(values);
+    const stockFields = [...formData.entries()].filter(([key]) => key.startsWith("stock:"));
+    const session = await getSession();
+    const canWriteStock = session && canEdit(session.permissions, "Inventario");
+    const stockRows: { branch_id: string; quantity: number; reserved: number; min_stock: number }[] = [];
+    if (canWriteStock && stockFields.length) {
+      const assignedBranchId = getProfileBranchScope(session.profile);
+      const branchIds = new Set<string>();
+      for (const [key, raw] of stockFields) {
+        const branchId = key.slice("stock:".length);
+        const quantity = Number(raw);
+        if (!branchId || (assignedBranchId && branchId !== assignedBranchId)) return { error: "No puedes crear inventario en otra sucursal." };
+        if (!Number.isInteger(quantity) || quantity < 0) return { error: "El stock inicial debe ser un entero no negativo." };
+        if (branchIds.has(branchId)) return { error: "La sucursal está repetida en el stock inicial." };
+        branchIds.add(branchId);
+        stockRows.push({ branch_id: branchId, quantity, reserved: 0, min_stock: 0 });
+      }
+      const { data: branches, error: branchError } = await supabase.from("branches").select("id").in("id", [...branchIds]);
+      if (branchError) return { error: branchError.message };
+      if ((branches ?? []).length !== branchIds.size) return { error: "La sucursal seleccionada no existe." };
+    }
+    const { data: created, error } = await supabase.from("product_variants").insert(values).select("id").single();
     if (error) return { error: error.message };
+    if (stockRows.length) {
+      const { error: stockError } = await supabase.from("inventory").insert(stockRows.map((row) => ({ ...row, variant_id: created.id })));
+      if (stockError) {
+        await supabase.from("product_variants").delete().eq("id", created.id);
+        return { error: stockError.message };
+      }
+    }
   }
   await audit(`Actualizó variante ${sku}`, "Productos");
-  revalidatePath(`/productos/${productId}`);
+  revalidateProductPaths(productId);
   return { ok: true };
+}
+
+export async function generateVariants(input: {
+  productId: string;
+  colorIds: (string | null)[];
+  optionValueIds: (string | null)[];
+  price: number;
+  cost: number;
+}): Promise<FormState> {
+  const guard = await requireProductsEdit();
+  if (guard?.error) return guard;
+  if (!input.productId) return { error: "El producto es obligatorio." };
+  if (!input.colorIds.length || !input.optionValueIds.length) return { error: "Selecciona colores y opciones para generar variantes." };
+  if (input.colorIds.length * input.optionValueIds.length > 300) return { error: "No puedes generar más de 300 combinaciones por vez." };
+  if (!Number.isFinite(input.price) || input.price < 0 || !Number.isFinite(input.cost) || input.cost < 0) {
+    return { error: "El precio y el costo deben ser números no negativos." };
+  }
+
+  const supabase = await createClient();
+  const [{ data: product, error: productError }, masters] = await Promise.all([
+    supabase.from("products").select("name, category_id").eq("id", input.productId).maybeSingle(),
+    getCatalogMasters(),
+  ]);
+  if (productError) return { error: productError.message };
+  if (!product) return { error: "Producto no encontrado." };
+  const category = categoryFromMasters(masters, product.category_id);
+  if (!category) return { error: "Selecciona una categoría de segundo nivel válida." };
+  const colors = new Map(masters.colors.map((color) => [color.id, color]));
+  const options = new Map(masters.optionTypes.find((type) => type.id === category.optionTypeId)?.values.map((option) => [option.id, option]) ?? []);
+  if (input.colorIds.some((id) => id !== null && !colors.has(id))) return { error: "Selecciona un color activo válido." };
+  if (category.requiresColor && input.colorIds.includes(null)) return { error: "El color es obligatorio para esta categoría." };
+  if (category.optionTypeId && input.optionValueIds.some((id) => id === null || !options.has(id))) return { error: "Selecciona una opción válida para esta categoría." };
+  if (!category.optionTypeId && input.optionValueIds.some((id) => id !== null)) return { error: "Esta categoría no admite opciones." };
+
+  const existing = await fetchAllRows<{ color_id: string | null; option_value_id: string | null }>((from, to) =>
+    supabase.from("product_variants").select("color_id, option_value_id").eq("product_id", input.productId).order("id").range(from, to));
+  const missing = missingCombinations(existing.map((variant) => ({ colorId: variant.color_id, optionValueId: variant.option_value_id })), input.colorIds, input.optionValueIds);
+  if (!missing.length) return { ok: true, created: 0 };
+  const { categoryName, next } = await nextProductSku(supabase, product);
+  const rows = missing.map((combination, index) => ({
+    product_id: input.productId,
+    sku: buildSku(categoryName, product.name, next + index),
+    color_id: combination.colorId,
+    option_value_id: combination.optionValueId,
+    ...legacyText(combination.colorId ? colors.get(combination.colorId) ?? null : null, combination.optionValueId ? options.get(combination.optionValueId) ?? null : null),
+    price: input.price,
+    cost: input.cost,
+  }));
+  const { error } = await supabase.from("product_variants").insert(rows);
+  if (error) return { error: error.message };
+  await audit(`Generó ${rows.length} variantes del producto ${product.name}`, "Productos");
+  revalidateProductPaths(input.productId);
+  return { ok: true, created: rows.length };
 }
 
 export async function deleteVariant(
@@ -215,10 +439,15 @@ export async function deleteVariant(
   if (guard?.error) return guard;
 
   const supabase = await createClient();
-  const { error } = await supabase.from("product_variants").delete().eq("id", id);
+  const { data: variant, error: readError } = await supabase.from("product_variants").select("id, sku").eq("id", id).eq("product_id", productId).maybeSingle();
+  if (readError) return { error: readError.message };
+  if (!variant) return { error: "Variante no encontrada." };
+  const blockers = await deletionBlockers(supabase, [id]);
+  if (blockers.length) return { error: deletionError(blockers) };
+  const { error } = await supabase.from("product_variants").delete().eq("id", id).eq("product_id", productId);
   if (error) return { error: error.message };
-  await audit("Eliminó una variante", "Productos", "warn");
-  revalidatePath(`/productos/${productId}`);
+  await audit(`Eliminó la variante ${variant.sku}`, "Productos", "warn");
+  revalidateProductPaths(productId);
   return { ok: true };
 }
 
