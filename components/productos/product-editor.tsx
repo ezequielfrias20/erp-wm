@@ -1,94 +1,48 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { toast } from "sonner";
 import { reportActionError } from "@/lib/action-error";
-import {
-  ArrowLeft,
-  Loader2,
-  Plus,
-  Pencil,
-  Trash2,
-  ImageIcon,
-  Upload,
-} from "lucide-react";
+import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
 import {
   saveProduct,
-  saveVariant,
-  deleteVariant,
   deleteProduct,
-  uploadProductImage,
   type FormState,
 } from "@/app/(app)/productos/actions";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { fmtUSD, fmtNum } from "@/lib/format";
-import { PRODUCT_IMAGE_ACCEPTED_TYPES } from "@/lib/product-images";
-import type { ProductVariant } from "@/lib/database.types";
 import type { CatalogMasters, ProductEditorData } from "@/lib/queries/catalog";
 import { ClassificationCard } from "@/components/productos/editor/classification-card";
 import { SpecsEditor } from "@/components/productos/editor/specs-editor";
 import { ReadinessBadge } from "@/components/productos/editor/readiness-badge";
-
-type SizeRef = { id: string; label: string };
-type ColorRef = { id: string; name: string; hex: string | null };
-type VariantWithStock = ProductVariant & { stock: number };
+import { ColorsPhotosCard } from "@/components/productos/editor/colors-photos-card";
+import { VariantsCard } from "@/components/productos/editor/variants-card";
 
 export function ProductEditor({
   editorData,
   masters,
-  variants,
-  byBranch,
-  sizes,
-  colors,
   canEdit,
-  productImageUrl,
+  canEditStock,
 }: {
   editorData: ProductEditorData;
   masters: CatalogMasters;
-  productImageUrl: string | null;
-  variants: VariantWithStock[];
-  byBranch: { city: string; qty: number }[];
-  sizes: SizeRef[];
-  colors: ColorRef[];
   canEdit: boolean;
+  canEditStock: boolean;
 }) {
-  const { product } = editorData;
-  const colorsById = new Map([
-    ...variants.filter((variant) => variant.color_id && variant.color).map((variant) => [variant.color_id!, variant.color!] as const),
-    ...masters.colors.map((color) => [color.id, color.name] as const),
-  ]);
+  const { product, variants, branches } = editorData;
+  const colorsById = new Map(masters.colors.map((color) => [color.id, color.name] as const));
+  const category = masters.categories.find((item) => item.id === product.category_id) ?? null;
   const router = useRouter();
   const [active, setActive] = useState(product.is_active);
   const [visible, setVisible] = useState(product.visible_in_catalog);
-  const [variantOpen, setVariantOpen] = useState(false);
-  const [editingVariant, setEditingVariant] = useState<VariantWithStock | null>(
-    null,
-  );
-  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null);
-  const [pending, startTransition] = useTransition();
-  const imageFailed = Boolean(productImageUrl && failedImageUrl === productImageUrl);
+  const [, startTransition] = useTransition();
 
   const [state, formAction] = useActionState<FormState, FormData>(
     saveProduct,
@@ -102,7 +56,15 @@ export function ProductEditor({
     else if (state?.error) toast.error(state.error);
   }, [state, router]);
 
-  const totalStock = variants.reduce((a, v) => a + v.stock, 0);
+  const stockOf = (stockByBranch: Record<string, number>) =>
+    Object.values(stockByBranch).reduce((sum, qty) => sum + qty, 0);
+  const totalStock = variants.reduce((a, v) => a + stockOf(v.stockByBranch), 0);
+  const byBranch = branches
+    .map((branch) => ({
+      city: branch.city,
+      qty: variants.reduce((sum, v) => sum + (v.stockByBranch[branch.id] ?? 0), 0),
+    }))
+    .filter((branch) => branch.qty !== 0);
   const minPrice = variants.length ? Math.min(...variants.map((v) => v.price)) : 0;
   const maxPrice = variants.length ? Math.max(...variants.map((v) => v.price)) : 0;
   const avgCost = variants.length
@@ -129,38 +91,6 @@ export function ProductEditor({
       }
     });
   }
-  function onDeleteVariant(v: VariantWithStock) {
-    if (!confirm(`¿Eliminar la variante ${v.sku}?`)) return;
-    startTransition(async () => {
-      try {
-        const res = await deleteVariant(v.id, product.id);
-        if (res?.error) toast.error(res.error);
-        else toast.success("Variante eliminada");
-      } catch (error) {
-        reportActionError(error, "No se pudo eliminar la variante.");
-      }
-    });
-  }
-  function onImageSelected(file: File | null | undefined) {
-    if (!file) return;
-    const formData = new FormData();
-    formData.set("product_id", product.id);
-    formData.set("image", file);
-    startTransition(async () => {
-      try {
-        const res = await uploadProductImage(null, formData);
-        if (res?.error) {
-          toast.error(res.error);
-          return;
-        }
-        setFailedImageUrl(null);
-        toast.success("Foto del producto actualizada");
-        router.refresh();
-      } catch (error) {
-        reportActionError(error, "No se pudo subir la foto del producto.");
-      }
-    });
-  }
 
   return (
     <form
@@ -174,17 +104,6 @@ export function ProductEditor({
         name="visible_in_catalog"
         value={visible ? "true" : "false"}
       />
-      <input
-        ref={imageInputRef}
-        type="file"
-        accept={PRODUCT_IMAGE_ACCEPTED_TYPES.join(",")}
-        hidden
-        onChange={(event) => {
-          onImageSelected(event.target.files?.[0]);
-          event.target.value = "";
-        }}
-      />
-
       <div className="fadeup mb-[22px] flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Link
@@ -238,48 +157,13 @@ export function ProductEditor({
       <div className="grid grid-cols-1 gap-[18px] lg:grid-cols-[1.6fr_1fr]">
         {/* Left */}
         <div className="flex flex-col gap-[18px]">
-          <Card id="galeria-producto" title="Galería del producto">
-            <div className="grid grid-cols-4 gap-3">
-              <div className="flex aspect-square items-center justify-center overflow-hidden rounded-xl border border-border bg-surface-2 text-text-3">
-                {productImageUrl && !imageFailed ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={productImageUrl}
-                    alt={product.name}
-                    className="h-full w-full object-cover"
-                    onError={() => setFailedImageUrl(productImageUrl)}
-                  />
-                ) : (
-                  <ImageIcon className="size-6" />
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => imageInputRef.current?.click()}
-                disabled={!canEdit || pending}
-                className="iconbtn flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border text-text-3 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {pending ? (
-                  <Loader2 className="size-5 animate-spin" />
-                ) : productImageUrl && !imageFailed ? (
-                  <Upload className="size-5" />
-                ) : (
-                  <Plus className="size-5" />
-                )}
-                <span className="text-[11px]">
-                  {productImageUrl && !imageFailed ? "Cambiar" : "Agregar"}
-                </span>
-              </button>
-              {[1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="flex aspect-square items-center justify-center rounded-xl border border-border bg-surface-2 text-text-3"
-                >
-                  <ImageIcon className="size-6" />
-                </div>
-              ))}
-            </div>
-          </Card>
+          <ColorsPhotosCard
+            productId={product.id}
+            media={editorData.media}
+            variants={variants}
+            colors={masters.colors}
+            canEdit={canEdit}
+          />
 
           <Card id="informacion" title="Información">
             <div className="flex flex-col gap-3">
@@ -306,87 +190,15 @@ export function ProductEditor({
             </div>
           </Card>
 
-          <Card
-            id="variantes"
-            title="Variantes"
-            subtitle={`${variants.length} variantes`}
-            action={
-              canEdit ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setEditingVariant(null);
-                    setVariantOpen(true);
-                  }}
-                >
-                  <Plus className="size-4" /> Agregar
-                </Button>
-              ) : null
-            }
-          >
-            <div className="overflow-x-auto">
-              <div className="min-w-[720px]">
-                <div className="grid grid-cols-[1.4fr_1fr_0.8fr_0.8fr_0.6fr_auto] border-b border-border pb-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
-                  <span>Variante</span>
-                  <span>SKU</span>
-                  <span className="text-right">Precio</span>
-                  <span className="text-right">Costo</span>
-                  <span className="text-right">Stock</span>
-                  <span />
-                </div>
-                {variants.map((v) => (
-                  <div
-                    key={v.id}
-                    className="grid grid-cols-[1.4fr_1fr_0.8fr_0.8fr_0.6fr_auto] items-center border-b border-border py-2.5 text-[12.5px]"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="size-3.5 flex-none rounded-full border border-border"
-                        style={{ background: v.color_hex ?? "var(--surface-2)" }}
-                      />
-                      <span className="text-foreground">
-                        {[v.color, v.size].filter(Boolean).join(" / ") || "—"}
-                      </span>
-                    </div>
-                    <span className="font-mono text-text-2">{v.sku}</span>
-                    <span className="text-right text-foreground">{fmtUSD(v.price)}</span>
-                    <span className="text-right text-text-2">{fmtUSD(v.cost)}</span>
-                    <span className="text-right text-foreground">{v.stock}</span>
-                    <div className="flex justify-end gap-1">
-                      {canEdit && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingVariant(v);
-                              setVariantOpen(true);
-                            }}
-                            className="iconbtn flex size-7 items-center justify-center rounded-md text-text-3"
-                          >
-                            <Pencil className="size-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onDeleteVariant(v)}
-                            className="iconbtn flex size-7 items-center justify-center rounded-md text-text-3 hover:text-danger"
-                          >
-                            <Trash2 className="size-3.5" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {variants.length === 0 && (
-                  <div className="py-6 text-center text-[12.5px] text-text-3">
-                    Sin variantes. Agrega la primera.
-                  </div>
-                )}
-              </div>
-            </div>
-          </Card>
+          <VariantsCard
+            productId={product.id}
+            variants={variants}
+            masters={masters}
+            category={category}
+            branches={branches}
+            canEdit={canEdit}
+            canEditStock={canEditStock}
+          />
         </div>
 
         {/* Right */}
@@ -451,19 +263,6 @@ export function ProductEditor({
         </div>
       </div>
 
-      {canEdit && (
-        <VariantDialog
-          key={variantOpen ? (editingVariant?.id ?? "new") : "closed"}
-          open={variantOpen}
-          onOpenChange={setVariantOpen}
-          productId={product.id}
-          variant={editingVariant}
-          sizes={sizes}
-          colors={colors}
-          masters={masters}
-          categoryId={product.category_id}
-        />
-      )}
     </form>
   );
 }
@@ -520,164 +319,6 @@ function Row({
     <div className="flex items-center justify-between">
       <span className="text-[12.5px] text-text-2">{label}</span>
       {children}
-    </div>
-  );
-}
-
-function VariantDialog({
-  open,
-  onOpenChange,
-  productId,
-  variant,
-  sizes,
-  colors,
-  masters,
-  categoryId,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  productId: string;
-  variant: VariantWithStock | null;
-  sizes: SizeRef[];
-  colors: ColorRef[];
-  masters: CatalogMasters;
-  categoryId: string | null;
-}) {
-  const optionTypeId = masters.categories.find((category) => category.id === categoryId)?.optionTypeId;
-  const optionType = masters.optionTypes.find((type) => type.id === optionTypeId);
-  const [state, formAction] = useActionState<FormState, FormData>(
-    saveVariant,
-    null,
-  );
-  const [selectedColorId, setSelectedColorId] = useState(
-    variant?.color_id ?? masters.colors.find((color) => color.name === variant?.color)?.id ?? "",
-  );
-  const [selectedOptionId, setSelectedOptionId] = useState(
-    optionType ? (variant?.option_value_id ?? (
-      optionType.values.find((value) => value.label === (sizes.find((size) => size.label === variant?.size)?.label ?? variant?.size))?.id
-    ) ?? "") : "",
-  );
-  const selectedColor = masters.colors.find((color) => color.id === selectedColorId);
-  const selectedColorHex = selectedColor?.hex ?? "";
-  const selectedColorName = selectedColor?.name ?? "";
-
-  useEffect(() => {
-    if (state?.ok) onOpenChange(false);
-  }, [state, onOpenChange]);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[480px]">
-        <DialogHeader>
-          <DialogTitle>{variant ? "Editar variante" : "Nueva variante"}</DialogTitle>
-        </DialogHeader>
-        <form action={formAction} className="flex flex-col gap-3">
-          <input type="hidden" name="product_id" value={productId} />
-          {variant && <input type="hidden" name="id" value={variant.id} />}
-          <div className="rounded-[10px] border border-border bg-surface-2 px-3 py-2 text-[12px] text-text-2">
-            La variante se muestra como <strong>Color / {optionType?.name ?? "Opción"}</strong>. El SKU es el
-            identificador interno y puede generarse solo.
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Fld
-              label="SKU (opcional)"
-              name="sku"
-              defaultValue={variant?.sku}
-              placeholder="Auto si se deja vacío"
-            />
-            <div className="flex flex-col gap-1.5">
-              <Label>{optionType?.name ?? "Opción"} de la variante</Label>
-              <input type="hidden" name="option_value_id" value={selectedOptionId} />
-              <Select
-                value={selectedOptionId || "none"}
-                onValueChange={(value) => setSelectedOptionId(value === "none" ? "" : value)}
-                disabled={!optionType}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={`Selecciona ${optionType?.name?.toLowerCase() ?? "una opción"}`} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sin {optionType?.name?.toLowerCase() ?? "opción"}</SelectItem>
-                  {optionType?.values.map((value) => (
-                    <SelectItem key={value.id} value={value.id}>
-                      {value.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label>Color de la variante</Label>
-              <input type="hidden" name="color_id" value={selectedColorId} />
-              <Select
-                value={selectedColorId || "none"}
-                onValueChange={(value) =>
-                  setSelectedColorId(value === "none" ? "" : value)
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecciona un color" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sin color</SelectItem>
-                  {masters.colors.map((color) => (
-                    <SelectItem key={color.id} value={color.id}>
-                      <span
-                        className="size-3 rounded-full border border-border"
-                        style={{ background: colors.find((ref) => ref.id === color.id)?.hex ?? color.hex ?? "var(--surface-2)" }}
-                      />
-                      {color.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Muestra seleccionada</Label>
-              <div className="flex h-9 items-center gap-2 rounded-md border border-input bg-transparent px-3 text-sm">
-                <span
-                  className="size-4 rounded-full border border-border"
-                  style={{ background: selectedColorHex || "var(--surface-2)" }}
-                />
-                <span className="truncate text-text-2">
-                  {selectedColorName || "Sin color"}
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Fld label="Precio (USD)" name="price" type="number" step="0.01" defaultValue={variant?.price ?? 0} />
-            <Fld label="Costo (USD)" name="cost" type="number" step="0.01" defaultValue={variant?.cost ?? 0} />
-          </div>
-          {state?.error && (
-            <p className="rounded-lg bg-danger-soft px-3 py-2 text-[12.5px] text-danger">
-              {state.error}
-            </p>
-          )}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" className="font-semibold">
-              Guardar
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function Fld({
-  label,
-  ...props
-}: { label: string } & React.ComponentProps<typeof Input>) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={props.name}>{label}</Label>
-      <Input id={props.name} {...props} />
     </div>
   );
 }
