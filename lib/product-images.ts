@@ -25,13 +25,28 @@ export function productImageUrl(
   return version ? `${url}?v=${encodeURIComponent(String(version))}` : url;
 }
 
+/** Segmento de ruta permitido: sin «/», «?», «#», «%» ni espacios. */
+const SAFE_SEGMENT = /^[A-Za-z0-9._-]+$/;
+
+/**
+ * URL pública de una foto de `product_media`. Sólo acepta rutas bajo `product-images/` con
+ * segmentos simples (las que genera `mediaPath` y las viejas `<id>.png`); cualquier otra → null.
+ */
 export function mediaPublicUrl(
   path: string,
   version?: string | number | null,
 ): string | null {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!supabaseUrl || !path) return null;
+  const segments = path.split("/");
+  if (
+    segments[0] !== PRODUCT_IMAGE_PREFIX ||
+    segments.length < 2 ||
+    segments.some((segment) => segment === "." || segment === ".." || !SAFE_SEGMENT.test(segment))
+  ) {
+    return null;
+  }
 
-  const url = `${supabaseUrl}/storage/v1/object/public/${PRODUCT_IMAGE_BUCKET}/${path}`;
+  const url = `${supabaseUrl}/storage/v1/object/public/${PRODUCT_IMAGE_BUCKET}/${segments.join("/")}`;
   return version ? `${url}?v=${encodeURIComponent(String(version))}` : url;
 }
