@@ -234,6 +234,14 @@ describe("Excel de pendientes (scope «incompletos»)", () => {
     expect(fillOf(row.getCell(vAt("option")))).toBeUndefined();
   });
 
+  it("se puede escribir aunque no haya variantes pendientes", async () => {
+    const wb = buildReviewWorkbook(buildProposal(MINI_SNAPSHOT, TAXONOMY), TAXONOMY, {
+      generatedAt: "2026-11-15T00:00:00Z",
+      scope: "incomplete",
+    });
+    await expect(wb.xlsx.writeBuffer()).resolves.toBeTruthy();
+  });
+
   it("_info marca el alcance; el Excel completo dice «all» y no lleva «Falta completar»", async () => {
     const info = (wb: ExcelJS.Workbook) =>
       Object.fromEntries(

@@ -354,7 +354,8 @@ export function buildReviewWorkbook(
     if (a.isMulti) validate(products, pCols, `attr:${a.code}#2`, range, pLast);
   });
 
-  const vLast = variantRows.length + 1;
+  // Al menos una fila: un rango «X2:X1» rompe la escritura de ExcelJS (pendientes sin variantes).
+  const vLast = Math.max(variantRows.length + 1, 2);
   validate(variants, vCols, "product", allProductsRange ?? LIST_RANGES.products, vLast);
   validate(variants, vCols, "color", LIST_RANGES.colors, vLast);
   validate(variants, vCols, "option", optionsRange, vLast);
