@@ -78,7 +78,11 @@ run supabase/daily_closures.sql
 #    atributos, fotos por color, alias de SKU y registro de la limpieza.
 run supabase/catalog_taxonomy.sql
 
-# 8. Estadísticas del planificador al día.
+# 8. Catálogo 3b: el texto legado de las variantes (color, color_hex, size) sigue a los
+#    maestros al renombrar, y la vista de lectura wm.v_catalog. Necesita catalog_taxonomy.sql.
+run supabase/catalog_view.sql
+
+# 9. Estadísticas del planificador al día.
 echo ""
 echo "=== ANALYZE ==="
 psql "$DB_URL" -v ON_ERROR_STOP=1 -c "analyze wm.sales; analyze wm.sale_items; analyze wm.sale_payments; analyze wm.inventory; analyze wm.customers; analyze wm.products; analyze wm.product_variants;"
@@ -97,7 +101,8 @@ with esperado(clase, nombre) as (values
   ('tab','project_orders'),  ('tab','project_checkins'),
   ('tab','daily_closures'),
   ('tab','option_types'), ('tab','product_media'),
-  ('tab','variant_sku_aliases'), ('col','product_variants.color_id')
+  ('tab','variant_sku_aliases'), ('col','product_variants.color_id'),
+  ('tab','v_catalog'), ('rpc','sync_variant_color_text'), ('rpc','sync_variant_option_text')
 )
 select case when presente then '  OK    ' else '  FALTA ' end || clase || ' ' || nombre
 from (

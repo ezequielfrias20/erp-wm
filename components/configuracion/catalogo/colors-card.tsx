@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { colorDeleteError } from "@/lib/catalog/masters";
 import { Input } from "@/components/ui/input";
 import { saveColor, deleteColor } from "@/app/(app)/configuracion/catalog-actions";
 import type { AdminColor, CatalogAdminData } from "@/lib/catalog/admin-types";
-import { ActiveField, EditDialog, MasterCard, MasterRow, SelectField, TextField, useMasterAction, useReason } from "./master-ui";
+import { ActiveField, EditDialog, MasterCard, MasterRow, SelectField, TextField, useMasterAction } from "./master-ui";
 
 export function ColorsCard({ data, canEdit }: { data: CatalogAdminData; canEdit: boolean }) {
   const [search, setSearch] = useState("");
@@ -22,7 +23,7 @@ export function ColorsCard({ data, canEdit }: { data: CatalogAdminData; canEdit:
 }
 
 function ColorRow({ color, canEdit, onEdit }: { color: AdminColor; canEdit: boolean; onEdit: () => void }) {
-  const reason = useReason(color.variantCount, "variantes");
+  const reason = colorDeleteError(color.variantCount, color.photoCount);
   return <MasterRow name={color.name} active={color.isActive} count={color.variantCount} countLabel="variantes" swatch={color.hex} canEdit={canEdit} onEdit={onEdit} onDelete={() => deleteColor(color.id)} deleteReason={reason} />;
 }
 

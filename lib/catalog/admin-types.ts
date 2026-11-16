@@ -14,6 +14,8 @@ export type AdminColor = {
   sortOrder: number;
   /** Variantes (activas o no) con este color. */
   variantCount: number;
+  /** Fotos de productos asignadas a este color. */
+  photoCount: number;
 };
 
 export type AdminOptionValue = {

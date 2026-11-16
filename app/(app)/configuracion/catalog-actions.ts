@@ -6,7 +6,10 @@ import type {
   AttributeInput, AttributeValueInput, BrandInput, CategoryInput, ColorInput, LineInput,
   MasterResult, OptionTypeInput, OptionValueInput,
 } from "@/lib/catalog/admin-types";
-import { categoryPlacementError, departmentDeactivationError, inUseMessage, normalizeHex, sameName, uniqueSlug } from "@/lib/catalog/masters";
+import {
+  attributeLinkChanges, categoryActivationError, categoryPlacementError, colorDeleteError, departmentDeactivationError,
+  inUseMessage, normalizeHex, sameName, uniqueSlug,
+} from "@/lib/catalog/masters";
 import { slugify } from "@/lib/catalog-migration/cleanup-plan";
 import { canEdit } from "@/lib/permissions";
 import { getCatalogAdminData } from "@/lib/queries/catalog-admin";
@@ -103,7 +106,7 @@ export async function deleteColor(id: string): Promise<MasterResult> {
     const row = (await getCatalogAdminData()).colors.find((item) => item.id === id);
     if (!row) return { error: "Color no encontrado." };
     name = row.name;
-    const used = inUseMessage(row.variantCount, "variantes", true); if (used) return { error: used };
+    const used = colorDeleteError(row.variantCount, row.photoCount); if (used) return { error: used };
     return remove(db, "colors", id);
   });
 }
@@ -223,6 +226,8 @@ export async function saveCategory(input: CategoryInput): Promise<MasterResult> 
       const activeChildren = data.departments.find((row) => row.id === input.id)?.categories.filter((row) => row.isActive).length ?? 0;
       const deactivation = departmentDeactivationError(activeChildren); if (deactivation) return { error: deactivation };
     }
+    const activation = categoryActivationError({ isActive: input.isActive, parentId: input.parentId, parentIsActive: parent?.isActive ?? false });
+    if (activation) return { error: activation };
     if (input.parentId && input.optionTypeId && !data.optionTypes.some((row) => row.id === input.optionTypeId)) return { error: "Tipo de opción no encontrado." };
     const selectedAttributes = input.parentId ? input.attributes : [];
     if (!Array.isArray(selectedAttributes) || new Set(selectedAttributes.map((row) => row.attributeId)).size !== selectedAttributes.length || selectedAttributes.some((row) => !data.attributes.some((attribute) => attribute.id === row.attributeId))) return { error: "Las características seleccionadas no son válidas." };
@@ -233,11 +238,20 @@ export async function saveCategory(input: CategoryInput): Promise<MasterResult> 
       option_type_id: input.parentId ? input.optionTypeId : null, requires_color: input.parentId ? input.requiresColor : false,
       ...(!input.id ? { color: "#0EA5E9", sort_order: nextOrder(siblings) } : {}) }, "Ya existe una categoría con ese nombre.");
     if (!result?.ok || !result.id) return result;
-    const { error: clearError } = await db.from("category_attributes").delete().eq("category_id", result.id);
-    if (clearError) return failure(clearError, "Ya existe una característica con ese nombre.");
-    if (selectedAttributes.length) {
-      const { error: addError } = await db.from("category_attributes").insert(selectedAttributes.map((row, index) => ({ category_id: result.id!, attribute_id: row.attributeId, is_required: row.required, sort_order: index })));
-      if (addError) return failure(addError, "Ya existe una característica con ese nombre.");
+    // Primero se agregan/actualizan las elegidas y luego se quitan las que sobran: si algo falla a
+    // mitad, la categoría queda con características de más, nunca sin ninguna.
+    const currentLinks = current && "attributes" in current ? current.attributes.map((row) => row.attributeId) : [];
+    const changes = attributeLinkChanges(currentLinks, selectedAttributes);
+    if (changes.upsert.length) {
+      const { error: upsertError } = await db.from("category_attributes").upsert(
+        changes.upsert.map((row) => ({ category_id: result.id!, attribute_id: row.attributeId, is_required: row.required, sort_order: row.sortOrder })),
+        { onConflict: "category_id,attribute_id" },
+      );
+      if (upsertError) return { error: "La categoría se guardó, pero no se pudieron guardar sus características. Inténtalo de nuevo." };
+    }
+    if (changes.remove.length) {
+      const { error: removeError } = await db.from("category_attributes").delete().eq("category_id", result.id).in("attribute_id", changes.remove);
+      if (removeError) return { error: "La categoría se guardó, pero no se pudieron quitar algunas características. Inténtalo de nuevo." };
     }
     return result;
   });
@@ -253,8 +267,6 @@ export async function deleteCategory(id: string): Promise<MasterResult> {
     const children = data.departments.find((department) => department.id === id)?.categories.length ?? 0;
     const used = inUseMessage(row.productCount, "productos", true) ?? inUseMessage(children, "categorías", true);
     if (used) return { error: used };
-    const { error } = await db.from("category_attributes").delete().eq("category_id", id);
-    if (error) return failure(error, "Ya existe una categoría con ese nombre.");
     return remove(db, "categories", id);
   });
 }

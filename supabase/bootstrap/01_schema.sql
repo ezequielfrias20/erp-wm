@@ -1150,5 +1150,7 @@ create policy "wm_authenticated_delete" on storage.objects
 -- \ir resuelve la ruta respecto de este archivo cuando se ejecuta con psql.
 \ir ../projects_courses.sql
 \ir ../daily_closures.sql
+-- Catálogo 3b: texto legado de variantes sincronizado con colores/tallas y vista wm.v_catalog.
+\ir ../catalog_view.sql
 
 notify pgrst, 'reload schema';

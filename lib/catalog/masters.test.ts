@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   categoryPlacementError,
   departmentDeactivationError,
+  attributeLinkChanges,
+  categoryActivationError,
+  colorDeleteError,
   inUseMessage,
   normalizeHex,
   sameName,
@@ -53,5 +56,40 @@ describe("departmentDeactivationError", () => {
   it("bloquea departamentos con categorías activas", () => {
     expect(departmentDeactivationError(2)).toBeTruthy();
     expect(departmentDeactivationError(0)).toBeNull();
+  });
+});
+
+describe("colorDeleteError", () => {
+  it("bloquea un color sin variantes pero con fotos (si no, sus fotos pasarían a General)", () => {
+    expect(colorDeleteError(0, 2)).toBe("En uso por 2 fotos. Desactívalo en su lugar.");
+  });
+  it("las variantes mandan primero", () => {
+    expect(colorDeleteError(3, 2)).toBe("En uso por 3 variantes. Desactívalo en su lugar.");
+  });
+  it("sin variantes ni fotos se puede borrar", () => {
+    expect(colorDeleteError(0, 0)).toBeNull();
+  });
+});
+
+describe("attributeLinkChanges", () => {
+  it("inserta o actualiza las elegidas en orden y quita sólo las que ya no están", () => {
+    expect(attributeLinkChanges(["a", "b", "c"], [{ attributeId: "c", required: true }, { attributeId: "d", required: false }])).toEqual({
+      upsert: [{ attributeId: "c", required: true, sortOrder: 0 }, { attributeId: "d", required: false, sortOrder: 1 }],
+      remove: ["a", "b"],
+    });
+  });
+  it("sin cambios no quita nada", () => {
+    expect(attributeLinkChanges(["a"], [{ attributeId: "a", required: false }]).remove).toEqual([]);
+  });
+});
+
+describe("categoryActivationError", () => {
+  it("una categoría activa no puede quedar en un departamento inactivo", () => {
+    expect(categoryActivationError({ isActive: true, parentId: "d", parentIsActive: false })).toBe("El departamento está inactivo: actívalo antes o deja la categoría inactiva.");
+  });
+  it("inactiva en departamento inactivo, o activa en uno activo, o departamento → sin error", () => {
+    expect(categoryActivationError({ isActive: false, parentId: "d", parentIsActive: false })).toBeNull();
+    expect(categoryActivationError({ isActive: true, parentId: "d", parentIsActive: true })).toBeNull();
+    expect(categoryActivationError({ isActive: true, parentId: null, parentIsActive: false })).toBeNull();
   });
 });

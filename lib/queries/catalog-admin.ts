@@ -4,7 +4,7 @@ import type { CatalogAdminData, AdminCategory } from "@/lib/catalog/admin-types"
 import type {
   AttributeRow, AttributeValue, Brand, Category, CategoryAttribute, ColorFamily,
   ColorRow, OptionType, OptionValue, Product, ProductAttributeValue, ProductLine,
-  ProductVariant,
+  ProductMedia, ProductVariant,
 } from "@/lib/database.types";
 import { fetchAllRows } from "@/lib/supabase/pagination";
 import { createClient } from "@/lib/supabase/server";
@@ -25,7 +25,7 @@ function ordered<T>(rows: T[], order: (row: T) => number, name: (row: T) => stri
 export async function getCatalogAdminData(): Promise<CatalogAdminData> {
   const db = await createClient();
   const [families, colors, optionTypes, optionValues, attributes, attributeValues, categories,
-    categoryAttributes, brands, lines, variants, products, productAttributeValues] = await Promise.all([
+    categoryAttributes, brands, lines, variants, products, productAttributeValues, media] = await Promise.all([
     fetchAllRows<ColorFamily>((from, to) => db.from("color_families").select("*").order("id").range(from, to)),
     fetchAllRows<ColorRow>((from, to) => db.from("colors").select("*").order("id").range(from, to)),
     fetchAllRows<OptionType>((from, to) => db.from("option_types").select("*").order("id").range(from, to)),
@@ -39,8 +39,10 @@ export async function getCatalogAdminData(): Promise<CatalogAdminData> {
     fetchAllRows<Pick<ProductVariant, "color_id" | "option_value_id">>((from, to) => db.from("product_variants").select("color_id, option_value_id").order("id").range(from, to)),
     fetchAllRows<Pick<Product, "category_id" | "brand_id" | "line_id">>((from, to) => db.from("products").select("category_id, brand_id, line_id").order("id").range(from, to)),
     fetchAllRows<Pick<ProductAttributeValue, "attribute_value_id">>((from, to) => db.from("product_attribute_values").select("attribute_value_id").order("product_id").order("attribute_value_id").range(from, to)),
+    fetchAllRows<Pick<ProductMedia, "color_id">>((from, to) => db.from("product_media").select("color_id").not("color_id", "is", null).order("id").range(from, to)),
   ]);
   const colorUses = counts(variants, (row) => row.color_id);
+  const colorPhotoUses = counts(media, (row) => row.color_id);
   const optionUses = counts(variants, (row) => row.option_value_id);
   const categoryUses = counts(products, (row) => row.category_id);
   const brandUses = counts(products, (row) => row.brand_id);
@@ -65,7 +67,7 @@ export async function getCatalogAdminData(): Promise<CatalogAdminData> {
     families: ordered(families, (row) => row.sort_order, (row) => row.name).map((row) => ({ id: row.id, name: row.name, hex: row.hex })),
     colors: ordered(colors, (row) => row.sort_order, (row) => row.name).map((row) => ({
       id: row.id, name: row.name, slug: row.slug, hex: row.hex, familyId: row.family_id,
-      isActive: row.is_active, sortOrder: row.sort_order, variantCount: colorUses.get(row.id) ?? 0,
+      isActive: row.is_active, sortOrder: row.sort_order, variantCount: colorUses.get(row.id) ?? 0, photoCount: colorPhotoUses.get(row.id) ?? 0,
     })),
     optionTypes: ordered(optionTypes, (row) => row.sort_order, (row) => row.name).map((row) => ({
       id: row.id, code: row.code, name: row.name, sortOrder: row.sort_order,

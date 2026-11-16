@@ -44,3 +44,33 @@ export function departmentDeactivationError(activeChildren: number): string | nu
     ? `El departamento tiene ${activeChildren} categorías activas. Desactívalas primero.`
     : null;
 }
+
+/**
+ * Un color se borra sólo sin variantes ni fotos: product_media.color_id es ON DELETE SET NULL y
+ * sus fotos pasarían a «General» (aparecerían para todos los colores).
+ */
+export function colorDeleteError(variantCount: number, photoCount: number): string | null {
+  return inUseMessage(variantCount, "variantes", true) ?? inUseMessage(photoCount, "fotos", true);
+}
+
+/**
+ * Cambios de las características de una categoría sin dejarla nunca vacía a medio camino: primero
+ * se insertan/actualizan las elegidas (con su orden) y después se quitan sólo las que ya no están.
+ */
+export function attributeLinkChanges(
+  currentIds: string[],
+  next: { attributeId: string; required: boolean }[],
+): { upsert: { attributeId: string; required: boolean; sortOrder: number }[]; remove: string[] } {
+  const keep = new Set(next.map((row) => row.attributeId));
+  return {
+    upsert: next.map((row, index) => ({ attributeId: row.attributeId, required: row.required, sortOrder: index })),
+    remove: currentIds.filter((id) => !keep.has(id)),
+  };
+}
+
+/** Una categoría activa dentro de un departamento inactivo desaparecería del editor y del catálogo. */
+export function categoryActivationError(input: { isActive: boolean; parentId: string | null; parentIsActive: boolean }): string | null {
+  return input.isActive && input.parentId && !input.parentIsActive
+    ? "El departamento está inactivo: actívalo antes o deja la categoría inactiva."
+    : null;
+}
