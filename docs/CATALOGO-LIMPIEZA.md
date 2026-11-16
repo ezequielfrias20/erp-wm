@@ -137,9 +137,30 @@ inventario y líneas de venta/compra mientras dura:
 La aplicación real va en **horario sin ventas**: simular primero, revisar el resumen y, en el
 mismo momento, aplicar.
 
-**Restaurar** (sólo si hiciera falta): el esquema de respaldo tiene las tablas tal como estaban;
-`catalog_migration_log` dice qué se borró, fusionó o cambió en esa corrida. Borrar el respaldo
-cuando ya no haga falta: `drop schema wm_respaldo_catalogo_<fecha> cascade`.
+**Antes de la aplicación real, ensayar la restauración** (aplica, restaura y comprueba que
+catálogo, inventario e historial quedan idénticos al respaldo; termina en `ROLLBACK`):
+
+```bash
+scripts/catalogo/aplicar.sh backups/catalogo/plan-<UTC>.json --ensayar-restauracion
+```
+
+**Restaurar** una limpieza ya aplicada (simula por defecto; `--aplicar` pide escribir
+RESTAURAR). `run_id` es el `runId` del plan (también está en `wm.catalog_migration_log`):
+
+```bash
+scripts/catalogo/restaurar.sh wm_respaldo_catalogo_<AAAAMMDD> <run_id>
+scripts/catalogo/restaurar.sh wm_respaldo_catalogo_<AAAAMMDD> <run_id> --aplicar
+```
+
+- Vuelve productos, variantes, categorías, marcas y colores a como estaban; devuelve el stock
+  de cada variante fusionada (descontándolo de la que lo absorbió) y las líneas de venta y
+  compra que le pertenecían. Las ventas y movimientos **posteriores** a la limpieza se quedan.
+- Borra lo que creó la limpieza (fotos en `product_media`, atributos, líneas, alias).
+- Aborta si después de la limpieza se crearon productos o variantes (se resuelven a mano).
+- Se verifica sola: stock por sucursal y líneas de venta/compra iguales a antes de restaurar,
+  cada fila de stock de las fusionadas de vuelta, y catálogo igual al respaldo.
+
+Borrar el respaldo cuando ya no haga falta: `drop schema wm_respaldo_catalogo_<fecha> cascade`.
 
 ## 7. Lo que sigue
 

@@ -4,6 +4,8 @@
 --   -v plan_path=<ruta absoluta del plan JSON>
 --   -v commit=0|1            0 = simulación (ROLLBACK), 1 = aplicar (COMMIT)
 --   -v backup_schema=<esquema de respaldo, p. ej. wm_respaldo_catalogo_20261116>
+--   -v ensayo=0|1            1 = después de aplicar, restaura con restaurar.sql y comprueba que
+--                            todo quedó idéntico al respaldo (siempre con ROLLBACK)
 --
 -- Los datos nunca se interpolan como texto SQL: el plan entra como un único literal jsonb y
 -- todo lo demás sale de jsonb_to_recordset.
@@ -347,6 +349,30 @@ begin
     (select count(*) from wm.product_media), (select count(*) from wm.categories), (select count(*) from wm.colors),
     (select count(*) from wm.product_attribute_values);
 end$$;
+
+-- ===== 12. Ensayo de restauración (sólo con -v ensayo=1) ============================
+\if :ensayo
+select id as run_id from _run \gset
+\ir restaurar.sql
+do $$
+declare n int;
+begin
+  -- Sin ventas en medio, la restauración tiene que dejar inventario e historial idénticos.
+  select count(*) into n from (
+    (select id, variant_id, branch_id, quantity, reserved, min_stock from wm.inventory
+     except select id, variant_id, branch_id, quantity, reserved, min_stock from _b_inventory)
+    union all
+    (select id, variant_id, branch_id, quantity, reserved, min_stock from _b_inventory
+     except select id, variant_id, branch_id, quantity, reserved, min_stock from wm.inventory)) d;
+  if n > 0 then raise exception 'Ensayo: % filas de inventario distintas del respaldo', n; end if;
+  select count(*) into n from (
+    (select id, variant_id from wm.sale_items except select id, variant_id from _b_sale_items)
+    union all
+    (select id, variant_id from wm.purchase_order_items except select id, variant_id from _b_purchase_items)) d;
+  if n > 0 then raise exception 'Ensayo: % líneas de venta/compra distintas del respaldo', n; end if;
+  raise notice 'Ensayo de restauración OK: inventario e historial idénticos al respaldo.';
+end$$;
+\endif
 
 \if :commit
 commit;
