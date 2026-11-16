@@ -12,7 +12,17 @@ declare
   c_id uuid; ov_id uuid; n_bad int; n_view int; n_var int; n_dupe int;
 begin
   -- Color con variantes: renombrar y cambiar hex.
+  -- Las funciones deben ser SECURITY DEFINER con search_path fijo: quien renombra puede tener
+  -- permiso de Inventario y no de Productos (esta prueba corre como postgres, así que se
+  -- comprueba la definición en vez del rol).
+  if exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+              where n.nspname = 'wm' and p.proname in ('sync_variant_color_text', 'sync_variant_option_text')
+                and (not p.prosecdef or not coalesce(p.proconfig, '{}') @> array['search_path=""'])) then
+    raise exception 'los disparadores de texto legado no son SECURITY DEFINER con search_path fijo';
+  end if;
+
   select color_id into c_id from wm.product_variants where color_id is not null limit 1;
+  if c_id is null then raise exception 'prueba sin datos: no hay variantes con color'; end if;
   update wm.colors set name = name || ' (prueba)', hex = '#123456' where id = c_id;
   select count(*) into n_bad from wm.product_variants v join wm.colors c on c.id = v.color_id
    where v.color_id = c_id and (v.color is distinct from c.name or v.color_hex is distinct from c.hex);
@@ -20,6 +30,7 @@ begin
 
   -- Talla con variantes: renombrar.
   select option_value_id into ov_id from wm.product_variants where option_value_id is not null limit 1;
+  if ov_id is null then raise exception 'prueba sin datos: no hay variantes con talla'; end if;
   update wm.option_values set label = label || ' (prueba)' where id = ov_id;
   select count(*) into n_bad from wm.product_variants v join wm.option_values o on o.id = v.option_value_id
    where v.option_value_id = ov_id and v.size is distinct from o.label;

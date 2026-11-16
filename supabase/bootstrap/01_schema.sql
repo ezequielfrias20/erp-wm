@@ -1152,5 +1152,7 @@ create policy "wm_authenticated_delete" on storage.objects
 \ir ../daily_closures.sql
 -- Catálogo 3b: texto legado de variantes sincronizado con colores/tallas y vista wm.v_catalog.
 \ir ../catalog_view.sql
+-- Catálogo 3b: la base rechaza borrar maestros en uso y nombres repetidos sin mayúsculas.
+\ir ../catalog_master_guards.sql
 
 notify pgrst, 'reload schema';

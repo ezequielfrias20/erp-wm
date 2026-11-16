@@ -82,6 +82,9 @@ run supabase/catalog_taxonomy.sql
 #    maestros al renombrar, y la vista de lectura wm.v_catalog. Necesita catalog_taxonomy.sql.
 run supabase/catalog_view.sql
 
+# 8b. Candados de maestros: borrar en uso → RESTRICT; nombres únicos sin mayúsculas.
+run supabase/catalog_master_guards.sql
+
 # 9. Estadísticas del planificador al día.
 echo ""
 echo "=== ANALYZE ==="
@@ -102,7 +105,8 @@ with esperado(clase, nombre) as (values
   ('tab','daily_closures'),
   ('tab','option_types'), ('tab','product_media'),
   ('tab','variant_sku_aliases'), ('col','product_variants.color_id'),
-  ('tab','v_catalog'), ('rpc','sync_variant_color_text'), ('rpc','sync_variant_option_text')
+  ('tab','v_catalog'), ('rpc','sync_variant_color_text'), ('rpc','sync_variant_option_text'),
+  ('tab','colors_name_lower_key')
 )
 select case when presente then '  OK    ' else '  FALTA ' end || clase || ' ' || nombre
 from (
