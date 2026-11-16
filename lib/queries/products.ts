@@ -10,14 +10,14 @@ import type {
   VInventory,
   VProductSummary,
 } from "@/lib/database.types";
-import { productImageUrl } from "@/lib/product-images";
+import { getMainPhotoUrls, getReadinessByProduct, invalidateCatalogMasters } from "@/lib/queries/catalog";
 import { cachedFor, invalidateCache, CACHE_TTL } from "@/lib/server-cache";
 
 export async function listProducts(
   branchId?: string | null,
 ): Promise<ProductListItem[]> {
   const supabase = await createClient();
-  const [products, variants, inventory, productVersions] = await Promise.all([
+  const [products, variants, inventory, productDetails, categories, mainPhotoUrls, readinessByProduct] = await Promise.all([
     fetchAllRows<VProductSummary>((from, to) =>
       supabase
         .from("v_product_summary")
@@ -47,21 +47,31 @@ export async function listProducts(
             .range(from, to),
         )
       : Promise.resolve([]),
-    fetchAllRows<Pick<Product, "id" | "updated_at">>((from, to) =>
+    fetchAllRows<Pick<Product, "id" | "line_id">>((from, to) =>
       supabase
         .from("products")
-        .select("id, updated_at")
+        .select("id, line_id")
         .order("id")
         .range(from, to),
     ),
+    fetchAllRows<Pick<Category, "id" | "parent_id">>((from, to) =>
+      supabase
+        .from("categories")
+        .select("id, parent_id")
+        .order("id")
+        .range(from, to),
+    ),
+    getMainPhotoUrls(),
+    getReadinessByProduct(),
   ]);
 
   const sizesByProduct = new Map<string, Set<string>>();
   const colorsByProduct = new Map<string, Map<string, string | null>>();
   const skusByProduct = new Map<string, Set<string>>();
   const stockByProduct = new Map<string, number>();
-  const versionByProduct = new Map(
-    productVersions.map((product) => [product.id, product.updated_at]),
+  const lineByProduct = new Map(productDetails.map((product) => [product.id, product.line_id]));
+  const departmentByCategory = new Map(
+    categories.map((category) => [category.id, category.parent_id ?? category.id]),
   );
 
   for (const variant of variants) {
@@ -89,10 +99,14 @@ export async function listProducts(
 
   return products.map((product) => ({
     ...product,
-    product_image_url: productImageUrl(
-      product.id,
-      versionByProduct.get(product.id),
-    ),
+    product_image_url: mainPhotoUrls.get(product.id) ?? null,
+    ready: readinessByProduct.get(product.id)?.ready ?? false,
+    missingCount: readinessByProduct.get(product.id)?.missing.length ?? 0,
+    departmentId: product.category_id
+      ? departmentByCategory.get(product.category_id) ?? null
+      : null,
+    categoryId: product.category_id,
+    lineId: lineByProduct.get(product.id) ?? null,
     total_stock: branchId
       ? stockByProduct.get(product.id) ?? 0
       : product.total_stock,
@@ -116,6 +130,7 @@ const CATALOG_REFS_KEY = "catalog-refs";
 /** Se invalida al añadir o borrar maestros desde Configuración. */
 export function invalidateCatalogRefs() {
   invalidateCache(CATALOG_REFS_KEY);
+  invalidateCatalogMasters();
 }
 
 /**
