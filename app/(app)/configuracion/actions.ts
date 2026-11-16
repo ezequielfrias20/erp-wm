@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { invalidateBrandingCache } from "@/lib/queries/branding";
-import { invalidateCatalogRefs } from "@/lib/queries/products";
 import { getSession, invalidateSessionCache } from "@/lib/queries/session";
 import { createClient } from "@/lib/supabase/server";
 import { audit } from "@/lib/audit";
@@ -197,44 +196,6 @@ export async function togglePaymentMethod(
     .update({ enabled })
     .eq("id", id);
   if (error) return { error: error.message };
-  revalidatePath("/configuracion");
-  return { ok: true };
-}
-
-export async function addMaster(
-  table: "categories" | "sizes" | "colors" | "brands" | "payment_methods",
-  value: string,
-): Promise<FormState> {
-  if (!value.trim()) return { error: "Valor vacío." };
-  const supabase = await createClient();
-  const payload =
-    table === "categories"
-      ? { name: value.trim(), color: "#0EA5E9" }
-      : table === "sizes"
-        ? { label: value.trim() }
-        : table === "colors"
-          ? { name: value.trim(), hex: "#0EA5E9" }
-          : table === "brands"
-            ? { name: value.trim(), is_active: true }
-            : { name: value.trim(), enabled: true };
-  const { error } = await supabase.from(table).insert(payload as never);
-  if (error) return { error: error.message };
-  await audit(`Agregó ${value} a ${table}`, "Configuración");
-  invalidateBrandingCache();
-  invalidateCatalogRefs();
-  revalidatePath("/configuracion");
-  revalidatePath("/", "layout");
-  return { ok: true };
-}
-
-export async function deleteMaster(
-  table: "categories" | "sizes" | "colors" | "brands",
-  id: string,
-): Promise<FormState> {
-  const supabase = await createClient();
-  const { error } = await supabase.from(table).delete().eq("id", id);
-  if (error) return { error: error.message };
-  invalidateCatalogRefs();
   revalidatePath("/configuracion");
   return { ok: true };
 }
