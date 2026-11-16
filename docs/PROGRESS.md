@@ -137,32 +137,15 @@ planes): `docs/superpowers/plans/2026-11-11-catalogo-00-hoja-de-ruta.md` · Runb
   `docs/superpowers/plans/2026-11-16-catalogo-03a-editor-producto.md`. Sin migración.
 - **Plan 3b ⬜** — maestros en Configuración (colores, opciones, atributos, líneas) y vista de
   lectura del catálogo.
-- **Pendientes del 3a (revisión final 2026-11-16) ⬜** — resolver junto con el 3b:
-  1. Borrar un producto deja sus archivos de fotos en el almacenamiento (`deleteProduct` en
-     `app/(app)/productos/actions.ts`): leer las rutas antes y quitar las que `mediaFileStillUsed`
-     dé como no usadas.
-  2. `deleteProductMedia` (`media-actions.ts`) no exige el prefijo `product-images/` antes de
-     `storage.remove` (defensa extra; misma validación que `mediaPublicUrl`).
-  3. El chequeo de alias en `saveVariant` distingue mayúsculas (`gor-gortir-0002` pasa):
-     normalizar SKU (trim + mayúsculas) o usar `ilike`.
-  4. Cambiar sólo precio/costo/estado de una variante exige categoría válida y color/opción
-     activos: no revalidar color y opción si no cambian.
-  5. Colores inactivos se muestran como «Color sin maestro» y el aviso de foto faltante sale sin
-     nombre: cargar los nombres de colores sin filtrar por activos para mostrar.
-  6. El orden de los chips de color y el de la foto principal pueden no coincidir (chips incluyen
-     variantes inactivas y ordenan con `localeCompare` sin `numeric`; `getMainPhotoUrls` usa sólo
-     activas y el orden de Postgres): una sola función de orden compartida.
-  7. Importación de stock: el mensaje de conflicto dice «SKU anterior y actual» también cuando son
-     dos filas del mismo SKU en la misma sucursal (`app/(app)/inventario/actions.ts`).
-  8. Restos: `productImageUrl`/`productImagePath`/`PRODUCT_IMAGE_*` sin uso en
-     `lib/product-images.ts`; `saveVariant` audita «Actualizó variante» también al crear.
-  9. `/ventas` e `/inventario` hacen una vuelta en serie extra (`getMainPhotoUrls` y alias después
-     del primer `Promise.all`): lanzarlas en paralelo.
-  10. Fotos: archivos soltados durante una subida se ignoran sin aviso; la subida no tiene plazo
-      (una petición colgada congela la cola de Server Actions); en la ficha técnica, filas con
-      valor pero sin etiqueta se descartan sin aviso.
-  11. Verificar en el navegador el editor de Mao Stretch Dama Recta (39 colores) en escritorio:
-      chips con scroll y columna derecha visible.
+- **Pendientes del 3a ✅** (2026-11-16) — los 11 detalles de la revisión final resueltos: borrar un
+  producto limpia sus archivos de fotos sin uso; rutas validadas (`isProductImagePath`) antes de
+  borrar archivos; SKU normalizado a mayúsculas (`normalizeSku`); editar precio/costo/estado de una
+  variante no revalida color ni opción si no cambian (`variantMastersChanged`); nombres de colores
+  inactivos «(inactivo)»; un solo orden de colores para chips y foto principal
+  (`orderProductColors`); motivo del conflicto al importar stock (SKU repetido vs. anterior y
+  actual); cargas en paralelo en POS e inventario; subida de fotos con plazo de 60 s y aviso si se
+  sueltan fotos durante otra subida; aviso «Falta la etiqueta» en la ficha técnica; editor de Mao
+  Stretch (39 colores) verificado en escritorio.
 - **Plan 4 ⬜** — guardas, retiro de `color`/`size` en texto y `wm.sizes`, plantillas de carga
   masiva nuevas (ojo: `lib/excel.ts` tiene el mismo bug de ExcelJS de validaciones solapadas que se
   corrigió en `lib/catalog-migration/workbook.ts`).

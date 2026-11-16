@@ -175,12 +175,16 @@ Utilidades extra: `bg-brand`, `text-brand`, `bg-brand-soft`, `text-success`,
   (`category_attributes`), ficha técnica (`specs`), indicador «listo para tienda»
   (`productReadiness`) y filtro «Incompletos» en la lista. Variantes desde maestros (`color_id`,
   `option_value_id`) con generador de combinaciones (máx. 300); al guardar se reescribe el texto
-  legado `color`/`color_hex`/`size` con `legacyText`. Un SKU que ya es alias no se puede reusar.
+  legado `color`/`color_hex`/`size` con `legacyText` (editar sólo precio/costo/estado no revalida
+  ni reescribe color/opción: `variantMastersChanged`). SKU en mayúsculas (`normalizeSku`); un SKU
+  que ya es alias no se puede reusar.
   - **Fotos**: `wm.product_media` (`color_id` null = General). Nuevas en
     `wm-public/product-images/<productId>/<mediaId>.<ext>`; las 177 viejas siguen en
     `product-images/<productId>.png`. JPG/PNG/WebP, máx. 6 MB, una por envío. Foto principal
     (`pickMainPhoto`): primera General por `sort_order`, si no la primera del primer color con fotos.
-    Borrar una foto quita la fila y sólo borra el archivo si ninguna otra fila usa esa ruta.
+    Borrar una foto (o un producto) quita la fila y sólo borra el archivo si ninguna otra fila usa
+    esa ruta y la ruta pasa `isProductImagePath`. Orden de colores (chips y foto principal):
+    `orderProductColors`. Subida con plazo de 60 s por foto.
   - **Borrado**: producto o variante con ventas, compras, stock o SKU anteriores **no se borra**
     (mensaje «Desactívalo en su lugar»).
   - Guardar no toca una categoría/marca/línea que no cambió aunque esté inactiva
