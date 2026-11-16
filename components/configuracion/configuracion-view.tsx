@@ -43,7 +43,6 @@ import { ImageUpload } from "@/components/configuracion/image-upload";
 import { fmtVES, fmtDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { AuditLog, PaymentMethod, Profile, Settings } from "@/lib/database.types";
-import type { CatalogAdminData } from "@/lib/catalog/admin-types";
 import { CatalogoSection } from "@/components/configuracion/catalogo/catalogo-section";
 
 const SWATCHES = ["#0EA5E9", "#6366F1", "#10B981", "#F59E0B", "#F43F5E", "#8B5CF6"];
@@ -64,7 +63,6 @@ type Data = {
   profile: Profile;
   settings: Settings;
   paymentMethods: PaymentMethod[];
-  catalog: CatalogAdminData;
   canEditCatalog: boolean;
   audit: (AuditLog & { branch?: string })[];
   rate: number;
@@ -105,7 +103,7 @@ export function ConfiguracionView(props: Data) {
           {section === "marca" && <ColorsSection {...props} which="primary" />}
           {section === "apariencia" && <AparienciaSection {...props} />}
           {section === "ventas" && <VentasSection {...props} />}
-          {section === "catalogo" && <CatalogoSection data={props.catalog} canEdit={props.canEditCatalog} />}
+          {section === "catalogo" && <CatalogoSection canEdit={props.canEditCatalog} />}
           {section === "usuarios" && <UsuariosSection />}
           {section === "notif" && <NotifSection {...props} />}
           {section === "auditoria" && <AuditoriaSection {...props} />}

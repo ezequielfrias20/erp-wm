@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { createContext, useContext, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ArrowDown, ArrowUp, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,8 +12,10 @@ import { Switch } from "@/components/ui/switch";
 import { reportActionError } from "@/lib/action-error";
 import type { MasterResult } from "@/lib/catalog/admin-types";
 
+export const CatalogReloadContext = createContext<() => Promise<void>>(async () => {});
+
 export function useMasterAction() {
-  const router = useRouter();
+  const reload = useContext(CatalogReloadContext);
   const [pending, start] = useTransition();
   function run(action: () => Promise<MasterResult>, success: string, onSuccess?: () => void, onFailure?: () => void) {
     start(async () => {
@@ -24,7 +25,7 @@ export function useMasterAction() {
         if (!result?.ok) { onFailure?.(); toast.error("No se pudo guardar. Inténtalo de nuevo."); return; }
         toast.success(success);
         onSuccess?.();
-        router.refresh();
+        await reload();
       } catch (error) {
         onFailure?.();
         reportActionError(error, "No se pudo completar la acción.");
@@ -44,10 +45,10 @@ export function MasterCard({ title, subtitle, action, children }: { title: strin
   </section>;
 }
 
-export function EditDialog({ open, onOpenChange, title, onSubmit, pending, children }: { open: boolean; onOpenChange: (open: boolean) => void; title: string; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void; pending: boolean; children: React.ReactNode }) {
+export function EditDialog({ open, onOpenChange, title, onSubmit, pending, saveDisabled = false, children }: { open: boolean; onOpenChange: (open: boolean) => void; title: string; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void; pending: boolean; saveDisabled?: boolean; children: React.ReactNode }) {
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
     <DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>Completa los datos y guarda los cambios.</DialogDescription></DialogHeader>
-    <form onSubmit={onSubmit} className="space-y-4">{children}<DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>Cancelar</Button><Button type="submit" disabled={pending}>{pending ? "Guardando…" : "Guardar"}</Button></DialogFooter></form>
+    <form onSubmit={onSubmit} className="space-y-4">{children}<DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>Cancelar</Button><Button type="submit" disabled={pending || saveDisabled}>{pending ? "Guardando…" : "Guardar"}</Button></DialogFooter></form>
   </DialogContent></Dialog>;
 }
 
@@ -60,8 +61,8 @@ export function TextField({ label, value, onChange, placeholder, required = fals
   return <label className="block space-y-1.5 text-[12.5px] font-medium text-foreground"><span>{label}</span><Input required={required} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="min-w-0" /></label>;
 }
 
-export function SelectField({ label, value, onChange, items }: { label: string; value: string; onChange: (value: string) => void; items: { id: string; name: string }[] }) {
-  return <div className="space-y-1.5 text-[12.5px] font-medium text-foreground"><span>{label}</span><Select value={value || "__none__"} onValueChange={(next) => onChange(next === "__none__" ? "" : next)}><SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger><SelectContent>{items.map((item) => <SelectItem key={item.id || "__none__"} value={item.id || "__none__"}>{item.name}</SelectItem>)}</SelectContent></Select></div>;
+export function SelectField({ label, value, onChange, items, placeholder }: { label: string; value: string; onChange: (value: string) => void; items: { id: string; name: string }[]; placeholder?: string }) {
+  return <div className="space-y-1.5 text-[12.5px] font-medium text-foreground"><span>{label}</span><Select value={value || (items.some((item) => item.id === "") ? "__none__" : "")} onValueChange={(next) => onChange(next === "__none__" ? "" : next)}><SelectTrigger className="w-full min-w-0"><SelectValue placeholder={placeholder} /></SelectTrigger><SelectContent>{items.map((item) => <SelectItem key={item.id || "__none__"} value={item.id || "__none__"}>{item.name}</SelectItem>)}</SelectContent></Select></div>;
 }
 
 export function MasterRow({ name, active, count, countLabel, swatch, canEdit, pending = false, onEdit, onDelete, deleteReason, moveUp, moveDown, sortable = false, secondary }: { name: string; active?: boolean; count?: number; countLabel?: string; swatch?: string | null; canEdit: boolean; pending?: boolean; onEdit?: () => void; onDelete?: () => Promise<MasterResult>; deleteReason?: string | null; moveUp?: () => void; moveDown?: () => void; sortable?: boolean; secondary?: React.ReactNode }) {
@@ -72,7 +73,7 @@ export function MasterRow({ name, active, count, countLabel, swatch, canEdit, pe
   return <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-border py-2.5 last:border-b-0">
     {swatch && <span className="size-5 shrink-0 rounded-full border border-border" style={{ backgroundColor: swatch }} />}
     <div className="min-w-0 flex-1 basis-[130px]"><div className="flex flex-wrap items-center gap-1.5"><span className="break-words text-[12.5px] font-semibold text-foreground">{name}</span>{active === false && <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] text-text-3">Inactivo</span>}</div>{secondary && <div className="text-[11px] text-text-3">{secondary}</div>}</div>
-    {count !== undefined && <span className="text-[11px] text-text-3">{count} {count === 1 ? singular(countLabel) : countLabel}</span>}
+    {count !== undefined && <span className="text-[11px] text-text-3">{countText(count, countLabel ?? "")}</span>}
     {canEdit && <div className="flex shrink-0 items-center gap-0.5">
       {sortable && <button type="button" title="Subir" aria-label={`Subir ${name}`} disabled={busy || !moveUp} onClick={moveUp} className="iconbtn rounded-md p-1.5 text-text-3 disabled:opacity-40"><ArrowUp className="size-3.5" /></button>}
       {sortable && <button type="button" title="Bajar" aria-label={`Bajar ${name}`} disabled={busy || !moveDown} onClick={moveDown} className="iconbtn rounded-md p-1.5 text-text-3 disabled:opacity-40"><ArrowDown className="size-3.5" /></button>}
@@ -110,6 +111,6 @@ const SINGULAR: Record<string, string> = {
 };
 
 /** Etiqueta del contador en singular cuando es 1 («1 variante»). */
-function singular(label: string | undefined): string | undefined {
-  return label ? SINGULAR[label] ?? label : label;
+export function countText(count: number, label: string): string {
+  return `${count} ${count === 1 ? SINGULAR[label] ?? label : label}`;
 }

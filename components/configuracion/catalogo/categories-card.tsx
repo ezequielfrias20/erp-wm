@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { saveCategory, deleteCategory, reorderCategories } from "@/app/(app)/configuracion/catalog-actions";
 import type { AdminCategory, AdminDepartment, CatalogAdminData } from "@/lib/catalog/admin-types";
-import { ActiveField, EditDialog, MasterCard, MasterRow, SelectField, TextField, useMasterAction, useOrderedItems } from "./master-ui";
+import { ActiveField, countText, EditDialog, MasterCard, MasterRow, SelectField, TextField, useMasterAction, useOrderedItems } from "./master-ui";
 
 export function CategoriesCard({ data, canEdit }: { data: CatalogAdminData; canEdit: boolean }) {
   const [department, setDepartment] = useState<AdminDepartment | null | undefined>(undefined);
@@ -21,9 +21,10 @@ export function CategoriesCard({ data, canEdit }: { data: CatalogAdminData; canE
 function DepartmentBlock({ department, data, canEdit, pending, onEdit, moveUp, moveDown }: { department: AdminDepartment; data: CatalogAdminData; canEdit: boolean; pending: boolean; onEdit: () => void; moveUp?: () => void; moveDown?: () => void }) {
   const [category, setCategory] = useState<AdminCategory | null | undefined>(undefined);
   const order = useOrderedItems([...department.categories].sort((a, b) => a.sortOrder - b.sortOrder), (ids) => reorderCategories(department.id, ids));
-  const reason = department.productCount || department.categories.length ? `En uso por ${department.productCount} productos y ${department.categories.length} categorías. Desactívalo en su lugar.` : null;
+  const uses = [department.productCount > 0 ? countText(department.productCount, "productos") : null, department.categories.length > 0 ? countText(department.categories.length, "categorías") : null].filter(Boolean);
+  const reason = uses.length ? `En uso por ${uses.join(" y ")}. Desactívalo en su lugar.` : null;
   return <section className="min-w-0 rounded-xl border border-border p-3 sm:p-4">
-    <MasterRow name={department.name} active={department.isActive} count={department.productCount} countLabel="productos" canEdit={canEdit} pending={pending} onEdit={onEdit} onDelete={() => deleteCategory(department.id)} deleteReason={reason} sortable moveUp={moveUp} moveDown={moveDown} secondary={`${department.categories.length} categorías`} />
+    <MasterRow name={department.name} active={department.isActive} count={department.totalProductCount} countLabel="productos" canEdit={canEdit} pending={pending} onEdit={onEdit} onDelete={() => deleteCategory(department.id)} deleteReason={reason} sortable moveUp={moveUp} moveDown={moveDown} secondary={<>{countText(department.categories.length, "categorías")}{department.productCount > 0 && ` · ${countText(department.productCount, "productos")} ${department.productCount === 1 ? "directo" : "directos"}`}</>} />
     <div className="pl-2 sm:pl-4">{order.ordered.map((item, index) => <MasterRow key={item.id} name={item.name} active={item.isActive} count={item.productCount} countLabel="productos" canEdit={canEdit} pending={order.pending} onEdit={() => setCategory(item)} onDelete={() => deleteCategory(item.id)} deleteReason={item.productCount ? `En uso por ${item.productCount} productos. Desactívala en su lugar.` : null} sortable moveUp={index > 0 ? () => order.move(index, -1) : undefined} moveDown={index < order.ordered.length - 1 ? () => order.move(index, 1) : undefined} />)}</div>
     {canEdit && <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => setCategory(null)}><Plus className="size-4" /> Nueva categoría</Button>}
     {category !== undefined && <CategoryDialog key={category?.id ?? "nueva"} category={category} department={department} data={data} onClose={() => setCategory(undefined)} />}
