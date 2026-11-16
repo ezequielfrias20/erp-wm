@@ -18,6 +18,22 @@ export function mediaPath(productId: string, mediaId: string, mimeType: string):
   return `product-images/${productId}/${mediaId}.${extension}`;
 }
 
+export function orderProductColors(
+  variants: { colorId: string | null; isActive: boolean; sku: string }[],
+  names: Record<string, string>,
+): string[] {
+  const activeById = new Map<string, boolean>();
+  for (const variant of variants) {
+    if (!variant.colorId) continue;
+    activeById.set(variant.colorId, (activeById.get(variant.colorId) ?? false) || variant.isActive);
+  }
+  return [...activeById.keys()].sort((a, b) =>
+    Number(activeById.get(b)) - Number(activeById.get(a))
+    || (names[a] ?? "").localeCompare(names[b] ?? "", "es", { numeric: true, sensitivity: "base" })
+    || a.localeCompare(b),
+  );
+}
+
 export function pickMainPhoto<T extends { colorId: string | null; sortOrder: number }>(media: T[], colorOrder: string[]): T | null {
   const firstForColor = (colorId: string | null): T | null => {
     let first: T | null = null;

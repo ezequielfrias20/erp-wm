@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { actionErrorMessage } from "@/lib/action-error";
-import type { CatalogMasters, EditorVariant } from "@/lib/queries/catalog";
+import type { CatalogMasters, EditorVariant, ProductEditorData } from "@/lib/queries/catalog";
 
 type Props = {
   open: boolean;
@@ -20,12 +20,13 @@ type Props = {
   productId: string;
   variant: EditorVariant | null;
   masters: CatalogMasters;
-  category: CatalogMasters["categories"][number];
+  colorNames: ProductEditorData["colorNames"];
+  category: CatalogMasters["categories"][number] | null;
   branches: { id: string; city: string }[];
   canEditStock: boolean;
 };
 
-export function VariantDialog({ open, onOpenChange, productId, variant, masters, category, branches, canEditStock }: Props) {
+export function VariantDialog({ open, onOpenChange, productId, variant, masters, colorNames, category, branches, canEditStock }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -33,8 +34,12 @@ export function VariantDialog({ open, onOpenChange, productId, variant, masters,
   const [colorId, setColorId] = useState(variant?.colorId ?? "");
   const [optionValueId, setOptionValueId] = useState(variant?.optionValueId ?? "");
   const [active, setActive] = useState(variant?.isActive ?? true);
-  const optionType = masters.optionTypes.find((item) => item.id === category.optionTypeId);
+  const optionType = masters.optionTypes.find((item) => item.id === category?.optionTypeId);
   const selectedColor = masters.colors.find((item) => item.id === colorId);
+  const currentColor = variant?.colorId ? colorNames[variant.colorId] : null;
+  const currentColorUnavailable = !!variant && !!variant.colorId && (!selectedColor || !category);
+  const currentOption = optionType?.values.find((item) => item.id === variant?.optionValueId);
+  const currentOptionUnavailable = !!variant && !!variant.optionValueId && (!currentOption || !category);
   const visibleColors = masters.colors.filter((item) =>
     item.id === colorId || item.name.toLocaleLowerCase("es-VE").includes(colorSearch.toLocaleLowerCase("es-VE")),
   );
@@ -42,11 +47,11 @@ export function VariantDialog({ open, onOpenChange, productId, variant, masters,
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending) return;
-    if (category.requiresColor && !colorId) {
+    if (category?.requiresColor && !colorId && (!variant || colorId !== (variant.colorId ?? ""))) {
       setError("Selecciona un color para esta categoría.");
       return;
     }
-    if (category.optionTypeId && !optionValueId) {
+    if (category?.optionTypeId && !optionValueId && (!variant || optionValueId !== (variant.optionValueId ?? ""))) {
       setError(`Selecciona ${optionType?.name?.toLocaleLowerCase("es-VE") ?? "una opción"}.`);
       return;
     }
@@ -55,7 +60,7 @@ export function VariantDialog({ open, onOpenChange, productId, variant, masters,
       if (name.startsWith("stock:") && Number(formData.get(name)) === 0) formData.delete(name);
     }
     formData.set("color_id", colorId);
-    formData.set("option_value_id", category.optionTypeId ? optionValueId : "");
+    formData.set("option_value_id", variant ? optionValueId : category?.optionTypeId ? optionValueId : "");
     formData.set("is_active", active ? "true" : "false");
     setError(null);
     startTransition(async () => {
@@ -80,22 +85,25 @@ export function VariantDialog({ open, onOpenChange, productId, variant, masters,
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[520px]" showCloseButton={!pending}>
         <DialogHeader>
           <DialogTitle>{variant ? "Editar variante" : "Nueva variante"}</DialogTitle>
-          <DialogDescription>Selecciona los valores del catálogo para esta variante.</DialogDescription>
+          <DialogDescription>{category ? "Selecciona los valores del catálogo para esta variante." : "Puedes editar el SKU, precio, costo y estado de esta variante."}</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="flex flex-col gap-4">
           <input type="hidden" name="product_id" value={productId} />
           {variant && <input type="hidden" name="id" value={variant.id} />}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="variant-color-search">Buscar color</Label>
-            <Input id="variant-color-search" value={colorSearch} onChange={(event) => setColorSearch(event.target.value)} placeholder="Buscar por nombre" />
-            <Label htmlFor="variant-color">Color{category.requiresColor ? " *" : ""}</Label>
-            <Select value={colorId || "__none__"} onValueChange={(value) => setColorId(value === "__none__" ? "" : value)}>
+            <Input id="variant-color-search" value={colorSearch} onChange={(event) => setColorSearch(event.target.value)} placeholder="Buscar por nombre" disabled={!category} />
+            <Label htmlFor="variant-color">Color{category?.requiresColor ? " *" : ""}</Label>
+            <Select value={colorId || "__none__"} onValueChange={(value) => setColorId(value === "__none__" ? "" : value)} disabled={!category}>
               <SelectTrigger id="variant-color" className="w-full">
                 <SelectValue placeholder="Selecciona un color" />
               </SelectTrigger>
               <SelectContent>
-                {!category.requiresColor && <SelectItem value="__none__">Sin color</SelectItem>}
-                {visibleColors.map((color) => (
+                {(!category?.requiresColor || (variant && !variant.colorId)) && <SelectItem value="__none__">{category ? "Sin color" : "Actual: Sin color"}</SelectItem>}
+                {currentColorUnavailable && variant?.colorId && (
+                  <SelectItem value={variant.colorId}>Actual: {currentColor?.name ?? "Color"}{currentColor?.isActive === false ? " (inactivo)" : ""}</SelectItem>
+                )}
+                {visibleColors.filter((color) => !currentColorUnavailable || color.id !== variant?.colorId).map((color) => (
                   <SelectItem key={color.id} value={color.id}>
                     <span className="size-3.5 rounded-full border border-border" style={{ backgroundColor: color.hex ?? "var(--surface-2)" }} />
                     {color.name}
@@ -103,19 +111,22 @@ export function VariantDialog({ open, onOpenChange, productId, variant, masters,
                 ))}
               </SelectContent>
             </Select>
-            {selectedColor && <p className="text-[11.5px] text-text-3">Seleccionado: {selectedColor.name}</p>}
+            {selectedColor && category && <p className="text-[11.5px] text-text-3">Seleccionado: {selectedColor.name}</p>}
           </div>
-          {optionType && (
+          {(optionType || variant) && (
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="variant-option">{optionType.name} *</Label>
-              <Select value={optionValueId} onValueChange={setOptionValueId}>
-                <SelectTrigger id="variant-option" className="w-full"><SelectValue placeholder={`Selecciona ${optionType.name.toLocaleLowerCase("es-VE")}`} /></SelectTrigger>
+              <Label htmlFor="variant-option">{optionType?.name ?? "Opción"}{optionType && category?.optionTypeId ? " *" : ""}</Label>
+              <Select value={optionValueId || "__none__"} onValueChange={(value) => setOptionValueId(value === "__none__" ? "" : value)} disabled={!category || !optionType}>
+                <SelectTrigger id="variant-option" className="w-full"><SelectValue placeholder={optionType ? `Selecciona ${optionType.name.toLocaleLowerCase("es-VE")}` : "Sin opción"} /></SelectTrigger>
                 <SelectContent>
-                  {optionType.values.map((value) => <SelectItem key={value.id} value={value.id}>{value.label}</SelectItem>)}
+                  {variant && !variant.optionValueId && <SelectItem value="__none__">Actual: Sin opción</SelectItem>}
+                  {currentOptionUnavailable && variant?.optionValueId && <SelectItem value={variant.optionValueId}>Actual</SelectItem>}
+                  {optionType?.values.map((value) => <SelectItem key={value.id} value={value.id}>{value.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           )}
+          {!category && <p className="text-[12px] text-text-2">Guarda una categoría para cambiar color u opción.</p>}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="variant-sku">SKU (opcional)</Label>
             <Input id="variant-sku" name="sku" defaultValue={variant?.sku ?? ""} placeholder="Se genera solo" />

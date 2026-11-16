@@ -37,7 +37,7 @@ export function ProductEditor({
   canEditStock: boolean;
 }) {
   const { product, variants, branches } = editorData;
-  const colorsById = new Map(masters.colors.map((color) => [color.id, color.name] as const));
+  const colorsById = new Map(Object.entries(editorData.colorNames).map(([id, color]) => [id, `${color.name}${color.isActive ? "" : " (inactivo)"}`] as const));
   const category = masters.categories.find((item) => item.id === product.category_id) ?? null;
   const router = useRouter();
   const [active, setActive] = useState(product.is_active);
@@ -162,6 +162,7 @@ export function ProductEditor({
             media={editorData.media}
             variants={variants}
             colors={masters.colors}
+            colorNames={editorData.colorNames}
             canEdit={canEdit}
           />
 
@@ -194,6 +195,7 @@ export function ProductEditor({
             productId={product.id}
             variants={variants}
             masters={masters}
+            colorNames={editorData.colorNames}
             category={category}
             branches={branches}
             canEdit={canEdit}

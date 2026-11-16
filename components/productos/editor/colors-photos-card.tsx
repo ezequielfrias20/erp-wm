@@ -8,14 +8,15 @@ import { toast } from "sonner";
 import { deleteProductMedia, reorderProductMedia, uploadProductMedia } from "@/app/(app)/productos/media-actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { MEDIA_MAX_BYTES, validateMediaFile } from "@/lib/catalog/media";
-import type { CatalogMasters, EditorVariant, ProductMediaItem } from "@/lib/queries/catalog";
+import { MEDIA_MAX_BYTES, orderProductColors, validateMediaFile } from "@/lib/catalog/media";
+import type { CatalogMasters, EditorVariant, ProductEditorData, ProductMediaItem } from "@/lib/queries/catalog";
 
 type Props = {
   productId: string;
   media: ProductMediaItem[];
   variants: EditorVariant[];
   colors: CatalogMasters["colors"];
+  colorNames: ProductEditorData["colorNames"];
   canEdit: boolean;
 };
 
@@ -27,24 +28,13 @@ type UploadItem = {
   error?: string;
 };
 
-function colorIdsInOrder(variants: EditorVariant[], media: ProductMediaItem[]): string[] {
-  const ids = new Set<string>();
-  for (const variant of [...variants].sort((a, b) => a.sku.localeCompare(b.sku, "es-VE"))) {
-    if (variant.colorId) ids.add(variant.colorId);
-  }
-  for (const photo of media) {
-    if (photo.colorId) ids.add(photo.colorId);
-  }
-  return [...ids];
-}
-
 function photosForColor(media: ProductMediaItem[], colorId: string | null): ProductMediaItem[] {
   return media
     .filter((photo) => photo.colorId === colorId)
     .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
 }
 
-export function ColorsPhotosCard({ productId, media, variants, colors, canEdit }: Props): JSX.Element {
+export function ColorsPhotosCard({ productId, media, variants, colors, colorNames, canEdit }: Props): JSX.Element {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const nextUploadId = useRef(0);
@@ -60,8 +50,19 @@ export function ColorsPhotosCard({ productId, media, variants, colors, canEdit }
       const position = orders[photo.colorId ?? "general"]?.indexOf(photo.id) ?? -1;
       return position < 0 ? photo : { ...photo, sortOrder: position };
     });
-  const colorIds = colorIdsInOrder(variants, photos);
-  const colorsById = new Map(colors.map((color) => [color.id, color]));
+  const colorIds = orderProductColors([
+    ...variants,
+    ...photos.filter((photo) => photo.colorId && !variants.some((variant) => variant.colorId === photo.colorId))
+      .map((photo) => ({ colorId: photo.colorId, isActive: false, sku: "" })),
+  ], Object.fromEntries(Object.entries(colorNames).map(([id, color]) => [id, color.name])));
+  const colorsById = new Map([
+    ...colors.map((color) => [color.id, { name: color.name, hex: color.hex, isActive: true }] as const),
+    ...Object.entries(colorNames),
+  ]);
+  const displayColorName = (colorId: string) => {
+    const color = colorsById.get(colorId);
+    return color ? `${color.name}${color.isActive ? "" : " (inactivo)"}` : "Color sin maestro";
+  };
   const activeColorIds = new Set(variants.filter((variant) => variant.isActive && variant.colorId).map((variant) => variant.colorId!));
   const oneColorWithGeneralPhoto = activeColorIds.size === 1 && photos.some((photo) => photo.colorId === null);
   const hasWarning = (colorId: string) => activeColorIds.has(colorId)
@@ -69,7 +70,7 @@ export function ColorsPhotosCard({ productId, media, variants, colors, canEdit }
     && !photos.some((photo) => photo.colorId === colorId);
   const [selectedColorId, setSelectedColorId] = useState<string | null>(() => colorIds.find((id) => hasWarning(id)) ?? null);
   const selected = selectedColorId && colorIds.includes(selectedColorId) ? selectedColorId : null;
-  const selectedName = selected ? (colorsById.get(selected)?.name ?? "Color sin maestro") : "General";
+  const selectedName = selected ? displayColorName(selected) : "General";
   const selectedPhotos = photosForColor(photos, selected);
   const selectedHasVariant = selected === null || variants.some((variant) => variant.colorId === selected);
   const [uploads, setUploads] = useState<UploadItem[]>([]);
@@ -78,7 +79,7 @@ export function ColorsPhotosCard({ productId, media, variants, colors, canEdit }
   const [draggingFiles, setDraggingFiles] = useState(false);
   const [photoToDelete, setPhotoToDelete] = useState<ProductMediaItem | null>(null);
   const deleteColorName = photoToDelete?.colorId
-    ? (colorsById.get(photoToDelete.colorId)?.name ?? "Color sin maestro")
+    ? displayColorName(photoToDelete.colorId)
     : "General";
 
   async function commitOrder(ordered: ProductMediaItem[]) {
@@ -146,7 +147,11 @@ export function ColorsPhotosCard({ productId, media, variants, colors, canEdit }
   }
 
   async function uploadFiles(files: File[]) {
-    if (!canEdit || !selectedHasVariant || mutationLock.current || files.length === 0) return;
+    if (!canEdit || !selectedHasVariant || files.length === 0) return;
+    if (mutationLock.current) {
+      toast.info("Espera a que termine la subida actual");
+      return;
+    }
     mutationLock.current = true;
     setUploading(true);
     const batch = files.map((file) => {
@@ -159,12 +164,18 @@ export function ColorsPhotosCard({ productId, media, variants, colors, canEdit }
     try {
       for (const { file, item } of valid) {
         setUploads((current) => current.map((entry) => entry.id === item.id ? { ...entry, status: "subiendo" } : entry));
+        let timer: ReturnType<typeof setTimeout> | undefined;
         try {
           const formData = new FormData();
           formData.set("product_id", productId);
           formData.set("color_id", selected ?? "");
           formData.set("file", file);
-          const result = await uploadProductMedia(null, formData);
+          const result = await Promise.race([
+            uploadProductMedia(null, formData),
+            new Promise<never>((_, reject) => {
+              timer = setTimeout(() => reject(new Error("upload-timeout")), 60_000);
+            }),
+          ]);
           if (result?.error || !result?.media) {
             setUploads((current) => current.map((entry) => entry.id === item.id
               ? { ...entry, status: "error", error: result?.error ?? "No se pudo subir la foto." }
@@ -173,10 +184,14 @@ export function ColorsPhotosCard({ productId, media, variants, colors, canEdit }
           }
           setAddedPhotos((current) => [...current.filter((photo) => photo.id !== result.media!.id), result.media!]);
           setUploads((current) => current.map((entry) => entry.id === item.id ? { ...entry, status: "listo" } : entry));
-        } catch {
+        } catch (cause) {
           setUploads((current) => current.map((entry) => entry.id === item.id
-            ? { ...entry, status: "error", error: "Error de red. Inténtalo de nuevo." }
+            ? { ...entry, status: "error", error: cause instanceof Error && cause.message === "upload-timeout"
+              ? "La subida tardó demasiado. Revisa tu conexión e inténtalo de nuevo."
+              : "Error de red. Inténtalo de nuevo." }
             : entry));
+        } finally {
+          if (timer) clearTimeout(timer);
         }
       }
     } finally {
@@ -205,7 +220,7 @@ export function ColorsPhotosCard({ productId, media, variants, colors, canEdit }
 
       <div role="group" aria-label="Colores del producto" className="mb-4 flex min-w-0 gap-2 overflow-x-auto pb-2">
         {[null, ...colorIds].map((colorId) => {
-          const name = colorId ? (colorsById.get(colorId)?.name ?? "Color sin maestro") : "General";
+          const name = colorId ? displayColorName(colorId) : "General";
           const count = photos.filter((photo) => photo.colorId === colorId).length;
           const warning = colorId ? hasWarning(colorId) : false;
           const isSelected = selected === colorId;
@@ -263,11 +278,11 @@ export function ColorsPhotosCard({ productId, media, variants, colors, canEdit }
       {canEdit && (
         <>
           <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only"
-            aria-label={`Seleccionar fotos para ${selectedName}`} onChange={onFileChange} disabled={uploading || mutating || !selectedHasVariant} />
-          <div onDragOver={(event) => { event.preventDefault(); if (selectedHasVariant && !uploading && !mutating) setDraggingFiles(true); }}
+            aria-label={`Seleccionar fotos para ${selectedName}`} onChange={onFileChange} disabled={mutating || !selectedHasVariant} />
+          <div onDragOver={(event) => { event.preventDefault(); if (selectedHasVariant && !mutating) setDraggingFiles(true); }}
             onDragLeave={() => setDraggingFiles(false)} onDrop={onFileDrop}
             className={`rounded-xl border border-dashed p-4 text-center ${draggingFiles ? "border-primary bg-primary/5" : "border-border bg-surface-2"}`}>
-            <Button type="button" variant="outline" size="sm" disabled={uploading || mutating || !selectedHasVariant}
+            <Button type="button" variant="outline" size="sm" disabled={mutating || !selectedHasVariant}
               onClick={() => inputRef.current?.click()}><Upload className="size-4" /> Subir fotos</Button>
             <p className="mt-2 text-[11.5px] text-text-3">
               {selectedHasVariant

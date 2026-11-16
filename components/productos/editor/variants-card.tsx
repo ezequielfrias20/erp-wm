@@ -12,12 +12,13 @@ import { VariantDialog } from "@/components/productos/editor/variant-dialog";
 import { reportActionError } from "@/lib/action-error";
 import { variantDeleteBlockers, type DeleteBlocker } from "@/lib/catalog/variants";
 import { fmtNum, fmtUSD } from "@/lib/format";
-import type { CatalogMasters, EditorVariant } from "@/lib/queries/catalog";
+import type { CatalogMasters, EditorVariant, ProductEditorData } from "@/lib/queries/catalog";
 
 type Props = {
   productId: string;
   variants: EditorVariant[];
   masters: CatalogMasters;
+  colorNames: ProductEditorData["colorNames"];
   category: CatalogMasters["categories"][number] | null;
   branches: { id: string; city: string }[];
   canEdit: boolean;
@@ -31,7 +32,7 @@ const blockerLabels: Record<DeleteBlocker, string> = {
   aliases: "SKU anteriores",
 };
 
-export function VariantsCard({ productId, variants, masters, category, branches, canEdit, canEditStock }: Props) {
+export function VariantsCard({ productId, variants, masters, colorNames, category, branches, canEdit, canEditStock }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [editingVariant, setEditingVariant] = useState<EditorVariant | null>(null);
@@ -41,7 +42,7 @@ export function VariantsCard({ productId, variants, masters, category, branches,
   const optionType = masters.optionTypes.find((item) => item.id === category?.optionTypeId);
   const optionOrder = new Map(optionType?.values.map((item, index) => [item.id, index]) ?? []);
   const optionLabels = new Map(masters.optionTypes.flatMap((type) => type.values.map((value) => [value.id, value.label] as const)));
-  const colorsById = new Map(masters.colors.map((color) => [color.id, color]));
+  const colorsById = new Map(Object.entries(colorNames));
   const sortedBySku = [...variants].sort((a, b) => a.sku.localeCompare(b.sku, "es-VE", { numeric: true }));
   const groups = new Map<string | null, EditorVariant[]>();
   for (const variant of sortedBySku) {
@@ -111,15 +112,16 @@ export function VariantsCard({ productId, variants, masters, category, branches,
             <TooltipProvider>
               {groupIds.map((colorId) => {
                 const color = colorId ? colorsById.get(colorId) : null;
+                const colorLabel = color ? `${color.name}${color.isActive ? "" : " (inactivo)"}` : (colorId ? "Color no disponible" : "Sin color");
                 const rows = [...(groups.get(colorId) ?? [])].sort((a, b) =>
                   (optionOrder.get(a.optionValueId ?? "") ?? Number.MAX_SAFE_INTEGER) - (optionOrder.get(b.optionValueId ?? "") ?? Number.MAX_SAFE_INTEGER)
                   || a.sku.localeCompare(b.sku, "es-VE", { numeric: true }),
                 );
                 return (
-                  <section key={colorId ?? "__none__"} aria-label={color?.name ?? (colorId ? "Color no disponible" : "Sin color")}>
+                  <section key={colorId ?? "__none__"} aria-label={colorLabel}>
                     <div className="flex items-center gap-2 border-b border-border bg-surface-2 px-2 py-2 text-[12.5px] font-semibold text-foreground">
                       <span className="size-3.5 shrink-0 rounded-full border border-border" style={{ backgroundColor: color?.hex ?? "var(--surface-2)" }} />
-                      {color?.name ?? (colorId ? "Color no disponible" : "Sin color")}
+                      {colorLabel}
                       <span className="text-[11px] font-normal text-text-3">({rows.length})</span>
                     </div>
                     {rows.map((variant) => {
@@ -143,7 +145,7 @@ export function VariantsCard({ productId, variants, masters, category, branches,
                           <span className={variant.isActive ? "text-foreground" : "text-text-3"}>{variant.isActive ? "Activa" : "Inactiva"}</span>
                           {canEdit && (
                             <span className="flex justify-end gap-1">
-                              <button type="button" aria-label={`Editar ${variant.sku}`} title={category ? "Editar variante" : "Guarda una categoría para editar"} disabled={!category || pending} onClick={() => { setEditingVariant(variant); setVariantOpen(true); }} className="iconbtn flex size-7 items-center justify-center rounded-md text-text-3 disabled:cursor-not-allowed disabled:opacity-40">
+                              <button type="button" aria-label={`Editar ${variant.sku}`} title="Editar variante" disabled={pending} onClick={() => { setEditingVariant(variant); setVariantOpen(true); }} className="iconbtn flex size-7 items-center justify-center rounded-md text-text-3 disabled:cursor-not-allowed disabled:opacity-40">
                                 <Pencil className="size-3.5" />
                               </button>
                               {blockers.length > 0 ? (
@@ -172,8 +174,8 @@ export function VariantsCard({ productId, variants, masters, category, branches,
           </div>
         </div>
       )}
-      {canEdit && category && variantOpen && (
-        <VariantDialog key={editingVariant?.id ?? "new"} open={variantOpen} onOpenChange={setVariantOpen} productId={productId} variant={editingVariant} masters={masters} category={category} branches={branches} canEditStock={canEditStock} />
+      {canEdit && (category || editingVariant) && variantOpen && (
+        <VariantDialog key={editingVariant?.id ?? "new"} open={variantOpen} onOpenChange={setVariantOpen} productId={productId} variant={editingVariant} masters={masters} colorNames={colorNames} category={category} branches={branches} canEditStock={canEditStock} />
       )}
       {canEdit && category && generatorOpen && (
         <GenerateVariantsDialog open={generatorOpen} onOpenChange={setGeneratorOpen} productId={productId} variants={variants} masters={masters} category={category} />

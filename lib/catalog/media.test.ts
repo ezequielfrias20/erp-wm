@@ -1,5 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { MEDIA_MAX_BYTES, mediaFileStillUsed, mediaPath, pickMainPhoto, validateMediaFile } from "./media";
+import { MEDIA_MAX_BYTES, mediaFileStillUsed, mediaPath, orderProductColors, pickMainPhoto, validateMediaFile } from "./media";
+
+describe("orderProductColors", () => {
+  it("ordena nombres con números de forma natural y elimina colores repetidos", () => {
+    const variants = [
+      { colorId: "diez", isActive: true, sku: "Z" },
+      { colorId: "dos", isActive: true, sku: "A" },
+      { colorId: "dos", isActive: false, sku: "B" },
+      { colorId: null, isActive: true, sku: "C" },
+    ];
+    expect(orderProductColors(variants, { diez: "Talla 10", dos: "Talla 2" })).toEqual(["dos", "diez"]);
+  });
+
+  it("pone primero colores activos y desempata por id", () => {
+    const variants = [
+      { colorId: "inactivo", isActive: false, sku: "A" },
+      { colorId: "b", isActive: true, sku: "B" },
+      { colorId: "a", isActive: true, sku: "C" },
+      { colorId: "inactivo", isActive: false, sku: "D" },
+    ];
+    expect(orderProductColors(variants, { inactivo: "Ámbar", b: "Azul", a: "Azul" })).toEqual(["a", "b", "inactivo"]);
+  });
+});
 
 describe("validateMediaFile", () => {
   it("rechaza HEIC y menciona JPG, PNG o WebP", () => {

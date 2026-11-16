@@ -1,6 +1,6 @@
 import "server-only";
 
-import { pickMainPhoto } from "@/lib/catalog/media";
+import { orderProductColors, pickMainPhoto } from "@/lib/catalog/media";
 import { productReadiness, type Missing, type ReadinessInput } from "@/lib/catalog/readiness";
 import type {
   AttributeRow,
@@ -143,6 +143,7 @@ export type ProductEditorData = {
   attributeValueIds: string[];
   variants: EditorVariant[];
   media: ProductMediaItem[];
+  colorNames: Record<string, { name: string; hex: string | null; isActive: boolean }>;
   readiness: { ready: boolean; missing: Missing[] };
   branches: { id: string; city: string }[];
 };
@@ -173,8 +174,9 @@ export async function getProductEditorData(id: string, branchScope: string | nul
   const variantIds = variants.map((variant) => variant.id);
   const attributeValueIds = productAttributes.map((row) => row.attribute_value_id);
   const optionValueIds = [...new Set(variants.map((variant) => variant.option_value_id).filter((value): value is string => value !== null))];
+  const colorIds = [...new Set([...variants.map((variant) => variant.color_id), ...media.map((photo) => photo.color_id)].filter((value): value is string => value !== null))];
   const categoryId = product.category_id;
-  const [categoryResult, categoryAttributes, attributeValues, optionValues, inventory, saleItems, purchaseItems, aliases] = await Promise.all([
+  const [categoryResult, categoryAttributes, attributeValues, optionValues, colors, inventory, saleItems, purchaseItems, aliases] = await Promise.all([
     categoryId
       ? supabase.from("categories").select("id, parent_id, requires_color, option_type_id").eq("id", categoryId).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
@@ -189,6 +191,10 @@ export async function getProductEditorData(id: string, branchScope: string | nul
     optionValueIds.length
       ? fetchAllRows<Pick<OptionValue, "id" | "option_type_id">>((from, to) =>
           supabase.from("option_values").select("id, option_type_id").in("id", optionValueIds).order("id").range(from, to))
+      : Promise.resolve([]),
+    colorIds.length
+      ? inChunks(colorIds, (part) => fetchAllRows<Pick<ColorRow, "id" | "name" | "hex" | "is_active">>((from, to) =>
+          supabase.from("colors").select("id, name, hex, is_active").in("id", part).order("id").range(from, to)))
       : Promise.resolve([]),
     variantIds.length
       ? inChunks(variantIds, (part) => fetchAllRows<Pick<Inventory, "variant_id" | "branch_id" | "quantity">>((from, to) => {
@@ -247,6 +253,7 @@ export async function getProductEditorData(id: string, branchScope: string | nul
       url: mediaPublicUrl(photo.path) ?? "",
       sortOrder: photo.sort_order,
     })),
+    colorNames: Object.fromEntries(colors.map((color) => [color.id, { name: color.name, hex: color.hex, isActive: color.is_active }])),
     readiness: readinessFor(
       product,
       categoryResult.data,
@@ -265,7 +272,7 @@ export async function getMainPhotoUrls(productIds?: string[]): Promise<Map<strin
   if (productIds && productIds.length === 0) return result;
   const supabase = await createClient();
   type MediaRow = Pick<ProductMedia, "id" | "product_id" | "color_id" | "path" | "sort_order">;
-  type VariantRow = Pick<ProductVariant, "id" | "product_id" | "color_id" | "sku">;
+  type VariantRow = Pick<ProductVariant, "id" | "product_id" | "color_id" | "sku" | "is_active">;
   const loadMedia = (ids: string[] | null) =>
     fetchAllRows<MediaRow>((from, to) => {
       let query = supabase.from("product_media").select("id, product_id, color_id, path, sort_order");
@@ -274,7 +281,7 @@ export async function getMainPhotoUrls(productIds?: string[]): Promise<Map<strin
     });
   const loadVariants = (ids: string[] | null) =>
     fetchAllRows<VariantRow>((from, to) => {
-      let query = supabase.from("product_variants").select("id, product_id, color_id, sku").eq("is_active", true);
+      let query = supabase.from("product_variants").select("id, product_id, color_id, sku, is_active");
       if (ids) query = query.in("product_id", ids);
       return query.order("product_id").order("sku").order("id").range(from, to);
     });
@@ -287,18 +294,20 @@ export async function getMainPhotoUrls(productIds?: string[]): Promise<Map<strin
   ]);
   const media = mediaGroups.flat();
   const variants = variantGroups.flat();
+  const colorIds = [...new Set(variants.map((variant) => variant.color_id).filter((value): value is string => value !== null))];
+  const colors = colorIds.length
+    ? await inChunks(colorIds, (part) => fetchAllRows<Pick<ColorRow, "id" | "name">>((from, to) =>
+        supabase.from("colors").select("id, name").in("id", part).order("id").range(from, to)))
+    : [];
+  const colorNames = Object.fromEntries(colors.map((color) => [color.id, color.name]));
   const mediaByProduct = groupBy(media, (row) => row.product_id);
-  const colorOrderByProduct = new Map<string, string[]>();
-  for (const variant of variants) {
-    if (!variant.color_id) continue;
-    const order = colorOrderByProduct.get(variant.product_id) ?? [];
-    if (!order.includes(variant.color_id)) order.push(variant.color_id);
-    colorOrderByProduct.set(variant.product_id, order);
-  }
+  const variantsByProduct = groupBy(variants, (row) => row.product_id);
   for (const [productId, photos] of mediaByProduct) {
     const main = pickMainPhoto(
       photos.map((photo) => ({ ...photo, colorId: photo.color_id, sortOrder: photo.sort_order })),
-      colorOrderByProduct.get(productId) ?? [],
+      orderProductColors((variantsByProduct.get(productId) ?? []).map((variant) => ({
+        colorId: variant.color_id, isActive: variant.is_active, sku: variant.sku,
+      })), colorNames),
     );
     if (main) {
       const url = mediaPublicUrl(main.path);

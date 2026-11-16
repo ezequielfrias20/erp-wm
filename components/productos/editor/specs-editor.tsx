@@ -28,7 +28,7 @@ export function SpecsEditor({ specs, canEdit }: { specs: ProductSpec[]; canEdit:
 
   return (
     <div className="border-t border-border pt-3">
-      <input type="hidden" name="specs" value={JSON.stringify(rows.map(({ label, value }) => ({ label, value })))} />
+      <input type="hidden" name="specs" value={JSON.stringify(rows.filter((row) => row.label.trim() || row.value.trim()).map(({ label, value }) => ({ label, value })))} />
       <div className="mb-3 flex items-center justify-between gap-2">
         <div>
           <div className="text-[12.5px] font-semibold text-foreground">Ficha técnica</div>
@@ -43,8 +43,8 @@ export function SpecsEditor({ specs, canEdit }: { specs: ProductSpec[]; canEdit:
       {rows.length === 0 && <p className="text-[12px] text-text-3">Sin datos en la ficha técnica.</p>}
       <div className="flex flex-col gap-2">
         {rows.map((row, index) => (
-          <div key={row.id} className="flex items-center gap-2">
-            <Input aria-label={`Etiqueta ${index + 1}`} placeholder="Etiqueta" value={row.label} onChange={(event) => update(row.id, "label", event.target.value)} disabled={!canEdit} className="min-w-0 flex-1" />
+          <div key={row.id} className={`flex flex-wrap items-center gap-2 rounded-md ${row.value.trim() && !row.label.trim() ? "border border-danger p-2" : ""}`}>
+            <Input aria-label={`Etiqueta ${index + 1}`} aria-invalid={!!row.value.trim() && !row.label.trim()} placeholder="Etiqueta" value={row.label} onChange={(event) => update(row.id, "label", event.target.value)} disabled={!canEdit} className="min-w-0 flex-1" />
             <Input aria-label={`Valor ${index + 1}`} placeholder="Valor" value={row.value} onChange={(event) => update(row.id, "value", event.target.value)} disabled={!canEdit} className="min-w-0 flex-1" />
             {canEdit && (
               <div className="flex shrink-0 items-center gap-0.5">
@@ -53,6 +53,7 @@ export function SpecsEditor({ specs, canEdit }: { specs: ProductSpec[]; canEdit:
                 <Button type="button" variant="ghost" size="icon-sm" aria-label={`Quitar fila ${index + 1}`} className="text-danger" onClick={() => setRows((current) => current.filter((item) => item.id !== row.id))}><Trash2 className="size-3.5" /></Button>
               </div>
             )}
+            {!!row.value.trim() && !row.label.trim() && <p role="alert" className="w-full text-[11.5px] text-danger">Falta la etiqueta</p>}
           </div>
         ))}
       </div>
