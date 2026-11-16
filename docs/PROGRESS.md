@@ -128,7 +128,15 @@ planes): `docs/superpowers/plans/2026-11-11-catalogo-00-hoja-de-ruta.md` · Runb
   iguales. Entradas: propuesta aprobada + `pendientes-final-2026-11-15.xlsx` + decisiones del usuario
   y de la tienda (`backups/catalogo/decisiones-usuario-2026-11-15.txt`). Faltan fotos: 24 de 260
   combinaciones producto × color tienen la suya; 233 de 338 productos activos no tienen ninguna.
-- **Plan 3 ⬜** — ERP adaptado (maestros, editor con atributos y fotos por color, filtros).
+- **Plan 3a ✅** (2026-11-16) — editor de producto: clasificación (categoría de 2.º nivel, marca,
+  línea, características), ficha técnica, indicador «listo para tienda», fotos por color
+  (`product_media`), variantes desde maestros con generador, borrado bloqueado si hay historia;
+  lista con filtros e «Incompletos»; POS e inventario con foto principal y búsqueda por SKU viejo;
+  importación de stock que falla cerrada ante alias en conflicto. Spec
+  `docs/superpowers/specs/2026-11-16-catalogo-3a-editor-producto-design.md`, plan
+  `docs/superpowers/plans/2026-11-16-catalogo-03a-editor-producto.md`. Sin migración.
+- **Plan 3b ⬜** — maestros en Configuración (colores, opciones, atributos, líneas) y vista de
+  lectura del catálogo.
 - **Plan 4 ⬜** — guardas, retiro de `color`/`size` en texto y `wm.sizes`, plantillas de carga
   masiva nuevas (ojo: `lib/excel.ts` tiene el mismo bug de ExcelJS de validaciones solapadas que se
   corrigió en `lib/catalog-migration/workbook.ts`).
