@@ -17,7 +17,6 @@ import {
   ScrollText,
   Loader2,
   Check,
-  Plus,
   Trash2,
   Sun,
   Moon,
@@ -32,8 +31,6 @@ import {
   removeBrandAsset,
   updateNotifications,
   togglePaymentMethod,
-  addMaster,
-  deleteMaster,
   type FormState,
   type BrandKind,
 } from "@/app/(app)/configuracion/actions";
@@ -45,16 +42,9 @@ import { AvatarBubble } from "@/components/shell/avatar-bubble";
 import { ImageUpload } from "@/components/configuracion/image-upload";
 import { fmtVES, fmtDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type {
-  AuditLog,
-  Brand,
-  Category,
-  ColorRow,
-  PaymentMethod,
-  Profile,
-  Settings,
-  Size,
-} from "@/lib/database.types";
+import type { AuditLog, PaymentMethod, Profile, Settings } from "@/lib/database.types";
+import type { CatalogAdminData } from "@/lib/catalog/admin-types";
+import { CatalogoSection } from "@/components/configuracion/catalogo/catalogo-section";
 
 const SWATCHES = ["#0EA5E9", "#6366F1", "#10B981", "#F59E0B", "#F43F5E", "#8B5CF6"];
 
@@ -64,7 +54,7 @@ const SECTIONS = [
   { id: "marca", label: "Marca", icon: Palette },
   { id: "apariencia", label: "Apariencia", icon: SunMoon },
   { id: "ventas", label: "Ventas", icon: ShoppingCart },
-  { id: "inventario", label: "Inventario", icon: Boxes },
+  { id: "catalogo", label: "Catálogo", icon: Boxes },
   { id: "usuarios", label: "Usuarios", icon: Shield },
   { id: "notif", label: "Notificaciones", icon: Bell },
   { id: "auditoria", label: "Auditoría", icon: ScrollText },
@@ -74,10 +64,8 @@ type Data = {
   profile: Profile;
   settings: Settings;
   paymentMethods: PaymentMethod[];
-  categories: Category[];
-  brands: Brand[];
-  sizes: Size[];
-  colors: ColorRow[];
+  catalog: CatalogAdminData;
+  canEditCatalog: boolean;
   audit: (AuditLog & { branch?: string })[];
   rate: number;
   canEdit: boolean;
@@ -97,7 +85,7 @@ export function ConfiguracionView(props: Data) {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-[18px] lg:grid-cols-[240px_1fr]">
+      <div className="grid grid-cols-1 gap-[18px] lg:grid-cols-[240px_minmax(0,1fr)]">
         <div className="fadeup flex h-max flex-col gap-0.5 rounded-2xl border border-border bg-card p-2 shadow-card-sm">
           {SECTIONS.map((s) => (
             <button
@@ -111,13 +99,13 @@ export function ConfiguracionView(props: Data) {
           ))}
         </div>
 
-        <div className="flex flex-col gap-[18px]">
+        <div className="flex min-w-0 flex-col gap-[18px]">
           {section === "perfil" && <PerfilSection {...props} />}
           {section === "empresa" && <EmpresaSection {...props} />}
           {section === "marca" && <ColorsSection {...props} which="primary" />}
           {section === "apariencia" && <AparienciaSection {...props} />}
           {section === "ventas" && <VentasSection {...props} />}
-          {section === "inventario" && <InventarioSection {...props} />}
+          {section === "catalogo" && <CatalogoSection data={props.catalog} canEdit={props.canEditCatalog} />}
           {section === "usuarios" && <UsuariosSection />}
           {section === "notif" && <NotifSection {...props} />}
           {section === "auditoria" && <AuditoriaSection {...props} />}
@@ -486,84 +474,6 @@ function VentasSection({ settings, paymentMethods, rate, canEdit }: Data) {
         </div>
       </Card>
     </>
-  );
-}
-
-function InventarioSection({ categories, brands, sizes, colors, canEdit }: Data) {
-  return (
-    <>
-      <MasterCard title="Categorías" table="categories" items={categories.map((c) => ({ id: c.id, label: c.name, hex: c.color }))} canEdit={canEdit} />
-      <MasterCard title="Marcas" table="brands" items={brands.map((b) => ({ id: b.id, label: b.name }))} canEdit={canEdit} />
-      <MasterCard title="Tallas" table="sizes" items={sizes.map((s) => ({ id: s.id, label: s.label }))} canEdit={canEdit} />
-      <MasterCard title="Colores" table="colors" items={colors.map((c) => ({ id: c.id, label: c.name, hex: c.hex }))} canEdit={canEdit} />
-    </>
-  );
-}
-
-function MasterCard({
-  title,
-  table,
-  items,
-  canEdit,
-}: {
-  title: string;
-  table: "categories" | "sizes" | "colors" | "brands";
-  items: { id: string; label: string; hex?: string | null }[];
-  canEdit: boolean;
-}) {
-  const [value, setValue] = useState("");
-  const [, start] = useTransition();
-  return (
-    <Card title={title}>
-      <div className="flex flex-wrap gap-2">
-        {items.map((it) => (
-          <span
-            key={it.id}
-            className="group flex items-center gap-1.5 rounded-full border border-border bg-surface-2 px-3 py-1.5 text-[12.5px] text-text-2"
-          >
-            {it.hex && (
-              <span className="size-2.5 rounded-full border border-border" style={{ background: it.hex }} />
-            )}
-            {it.label}
-            {canEdit && (
-              <button
-                onClick={() =>
-                  start(async () => {
-                    const res = await deleteMaster(table, it.id);
-                    if (res?.error) toast.error(res.error);
-                  })
-                }
-                className="text-text-3 hover:text-danger"
-              >
-                <Trash2 className="size-3" />
-              </button>
-            )}
-          </span>
-        ))}
-      </div>
-      {canEdit && (
-        <div className="mt-3 flex gap-2">
-          <Input
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder={`Nueva ${title.toLowerCase().slice(0, -1)}…`}
-            className="h-9"
-          />
-          <Button
-            onClick={() =>
-              start(async () => {
-                const res = await addMaster(table, value);
-                if (res?.error) toast.error(res.error);
-                else setValue("");
-              })
-            }
-            disabled={!value.trim()}
-          >
-            <Plus className="size-4" /> Agregar
-          </Button>
-        </div>
-      )}
-    </Card>
   );
 }
 

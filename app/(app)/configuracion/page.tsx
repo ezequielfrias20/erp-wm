@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSession } from "@/lib/queries/session";
 import { canEdit } from "@/lib/permissions";
 import { fetchBcvRate, BCV_FALLBACK } from "@/lib/bcv";
+import { getCatalogAdminData } from "@/lib/queries/catalog-admin";
 import { ConfiguracionView } from "@/components/configuracion/configuracion-view";
 
 export const metadata = { title: "Configuración · World Medics ERP" };
@@ -12,14 +13,11 @@ export default async function ConfiguracionPage() {
   if (!session) redirect("/login");
 
   const supabase = await createClient();
-  const [settingsRes, pmRes, catRes, brandRes, sizeRes, colorRes, auditRes, bcv] =
+  const [settingsRes, pmRes, catalog, auditRes, bcv] =
     await Promise.all([
       supabase.from("settings").select("*").eq("id", 1).maybeSingle(),
       supabase.from("payment_methods").select("*").order("sort_order"),
-      supabase.from("categories").select("*").order("sort_order"),
-      supabase.from("brands").select("*").order("name"),
-      supabase.from("sizes").select("*").order("sort_order"),
-      supabase.from("colors").select("*").order("sort_order"),
+      getCatalogAdminData(),
       supabase
         .from("audit_log")
         .select("*")
@@ -37,10 +35,8 @@ export default async function ConfiguracionPage() {
       profile={session.profile}
       settings={settingsRes.data!}
       paymentMethods={pmRes.data ?? []}
-      categories={catRes.data ?? []}
-      brands={brandRes.data ?? []}
-      sizes={sizeRes.data ?? []}
-      colors={colorRes.data ?? []}
+      catalog={catalog}
+      canEditCatalog={canEdit(session.permissions, "Inventario")}
       audit={auditRes.data ?? []}
       rate={bcv.rate}
       canEdit={canEdit(session.permissions, "Configuración")}
