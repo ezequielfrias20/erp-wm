@@ -1,7 +1,7 @@
 # Catálogo — 3a: editor de producto con fotos por color — diseño
 
 **Fecha:** 2026-11-16
-**Estado:** en revisión (revisión de constructor hecha: 5 preguntas, resueltas abajo como llamadas)
+**Estado:** aprobado (2026-11-16)
 **Spec padre:** `docs/superpowers/specs/2026-11-11-catalogo-listo-ecommerce-design.md` (§«Cambios
 en el ERP», §7 Fotos, §8 «listo para tienda»). Hoja de ruta: `docs/superpowers/plans/2026-11-11-catalogo-00-hoja-de-ruta.md` (plan 3).
 
