@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   FileText,
@@ -14,7 +14,6 @@ import {
   Loader2,
   CalendarDays,
   CalendarRange,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { fmtUSD, fmtUSDShort, fmtVES, fmtDate } from "@/lib/format";
@@ -30,13 +29,8 @@ import type { ReportData, SaleDetail } from "@/lib/queries/reports";
 import { loadSaleDetail } from "@/app/(app)/reportes/actions";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { useServerTable } from "@/hooks/use-server-table";
-import {
-  InvoiceDocument,
-  ThermalInvoiceDocument,
-  printNode,
-  type InvoiceData,
-  type InvoiceCompany,
-} from "@/components/factura/invoice-template";
+import type { InvoiceCompany } from "@/components/factura/invoice-template";
+import { SaleInvoiceModal } from "@/components/factura/sale-invoice-modal";
 
 const TABS = ["Resumen", "Por categoría", "Por método de pago"] as const;
 
@@ -579,124 +573,13 @@ export function ReportesView({
         )}
       </div>
 
-      <SaleDetailModal
+      <SaleInvoiceModal
         open={detailOpen}
         onOpenChange={setDetailOpen}
         detail={detail}
         company={company}
         fallbackRate={rate}
       />
-    </div>
-  );
-}
-
-function detailToInvoice(
-  d: SaleDetail,
-  company: InvoiceCompany,
-  fallbackRate: number,
-): InvoiceData {
-  const rate = d.sale.exchange_rate ?? fallbackRate;
-  return {
-    company,
-    invoiceNumber: d.sale.invoice_number,
-    date: d.sale.created_at,
-    status: d.sale.status,
-    branchName: d.branchName,
-    cashier: d.cashier,
-    customer: d.customer
-      ? {
-          name: d.customer.name,
-          document: d.customer.document,
-          phone: d.customer.phone,
-          email: d.customer.email,
-        }
-      : null,
-    items: d.items.map((it) => ({
-      description: it.description ?? "—",
-      quantity: it.quantity,
-      unit_price: it.unit_price,
-      line_total: it.line_total,
-    })),
-    subtotal: d.sale.subtotal,
-    discount: d.sale.discount,
-    discount_pct: d.sale.discount_pct,
-    tax: d.sale.tax,
-    total: d.sale.total,
-    rate,
-    total_ves: d.sale.total_ves,
-    payments: d.payments.map((p) => ({
-      method: p.method,
-      currency: (p.currency ?? "VES") as "USD" | "VES",
-      amount: p.amount,
-      amount_usd: p.amount_usd,
-      reference: p.reference,
-      is_financed: p.is_financed,
-    })),
-  };
-}
-
-function SaleDetailModal({
-  open,
-  onOpenChange,
-  detail,
-  company,
-  fallbackRate,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  detail: SaleDetail | null;
-  company: InvoiceCompany;
-  fallbackRate: number;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const thermalRef = useRef<HTMLDivElement>(null);
-  if (!open || !detail) return null;
-  const inv = detailToInvoice(detail, company, fallbackRate);
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4"
-      onClick={() => onOpenChange(false)}
-    >
-      <div
-        className="my-6 w-full max-w-[800px] rounded-2xl bg-card shadow-card-lg"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-border px-5 py-3">
-          <div className="text-[15px] font-bold text-foreground">
-            Venta {inv.invoiceNumber}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => printNode(ref.current, `Factura ${inv.invoiceNumber}`)}
-              className="hoverlift flex h-9 items-center gap-2 rounded-[10px] bg-brand px-3 text-[12.5px] font-semibold text-white"
-            >
-              <FileText className="size-4" /> Imprimir factura
-            </button>
-            <button
-              onClick={() => printNode(thermalRef.current, `Ticket ${inv.invoiceNumber}`)}
-              className="iconbtn flex h-9 items-center gap-2 rounded-[10px] border border-border bg-card px-3 text-[12.5px] font-semibold text-foreground"
-            >
-              <Receipt className="size-4" /> Ticket 80 mm
-            </button>
-            <button
-              onClick={() => onOpenChange(false)}
-              className="iconbtn flex size-8 items-center justify-center rounded-md text-text-3"
-            >
-              <X className="size-4" />
-            </button>
-          </div>
-        </div>
-        <div className="relative bg-surface-2 p-4">
-          <InvoiceDocument ref={ref} data={inv} />
-          <div
-            aria-hidden="true"
-            className="absolute top-0 left-[-10000px] overflow-hidden"
-            style={{ width: 302 }}
-          >
-            <ThermalInvoiceDocument ref={thermalRef} data={inv} />
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

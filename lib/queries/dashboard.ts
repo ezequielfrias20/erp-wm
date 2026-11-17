@@ -184,6 +184,7 @@ export async function getDashboard(branchId: string | null) {
       .map((b) => [b.id, b.city]),
   );
   const recentSales = recentRaw.map((s) => ({
+    id: s.id,
     inv: s.invoice_number ?? "—",
     customer: s.customer_id ? (cMap.get(s.customer_id) ?? "Cliente general") : "Cliente general",
     branch: bMap.get(s.branch_id) ?? "—",
@@ -330,6 +331,7 @@ export async function getOperationalDashboard(branchId: string | null) {
       outStock: outStock.length,
     },
     todaySales: sales.slice(0, 8).map((s) => ({
+      id: s.id,
       inv: s.invoice_number,
       customer: s.customer_id
         ? (customers.get(s.customer_id) ?? "Cliente general")

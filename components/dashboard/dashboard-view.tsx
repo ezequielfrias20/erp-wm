@@ -20,6 +20,7 @@ import {
 import { SalesAreaChart, Donut } from "@/components/dashboard/charts-lazy";
 import { fmtUSD, fmtUSDShort, fmtVES, fmtNum, fmtRelative } from "@/lib/format";
 import type { DashboardData } from "@/lib/queries/dashboard";
+import { SaleInvoiceButton, useSaleInvoiceViewer } from "@/components/dashboard/sale-invoice-button";
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   Pagada: { bg: "var(--success-soft)", color: "var(--success)" },
@@ -46,6 +47,7 @@ export function DashboardView({
   canSell: boolean;
 }) {
   const { kpis } = data;
+  const invoiceViewer = useSaleInvoiceViewer(rate);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches";
   const today = new Date().toLocaleDateString("es-VE", {
@@ -277,19 +279,20 @@ export function DashboardView({
           </div>
           <div className="overflow-x-auto">
             <div className="min-w-[680px]">
-              <div className="grid grid-cols-[1.2fr_1.4fr_1fr_1fr_0.9fr] border-y border-border px-5 py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
+              <div className="grid grid-cols-[1.2fr_1.4fr_1fr_1fr_0.9fr_44px] border-y border-border px-5 py-2 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
                 <span>Factura</span>
                 <span>Cliente</span>
                 <span>Método</span>
                 <span className="text-right">Total</span>
                 <span className="text-right">Estado</span>
+                <span className="sr-only">Factura</span>
               </div>
               {data.recentSales.map((r) => {
                 const st = STATUS_STYLE[r.status] ?? STATUS_STYLE.Pagada;
                 return (
                   <div
-                    key={r.inv}
-                    className="tr-row grid grid-cols-[1.2fr_1.4fr_1fr_1fr_0.9fr] items-center border-b border-border px-5 py-3"
+                    key={r.id}
+                    className="tr-row grid grid-cols-[1.2fr_1.4fr_1fr_1fr_0.9fr_44px] items-center border-b border-border px-5 py-3"
                   >
                     <span className="text-[12.5px] font-semibold text-foreground">{r.inv}</span>
                     <div className="min-w-0">
@@ -308,6 +311,13 @@ export function DashboardView({
                       >
                         {r.status}
                       </span>
+                    </div>
+                    <div className="flex justify-end">
+                      <SaleInvoiceButton
+                        invoice={r.inv}
+                        loading={invoiceViewer.loadingId === r.id}
+                        onClick={() => invoiceViewer.show(r.id)}
+                      />
                     </div>
                   </div>
                 );
@@ -420,6 +430,7 @@ export function DashboardView({
           </div>
         </ListCard>
       </div>
+      {invoiceViewer.modal}
     </div>
   );
 }
