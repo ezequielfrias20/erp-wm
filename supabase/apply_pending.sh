@@ -59,6 +59,17 @@ run supabase/sales_commissions.sql
 #    Depende de las columnas del paso 1.
 run supabase/create_sale_tax_included.sql
 
+# Aplicar ANTES de desplegar la app (el POS lee v_inventory.online_held).
+# Pedidos online, catálogo de tienda y acceso a fotos; create_sale se redefine
+# después de create_sale_tax_included.sql para conservar el enlace con el pedido.
+run supabase/online_orders.sql
+run supabase/online_orders_sale.sql
+run supabase/online_orders_staff.sql
+run supabase/v_inventory_online_held.sql
+run supabase/shop_schema.sql
+run supabase/shop_crear_solicitud.sql
+run supabase/storage_no_public_list.sql
+
 # 3. Índices compuestos + RPCs inventory_status_counts / report_payments / write_audit.
 #    Sin esto, el shell y Reportes corren por el camino de respaldo (mucho más lento).
 run supabase/performance_indexes.sql
@@ -97,12 +108,15 @@ with esperado(clase, nombre) as (values
   ('col','profiles.commission_pct'), ('col','profiles.employee_code'),
   ('col','profiles.system_access'),  ('col','sales.seller_id'),
   ('col','sales.seller_commission_pct'), ('col','sales.request_id'),
+  ('col','branches.online_enabled'), ('col','sales.online_order_id'),
   ('rpc','session_bootstrap'), ('rpc','inventory_status_counts'),
   ('rpc','report_payments'),   ('rpc','write_audit'), ('rpc','create_sale'),
+  ('rpc','online_order_accept'), ('rpc','online_held'),
   ('rpc','daily_closure_preview'), ('rpc','close_daily'),
   ('tab','project_groups'), ('tab','project_sessions'),
   ('tab','project_orders'),  ('tab','project_checkins'),
   ('tab','daily_closures'),
+  ('tab','online_orders'), ('tab','online_order_items'), ('tab','online_settings'),
   ('tab','option_types'), ('tab','product_media'),
   ('tab','variant_sku_aliases'), ('col','product_variants.color_id'),
   ('tab','v_catalog'), ('rpc','sync_variant_color_text'), ('rpc','sync_variant_option_text'),

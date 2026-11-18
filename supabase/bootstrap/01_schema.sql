@@ -1155,4 +1155,13 @@ create policy "wm_authenticated_delete" on storage.objects
 -- Catálogo 3b: la base rechaza borrar maestros en uso y nombres repetidos sin mayúsculas.
 \ir ../catalog_master_guards.sql
 
+-- Tienda fase 1: pedidos, apartados, catálogo aislado y listado privado de storage.
+\ir ../online_orders.sql
+\ir ../online_orders_sale.sql
+\ir ../online_orders_staff.sql
+\ir ../v_inventory_online_held.sql
+\ir ../shop_schema.sql
+\ir ../shop_crear_solicitud.sql
+\ir ../storage_no_public_list.sql
+
 notify pgrst, 'reload schema';

@@ -127,6 +127,10 @@ insert into wm.settings (id, company_name) values
   (1, :'company_name')
 on conflict (id) do update set company_name = excluded.company_name;
 
+-- Pedidos online: valores de operación iniciales. Cada sucursal se habilita aparte.
+insert into wm.online_settings (id) values (1)
+on conflict (id) do nothing;
+
 -- Resumen
 do $$
 begin

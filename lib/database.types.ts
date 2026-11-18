@@ -72,6 +72,7 @@ export type Branch = {
   map_x: number | null;
   map_y: number | null;
   is_active: boolean;
+  online_enabled: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -446,6 +447,7 @@ export type ProjectCheckin = {
 export type Sale = {
   id: string;
   request_id: string | null;
+  online_order_id: string | null;
   invoice_number: string;
   customer_id: string | null;
   branch_id: string;
@@ -631,6 +633,74 @@ export type Settings = {
   updated_at: string;
 }
 
+export type OnlineOrderStatus = "solicitada" | "aceptada" | "completada" | "rechazada" | "cancelada";
+
+export type OnlineOrder = {
+  id: string;
+  number: string;
+  request_id: string;
+  status: OnlineOrderStatus;
+  customer_name: string;
+  customer_phone: string;
+  customer_email: string | null;
+  customer_document: string | null;
+  notes: string | null;
+  soft_expires_at: string;
+  firm_expires_at: string | null;
+  accepted_by: string | null;
+  accepted_at: string | null;
+  closed_by: string | null;
+  closed_at: string | null;
+  close_reason: string | null;
+  customer_id: string | null;
+  source_ip: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type OnlineOrderItem = {
+  id: string;
+  order_id: string;
+  variant_id: string;
+  branch_id: string;
+  quantity: number;
+  unit_price: number;
+  product_name: string;
+  variant_label: string;
+  sku: string;
+  sale_id: string | null;
+  released_at: string | null;
+  created_at: string;
+}
+
+export type OnlineSettings = {
+  id: number;
+  soft_hold_minutes: number;
+  firm_hold_hours: number;
+  max_units_per_line: number;
+  max_units_per_order: number;
+  max_lines: number;
+  max_open_per_phone: number;
+  display_stock_cap: number;
+  store_whatsapp: string | null;
+  whatsapp_templates: Record<string, unknown>;
+  updated_at: string;
+}
+
+export type VOnlineOrder = OnlineOrder & {
+  effective_status: OnlineOrderStatus | "vencida";
+  expires_at: string | null;
+  total: number;
+  branch_count: number;
+}
+
+export type OnlineHold = {
+  variant_id: string;
+  branch_id: string;
+  order_id: string;
+  held: number;
+}
+
 export type VInventory = {
   id: string;
   variant_id: string;
@@ -780,6 +850,9 @@ export type Database = {
       exchange_rates: Tbl<ExchangeRate>;
       audit_log: Tbl<AuditLog>;
       settings: Tbl<Settings>;
+      online_orders: Tbl<OnlineOrder>;
+      online_order_items: Tbl<OnlineOrderItem>;
+      online_settings: Tbl<OnlineSettings>;
       option_types: Tbl<OptionType>;
       option_values: Tbl<OptionValue>;
       color_families: Tbl<ColorFamily>;
@@ -799,6 +872,8 @@ export type Database = {
       v_customer_stats: Vw<VCustomerStats>;
       v_customer_favorites: Vw<VCustomerFavorite>;
       v_sale_lines: Vw<VSaleLine>;
+      v_online_orders: Vw<VOnlineOrder>;
+      online_holds: Vw<OnlineHold>;
     };
     Functions: {
       is_member: { Args: Record<string, never>; Returns: boolean };
@@ -854,8 +929,29 @@ export type Database = {
           p_cashea?: unknown; // CasheaInput | null
           p_seller_id?: string | null;
           p_seller_code?: string | null;
+          p_online_order_id?: string | null;
         };
         Returns: Sale;
+      };
+      online_order_accept: {
+        Args: { p_order_id: string; p_lines?: unknown };
+        Returns: OnlineOrder;
+      };
+      online_order_reject: {
+        Args: { p_order_id: string; p_reason?: string | null };
+        Returns: OnlineOrder;
+      };
+      online_order_cancel: {
+        Args: { p_order_id: string; p_reason?: string | null };
+        Returns: OnlineOrder;
+      };
+      online_order_extend: {
+        Args: { p_order_id: string; p_hours?: number | null };
+        Returns: OnlineOrder;
+      };
+      online_held: {
+        Args: { p_variant: string; p_branch: string; p_exclude_order?: string | null };
+        Returns: number;
       };
       daily_closure_preview: {
         Args: { p_branch_id: string; p_date: string };

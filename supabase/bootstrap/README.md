@@ -6,7 +6,7 @@ crean toda la estructura, cargan la data mínima para operar y dan de alta al ow
 | Archivo | Qué hace | Idempotente |
 |---|---|---|
 | `01_schema.sql` | Estructura completa (estado final): esquema `wm`, tablas, funciones, RLS, vistas, RPC, storage y ampliación de cursos. **Sin datos.** | Asume BD vacía (usa `create table`; re-correr falla si ya existe) |
-| `02_seed.sql` | Seed mínimo: 6 roles, matriz de 54 permisos, 10 métodos de pago, 1 sucursal "Principal", fila `settings`. | Sí (`on conflict`) |
+| `02_seed.sql` | Seed mínimo: 6 roles, matriz de 54 permisos, 10 métodos de pago, 1 sucursal "Principal", filas `settings` y `online_settings`. | Sí (`on conflict`) |
 | `03_owner.sql` | Primer usuario: crea el usuario de Auth + perfil **Super Admin**. | Sí (no duplica ni cambia contraseña existente) |
 
 > La forma recomendada de correr todo esto es el comando de Claude **`/nuevo-negocio`**
@@ -52,6 +52,10 @@ psql "$CONN" -v ON_ERROR_STOP=1 \
    (URL y anon key en Dashboard → Project Settings → API.)
 2. `npm run dev` → entra en `/login` con el email/contraseña del owner.
 3. El owner (Super Admin, acceso total) crea sucursales, usuarios, catálogo, inventario y vende.
+4. El rol `storefront` se crea **sin contraseña**. El administrador fija una fuera del repositorio
+   antes de conectar la tienda: `alter role storefront password '…';`. Guarda la contraseña en el
+   gestor de secretos de la tienda. Habilita cada sucursal que ofrecerá pedidos online con
+   `branches.online_enabled = true`; por defecto está deshabilitada.
 
 ## Fallback: crear el owner sin `03_owner.sql`
 
@@ -93,9 +97,10 @@ drop schema wm cascade;
 
 ## Mantener estos scripts en sync con el esquema
 
-`01_schema.sql` es un **snapshot a mano** del estado final del esquema (igual que
-`lib/database.types.ts`). El desarrollo del proyecto de referencia sigue aplicando migraciones por
-MCP. Al cambiar el esquema allá, re-sincroniza aquí.
+`01_schema.sql` contiene el snapshot base y aplica al final los siete scripts de tienda mediante
+`\ir` (en orden, desde `online_orders.sql` hasta `storage_no_public_list.sql`). Así se conserva la
+última definición de `create_sale` y de la política de lectura de storage. `lib/database.types.ts`
+se mantiene a mano en paralelo.
 
 El SQL real de cada migración aplicada vive en la tabla `supabase_migrations.schema_migrations` del
 proyecto de referencia. Para re-extraerlo:

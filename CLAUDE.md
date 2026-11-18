@@ -72,6 +72,12 @@ handoff de diseño `World Medics ERP.dc.html` (claude.ai/design) **tal cual**.
     `line_id`, `specs`) y `product_variants` (`color_id`, `option_value_id`); RLS + seeds genéricos.
     Ya plegada en `bootstrap/01_schema.sql` + `02_seed.sql` y en `apply_pending.sh` (negocios nuevos
     y negocios existentes). Prueba con rollback: `supabase/tests/catalog_taxonomy_rollback.sql`.
+20. Tienda online fase 1 — pedidos, apartados, venta vinculada, vistas `shop`, rol `storefront`
+    y cierre del listado público de storage: `online_orders.sql`, `online_orders_sale.sql`,
+    `online_orders_staff.sql`, `v_inventory_online_held.sql`, `shop_schema.sql`,
+    `shop_crear_solicitud.sql`, `storage_no_public_list.sql` (todos en `supabase/`, en ese orden).
+    Se pliegan en bootstrap y `apply_pending.sh`; **aplicar antes de desplegar la app** porque
+    el POS lee `v_inventory.online_held`. Aplicación en producción pendiente.
 Bootstrap del admin (login) se hizo con `execute_sql` (crea `auth.users` + `auth.identities`).
 
 ### Modelo RLS
@@ -93,7 +99,8 @@ inventory, profiles, customers, customer_events, sales, sale_items, **sale_payme
 **cashea_orders**, purchase_orders, purchase_order_items, roles, role_permissions,
 payment_methods, exchange_rates, audit_log, settings, y las del catálogo clasificado: option_types,
 option_values, color_families, product_lines, attributes, attribute_values, category_attributes,
-product_attribute_values, product_media, variant_sku_aliases, catalog_migration_log.
+product_attribute_values, product_media, variant_sku_aliases, catalog_migration_log,
+online_orders, online_order_items, online_settings.
 (Detalle de campos en `lib/database.types.ts`.)
 - `payment_methods` lleva `currency` (`USD|VES`), `requires_reference` e `is_financed`. Métodos VES
   (Efectivo VES, Pago Móvil, Transferencia, Tarjeta débito/crédito) se cobran en bolívares;
@@ -117,6 +124,11 @@ Utilidades extra: `bg-brand`, `text-brand`, `bg-brand-soft`, `text-success`,
 `.tr-row`, `.iconbtn`, `.lk`, `.fadeup`, `.pop`, `.shadow-card-{sm,md,lg}`. Fuente **Inter**, base 14px.
 
 ## Convenciones
+- **Tienda online / Pedidos online (fase 1):** el ERP conserva pedidos y apartados; la tienda
+  accede solo desde su servidor con el rol `storefront` al esquema `shop`. Contrato para la
+  tienda: `docs/TIENDA-INTEGRACION.md`; diseño y plan:
+  `docs/superpowers/specs/2026-11-18-ecommerce-catalogo-pedidos-online-design.md` y
+  `docs/superpowers/plans/2026-11-18-tienda-fase1-base-erp.md`.
 - Rutas protegidas bajo `app/(app)/`; auth bajo `app/(auth)/`. `middleware.ts` refresca
   sesión y redirige a `/login`.
 - Lectura inicial en Server Components; mutaciones con **Server Actions** en `app/(app)/<modulo>/actions.ts`.
@@ -221,12 +233,11 @@ npm run lint
 El mismo esquema se reutiliza para varios negocios; **cada negocio = un proyecto Supabase aparte**.
 El arranque vive en **`supabase/bootstrap/`** (3 scripts `psql`, estado final, sin data demo):
 `01_schema.sql` (estructura completa), `02_seed.sql` (seed mínimo: 6 roles + matriz de 54 permisos +
-10 métodos de pago + 1 sucursal + `settings`) y `03_owner.sql` (primer usuario, Super Admin,
+10 métodos de pago + 1 sucursal + `settings` + `online_settings`) y `03_owner.sql` (primer usuario, Super Admin,
 parametrizado). Comando guiado: **`/nuevo-negocio`** (`.claude/commands/nuevo-negocio.md`). Runbook
 para humanos: **`docs/NUEVO-NEGOCIO.md`**. Facturas/OC arrancan en `FAC-000001`/`OC-1`.
-- `01_schema.sql` es un **snapshot a mano** del esquema (como `lib/database.types.ts`): al cambiar
-  el esquema por MCP, re-sincronizar (cómo, en `supabase/bootstrap/README.md`). Excluye los seeds
-  demo y pliega las migraciones incrementales (solo `create_sale` v4; columnas dentro del `CREATE TABLE`).
+- `01_schema.sql` es un snapshot base con los siete scripts de tienda aplicados al final mediante
+  `\ir` (como se explica en `supabase/bootstrap/README.md`). Excluye los seeds demo.
 - Las vistas usan `security_invoker` → requieren Postgres 15+ (Supabase ya lo cumple).
 
 ## Estado de módulos
