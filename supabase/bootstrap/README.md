@@ -97,10 +97,12 @@ drop schema wm cascade;
 
 ## Mantener estos scripts en sync con el esquema
 
-`01_schema.sql` contiene el snapshot base y aplica al final los siete scripts de tienda mediante
-`\ir` (en orden, desde `online_orders.sql` hasta `storage_no_public_list.sql`). Así se conserva la
-última definición de `create_sale` y de la política de lectura de storage. `lib/database.types.ts`
-se mantiene a mano en paralelo.
+La parte base de `01_schema.sql` es un **snapshot escrito a mano** del estado final: al cambiar el
+esquema, se debe volver a sincronizar. Su tramo final incluye mediante `\ir` las migraciones
+`projects_courses.sql`, `daily_closures.sql`, `catalog_view.sql`, `catalog_master_guards.sql` y,
+en orden, los siete scripts de tienda (desde `online_orders.sql` hasta
+`storage_no_public_list.sql`). Los últimos redefinen `create_sale` y la política de lectura de
+storage. `lib/database.types.ts` se mantiene a mano en paralelo.
 
 El SQL real de cada migración aplicada vive en la tabla `supabase_migrations.schema_migrations` del
 proyecto de referencia. Para re-extraerlo:

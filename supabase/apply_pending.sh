@@ -59,17 +59,6 @@ run supabase/sales_commissions.sql
 #    Depende de las columnas del paso 1.
 run supabase/create_sale_tax_included.sql
 
-# Aplicar ANTES de desplegar la app (el POS lee v_inventory.online_held).
-# Pedidos online, catálogo de tienda y acceso a fotos; create_sale se redefine
-# después de create_sale_tax_included.sql para conservar el enlace con el pedido.
-run supabase/online_orders.sql
-run supabase/online_orders_sale.sql
-run supabase/online_orders_staff.sql
-run supabase/v_inventory_online_held.sql
-run supabase/shop_schema.sql
-run supabase/shop_crear_solicitud.sql
-run supabase/storage_no_public_list.sql
-
 # 3. Índices compuestos + RPCs inventory_status_counts / report_payments / write_audit.
 #    Sin esto, el shell y Reportes corren por el camino de respaldo (mucho más lento).
 run supabase/performance_indexes.sql
@@ -95,6 +84,17 @@ run supabase/catalog_view.sql
 
 # 8b. Candados de maestros: borrar en uso → RESTRICT; nombres únicos sin mayúsculas.
 run supabase/catalog_master_guards.sql
+
+# Aplicar ANTES de desplegar la app (el POS lee v_inventory.online_held).
+# Pedidos online y tienda necesitan el catálogo clasificado. create_sale se redefine
+# después de create_sale_tax_included.sql para conservar el enlace con el pedido.
+run supabase/online_orders.sql
+run supabase/online_orders_sale.sql
+run supabase/online_orders_staff.sql
+run supabase/v_inventory_online_held.sql
+run supabase/shop_schema.sql
+run supabase/shop_crear_solicitud.sql
+run supabase/storage_no_public_list.sql
 
 # 9. Estadísticas del planificador al día.
 echo ""

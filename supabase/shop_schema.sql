@@ -209,7 +209,7 @@ left join lateral (
   where m.product_id = p.id
     and exists (select 1 from wm.product_variants v
                 where v.product_id = p.id and v.is_active and v.color_id = col.id)
-  order by col.is_active desc, pg_catalog.lower(col.name), col.id,
+  order by pg_catalog.lower(col.name), col.id,
            m.sort_order, m.id limit 1
 ) color_main on true;
 

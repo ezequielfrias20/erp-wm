@@ -279,7 +279,7 @@ begin
      or (select count(*) from shop.availability where branch_id = v_off) <> 0 then
     raise exception 'filtros de publicación incorrectos';
   end if;
-  -- Entre colores activos, nombre antes que sort_order; luego activo antes que inactivo.
+  -- Entre colores con variantes activas, nombre antes que sort_order.
   insert into wm.product_media (product_id, color_id, path)
   values (v_photo_product, (select id from pg_temp.shop_test_ids where name = 'blue'), 't4/active-blue.webp');
   update wm.colors set name = 'Z rojo ' || gen_random_uuid()::text
@@ -295,8 +295,18 @@ begin
   update wm.colors set name = 'Z activo ' || gen_random_uuid()::text
    where id = (select id from pg_temp.shop_test_ids where name = 'blue');
   if (select main_photo from shop.products where product_id = v_photo_product)
+     is distinct from (select path from wm.product_media
+                        where product_id = v_photo_product
+                          and color_id = (select id from pg_temp.shop_test_ids where name = 'red')
+                        order by sort_order, id limit 1) then
+    raise exception 'main_photo ignoró un color con maestro inactivo y variante activa';
+  end if;
+  update wm.product_variants set is_active = false
+   where product_id = v_photo_product
+     and color_id = (select id from pg_temp.shop_test_ids where name = 'red');
+  if (select main_photo from shop.products where product_id = v_photo_product)
      is distinct from 't4/active-blue.webp' then
-    raise exception 'main_photo no priorizó el color activo';
+    raise exception 'main_photo incluyó un color sin variantes activas';
   end if;
   insert into wm.product_media (product_id, color_id, path)
   values (v_photo_product, null, 't4/general.webp');

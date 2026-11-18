@@ -236,8 +236,10 @@ El arranque vive en **`supabase/bootstrap/`** (3 scripts `psql`, estado final, s
 10 métodos de pago + 1 sucursal + `settings` + `online_settings`) y `03_owner.sql` (primer usuario, Super Admin,
 parametrizado). Comando guiado: **`/nuevo-negocio`** (`.claude/commands/nuevo-negocio.md`). Runbook
 para humanos: **`docs/NUEVO-NEGOCIO.md`**. Facturas/OC arrancan en `FAC-000001`/`OC-1`.
-- `01_schema.sql` es un snapshot base con los siete scripts de tienda aplicados al final mediante
-  `\ir` (como se explica en `supabase/bootstrap/README.md`). Excluye los seeds demo.
+- La parte base de `01_schema.sql` es un **snapshot escrito a mano**: al cambiar el esquema,
+  volver a sincronizarlo (ver `supabase/bootstrap/README.md`). Al final incluye mediante `\ir`
+  `projects_courses.sql`, `daily_closures.sql`, `catalog_view.sql`,
+  `catalog_master_guards.sql` y los siete scripts de tienda. Excluye los seeds demo.
 - Las vistas usan `security_invoker` → requieren Postgres 15+ (Supabase ya lo cumple).
 
 ## Estado de módulos
@@ -252,8 +254,10 @@ se da de alta en **Usuarios → Invitar** y activa su cuenta en `/invite` (mismo
 Acceso gateado por `wm.profiles` (no por estar en `auth.users`).
 
 ## Storage
-Bucket público **`wm-public`** (avatares en `avatars/`, marca en `brand/`). Lectura
-pública, escritura solo autenticados, eliminación solo autenticados. Subidas desde
+Bucket público **`wm-public`** (avatares en `avatars/`, marca en `brand/`). Los archivos se
+leen por URL pública conocida; el listado vía `storage.objects` solo está disponible para
+miembros del ERP (`wm_authenticated_read` exige `wm.is_member()`). Escritura y eliminación
+solo para autenticados. Subidas desde
 Configuración (perfil/marca) vía `components/configuracion/image-upload.tsx`; URLs en
 `profiles.avatar_url` / `settings.logo_url` / `settings.logo_dark_url` / `settings.favicon_url`.
 Cada asset de marca (logo, logo oscuro, favicon) se puede eliminar desde Configuración.

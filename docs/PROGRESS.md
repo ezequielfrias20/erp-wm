@@ -159,7 +159,8 @@ planes): `docs/superpowers/plans/2026-11-11-catalogo-00-hoja-de-ruta.md` · Runb
 
 - **Plan 1, base ERP:** SQL de pedidos, apartados, venta vinculada, vistas `shop`, rol `storefront`
   y política de listado de storage terminados en el repositorio. Bootstrap y `apply_pending.sh`
-  integrados. Pruebas SQL y bootstrap en base vacía pendientes de ejecución por el controlador.
+  integrados. Las seis pruebas SQL con rollback pasaron en una copia local; el bootstrap en otra
+  base local vacía y `apply_pending.sh` terminaron sin errores (33 OK, 0 FALTA).
 - **Producción:** aplicación de migraciones, contraseña del rol `storefront` y comprobaciones
   manuales pendientes. Aplicar los siete scripts antes del despliegue de la app.
 - **Plan 2:** módulo «Pedidos online» del ERP pendiente.
