@@ -87,6 +87,9 @@ begin
       raise exception 'El pedido online % no está aceptado',
         coalesce(v_online_order.number, p_online_order_id::text);
     end if;
+    if coalesce(p_status, 'Pagada') <> 'Pagada' then
+      raise exception 'Un pedido online solo se convierte con una venta pagada';
+    end if;
     if not exists (
       select 1 from wm.online_order_items
        where order_id = p_online_order_id

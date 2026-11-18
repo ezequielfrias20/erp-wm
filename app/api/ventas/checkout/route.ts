@@ -86,7 +86,7 @@ export async function POST(request: Request) {
     p_status: input.status ?? "Pagada",
     p_cashea: input.cashea ?? null,
     p_seller_id: input.seller_id,
-    p_online_order_id: input.online_order_id ?? null,
+    ...(input.online_order_id ? { p_online_order_id: input.online_order_id } : {}),
   });
 
   if (error) return json(400, { error: error.message });

@@ -31,6 +31,7 @@ declare
   v_w uuid;
   v_x uuid;
   v_seller uuid;
+  v_customer uuid;
 begin
   select id into v_a from wm.branches order by id limit 1;
   select id into v_b from wm.branches where id <> v_a order by id limit 1;
@@ -61,8 +62,16 @@ begin
     values ('Vendedor de prueba online', 'Vendedor', 'Activo', false)
     returning id into v_seller;
   end if;
+  insert into wm.customers (name, branch_id)
+    values ('Cliente de prueba venta online', v_a)
+    returning id into v_customer;
+  if not exists (select 1 from wm.payment_methods where name = 'Efectivo USD')
+     or not exists (select 1 from wm.payment_methods where name = 'Pago Móvil') then
+    raise exception 'prueba sin datos: faltan Efectivo USD o Pago Móvil en wm.payment_methods';
+  end if;
   insert into pg_temp.sale_test_ids values
-    ('a', v_a), ('b', v_b), ('v', v_v), ('w', v_w), ('x', v_x), ('seller', v_seller);
+    ('a', v_a), ('b', v_b), ('v', v_v), ('w', v_w), ('x', v_x),
+    ('seller', v_seller), ('customer', v_customer);
   insert into wm.inventory (variant_id, branch_id, quantity)
     values (v_v, v_a, 3), (v_w, v_b, 3), (v_x, v_a, 3)
     on conflict (variant_id, branch_id) do update set quantity = excluded.quantity;
@@ -101,6 +110,60 @@ end $$;
 reset role;
 update wm.inventory set quantity = 3
  where variant_id = (select id from pg_temp.sale_test_ids where name = 'v')
+   and branch_id = (select id from pg_temp.sale_test_ids where name = 'a');
+
+-- La firma nueva con search_path vacío conserva pagos, eventos de cliente y Cashea.
+set local role authenticated;
+do $$
+declare
+  v_a uuid := (select id from pg_temp.sale_test_ids where name = 'a');
+  v_x uuid := (select id from pg_temp.sale_test_ids where name = 'x');
+  v_seller uuid := (select id from pg_temp.sale_test_ids where name = 'seller');
+  v_customer uuid := (select id from pg_temp.sale_test_ids where name = 'customer');
+  v_sale wm.sales;
+begin
+  v_sale := wm.create_sale(v_a, v_customer,
+    pg_catalog.jsonb_build_array(
+      pg_catalog.jsonb_build_object('method', 'Efectivo USD', 'currency', 'USD',
+        'amount', 10, 'amount_usd', 10),
+      pg_catalog.jsonb_build_object('method', 'Pago Móvil', 'currency', 'VES',
+        'amount', 360, 'amount_usd', 10, 'reference', 'TEST-PM-1')),
+    0, 36,
+    pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+      'variant_id', v_x, 'description', 'X', 'quantity', 1,
+      'unit_price', 20, 'cost', 0)),
+    p_seller_id => v_seller);
+  if v_sale.payment_method <> 'Mixto'
+     or (select count(*) from wm.sale_payments where sale_id = v_sale.id) <> 2
+     or (select count(*) from wm.sale_payments
+          where sale_id = v_sale.id and method = 'Efectivo USD'
+            and currency = 'USD' and amount_usd = 10) <> 1
+     or (select count(*) from wm.sale_payments
+          where sale_id = v_sale.id and method = 'Pago Móvil'
+            and currency = 'VES' and reference = 'TEST-PM-1') <> 1
+     or (select count(*) from wm.customer_events
+          where customer_id = v_customer and type = 'compra'
+            and title = 'Compra ' || v_sale.invoice_number and amount = 20) <> 1 then
+    raise exception 'la venta mixta no conservó pagos o evento de cliente';
+  end if;
+
+  v_sale := wm.create_sale(v_a, null, '[]'::jsonb, 0, 1,
+    pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+      'variant_id', v_x, 'description', 'X', 'quantity', 1,
+      'unit_price', 30, 'cost', 0)),
+    p_cashea => pg_catalog.jsonb_build_object(
+      'reference', 'T-1', 'initial_amount', 10, 'financed_amount', 20,
+      'commission_pct', 0, 'channel', 'tienda'),
+    p_seller_id => v_seller);
+  if (select count(*) from wm.cashea_orders
+       where sale_id = v_sale.id and status = 'pendiente'
+         and channel = 'tienda' and financed_amount = 20) <> 1 then
+    raise exception 'la venta Cashea no creó la cuenta por cobrar pendiente';
+  end if;
+end $$;
+reset role;
+update wm.inventory set quantity = 3
+ where variant_id = (select id from pg_temp.sale_test_ids where name = 'x')
    and branch_id = (select id from pg_temp.sale_test_ids where name = 'a');
 
 -- P1 aparta dos V en A.
@@ -207,7 +270,28 @@ declare
   v_p2 uuid := (select id from pg_temp.sale_test_ids where name = 'p2');
   v_seller uuid := (select id from pg_temp.sale_test_ids where name = 'seller');
   v_sale wm.sales;
+  v_rejected boolean := false;
 begin
+  begin
+    perform wm.create_sale(v_a, null, '[]'::jsonb, 0, 1,
+      pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+        'variant_id', v_v, 'description', 'V', 'quantity', 2,
+        'unit_price', 10, 'cost', 0)),
+      p_status => 'Pendiente', p_seller_id => v_seller,
+      p_online_order_id => v_p2);
+  exception when others then
+    if sqlerrm not like '%Un pedido online solo se convierte con una venta pagada%' then raise; end if;
+    v_rejected := true;
+  end;
+  if not v_rejected
+     or (select status from wm.online_orders where id = v_p2) <> 'aceptada'
+     or (select count(*) from wm.online_order_items
+          where order_id = v_p2 and sale_id is null and released_at is null) <> 2
+     or (select quantity from wm.inventory where variant_id = v_v and branch_id = v_a) <> 3
+     or exists (select 1 from wm.sales where online_order_id = v_p2) then
+    raise exception 'venta pendiente convirtió P2 o alteró su stock';
+  end if;
+
   v_sale := wm.create_sale(v_a, null, '[]'::jsonb, 0, 1,
     pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
       'variant_id', v_v, 'description', 'V', 'quantity', 2,
