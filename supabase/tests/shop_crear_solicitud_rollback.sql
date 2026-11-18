@@ -117,6 +117,13 @@ begin
      <> v_result->'order'->>'order_id' then
     raise exception 'reintento creó otra solicitud';
   end if;
+  v_result := shop.crear_solicitud(pg_catalog.jsonb_set(
+    v_payload, '{customer,phone}', '"+584141234568"'::jsonb));
+  if v_result->>'code' <> 'invalid_input'
+     or v_result->>'message' <> 'Identificador de solicitud ya usado'
+     or v_result ? 'order' then
+    raise exception 'request_id reutilizado con otro teléfono expuso pedido: %', v_result;
+  end if;
 end $$;
 reset role;
 
@@ -163,6 +170,18 @@ begin
     raise exception 'teléfono no E.164 aceptado';
   end if;
   v_payload := pg_catalog.jsonb_set(v_base, '{request_id}', pg_catalog.to_jsonb(gen_random_uuid()));
+  v_payload := pg_catalog.jsonb_set(v_payload, '{customer,email}',
+    pg_catalog.to_jsonb(pg_catalog.repeat('a', 250) || '@x.com'));
+  if shop.crear_solicitud(v_payload)->>'code' <> 'invalid_input' then
+    raise exception 'correo de más de 254 caracteres aceptado';
+  end if;
+  v_payload := pg_catalog.jsonb_set(v_base, '{request_id}', pg_catalog.to_jsonb(gen_random_uuid()));
+  v_payload := pg_catalog.jsonb_set(v_payload, '{customer,name}',
+    pg_catalog.to_jsonb(E'Cliente\nT5'::text));
+  if shop.crear_solicitud(v_payload)->>'code' <> 'invalid_input' then
+    raise exception 'nombre con carácter de control aceptado';
+  end if;
+  v_payload := pg_catalog.jsonb_set(v_base, '{request_id}', pg_catalog.to_jsonb(gen_random_uuid()));
   v_payload := pg_catalog.jsonb_set(v_payload, '{items}',
     (v_base->'items') || (v_base->'items'));
   if shop.crear_solicitud(v_payload)->>'code' <> 'invalid_input' then
@@ -173,14 +192,13 @@ begin
   if shop.crear_solicitud(v_payload)->>'code' <> 'too_many_units' then
     raise exception 'tope por línea no aplicado';
   end if;
-  for v_idx in 1..21 loop
-    v_many := v_many || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
-      'variant_id', gen_random_uuid(), 'branch_id', v_branch, 'quantity', 1));
-  end loop;
+  select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+    'variant_id', gen_random_uuid(), 'branch_id', v_branch, 'quantity', 1))
+    into v_many from pg_catalog.generate_series(1, 1000) as n;
   v_payload := pg_catalog.jsonb_set(v_base, '{request_id}', pg_catalog.to_jsonb(gen_random_uuid()));
   v_payload := pg_catalog.jsonb_set(v_payload, '{items}', v_many);
   if shop.crear_solicitud(v_payload)->>'code' <> 'too_many_lines' then
-    raise exception 'tope de líneas no aplicado';
+    raise exception 'tope temprano de 1000 líneas no aplicado';
   end if;
   -- A missing/invalid JSON shape must be a business error, not a cast exception.
   v_payload := pg_catalog.jsonb_set(v_base, '{request_id}', pg_catalog.to_jsonb(gen_random_uuid()));
@@ -250,6 +268,62 @@ begin
   end if;
 end $$;
 reset role;
+
+-- Simula una despublicación entre la comprobación y el INSERT de líneas.
+do $$
+declare
+  v_request_id uuid := gen_random_uuid();
+  v_payload jsonb := (select payload from pg_temp.shop_request_test where name = 'main');
+begin
+  v_payload := pg_catalog.jsonb_set(v_payload, '{request_id}', pg_catalog.to_jsonb(v_request_id));
+  v_payload := pg_catalog.jsonb_set(v_payload, '{customer,phone}', '"+584141234570"'::jsonb);
+  insert into pg_temp.shop_request_test (name, id, payload)
+    values ('race', v_request_id, v_payload);
+end $$;
+create or replace function pg_temp.t5_unpublish_on_order()
+returns trigger language plpgsql security definer set search_path = '' as $function$
+begin
+  if new.customer_phone = '+584141234570' then
+    update wm.products set visible_in_catalog = false
+     where id = (select v.product_id from wm.product_variants v
+                  where v.id = (select id from pg_temp.shop_request_test where name = 'main'));
+  end if;
+  return new;
+end
+$function$;
+drop trigger if exists t5_unpublish_on_order on wm.online_orders;
+create trigger t5_unpublish_on_order after insert on wm.online_orders
+  for each row execute function pg_temp.t5_unpublish_on_order();
+
+set local role storefront;
+do $$
+declare
+  v_payload jsonb := (select payload from pg_temp.shop_request_test where name = 'race');
+  v_failed boolean := false;
+begin
+  begin
+    perform shop.crear_solicitud(v_payload);
+  exception when others then
+    if sqlerrm not like 'No se insertaron todas las líneas de la solicitud%' then
+      raise;
+    end if;
+    v_failed := true;
+  end;
+  if not v_failed then
+    raise exception 'despublicación concurrente creó una solicitud parcial';
+  end if;
+end $$;
+reset role;
+
+do $$
+begin
+  if exists (select 1 from wm.online_orders
+             where request_id = (select id from pg_temp.shop_request_test where name = 'race'))
+     or not exists (select 1 from shop.variants
+                     where variant_id = (select id from pg_temp.shop_request_test where name = 'main')) then
+    raise exception 'la excepción de línea parcial no revirtió la orden y despublicación';
+  end if;
+end $$;
 
 do $$
 begin

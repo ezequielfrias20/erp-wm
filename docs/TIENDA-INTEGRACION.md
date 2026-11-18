@@ -307,7 +307,7 @@ Con 30 o más ids, `any(...::uuid[])` está bien (un solo parámetro de tipo arr
    - Regla: quitar todo lo que no sea dígito o `+`; si empieza con `0`, quitar el `0` y anteponer
      `+58`; si empieza con `58` sin `+`, anteponer `+`; si tiene 10 dígitos que empiezan por `4`,
      anteponer `+58`. El resultado debe cumplir `^\+[1-9][0-9]{7,14}$`.
-4. Valida forma: nombre 2–120 caracteres, correo válido si viene, cédula `^[VEJPG]-?\d{5,10}$`
+4. Valida forma: nombre 2–120 caracteres sin caracteres de control, correo válido de hasta 254 caracteres si viene, cédula `^[VEJPG]-?\d{5,10}$`
    (opcional), nota ≤ 500 caracteres, líneas no vacías, cantidades enteras ≥ 1.
 5. Genera un `request_id` (UUID v4) **por intento de checkout** y reutilízalo si reintentas la
    misma petición (evita solicitudes duplicadas).
@@ -340,6 +340,7 @@ const [{ result }] = await erp`
 ```
 
 - `email`, `document`, `notes`, `source_ip` son opcionales (`null` o ausentes).
+- `email`, si viene, debe tener como máximo 254 caracteres.
 - Una misma `variant_id` + `branch_id` no debe repetirse: suma las cantidades en una línea.
 - **No mandes precios.** Si los mandas, se ignoran.
 
@@ -370,6 +371,8 @@ const [{ result }] = await erp`
 
 Si repites la llamada con el mismo `request_id`, recibes la misma solicitud (`ok: true`), sin
 crear otra ni apartar dos veces.
+Si reutilizas ese `request_id` con otro teléfono, recibes `invalid_input` con el mensaje
+`Identificador de solicitud ya usado` y no se devuelve ningún dato del pedido existente.
 
 **Salida con error de negocio** (no es excepción; `ok: false`):
 
@@ -408,6 +411,8 @@ Cualquier **excepción** de Postgres (red, timeout, error inesperado) → mensaj
   `notifySolicitudRecibida(order, customer)`. Hoy envía correo; cuando el negocio active la API de
   WhatsApp (Meta), ahí mismo se añadirá el envío por WhatsApp, sin tocar el resto.
 - Vacía el carrito.
+- Al reintentar, compara `soft_expires_at` con la hora actual antes de mostrar un apartado vigente:
+  una solicitud vencida se devuelve todavía con `status: "solicitada"`, aunque su apartado ya terminó.
 
 ---
 

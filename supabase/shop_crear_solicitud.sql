@@ -18,14 +18,12 @@ declare
   v_document text;
   v_notes text;
   v_source_ip pg_catalog.inet;
-  v_variant uuid;
-  v_branch uuid;
-  v_quantity int;
   v_total_units bigint := 0;
   v_settings wm.online_settings;
   v_stock int;
   v_available int;
   v_result jsonb;
+  v_inserted_count bigint;
 begin
   -- Serialize retries before reading the existing order. Canonical UUID text
   -- also makes case variations of a request_id take the same advisory lock.
@@ -40,13 +38,34 @@ begin
     pg_catalog.hashtextextended('shop:' || v_request_id::text, 0));
   select * into v_order from wm.online_orders where request_id = v_request_id;
 
-  if not found then
-    v_customer := p_request->'customer';
+  v_customer := p_request->'customer';
+  if pg_catalog.jsonb_typeof(v_customer) is distinct from 'object'
+     or pg_catalog.jsonb_typeof(v_customer->'phone') is distinct from 'string'
+     or (v_customer->>'phone') !~ '^\+[1-9][0-9]{7,14}$' then
+    return pg_catalog.jsonb_build_object('ok', false, 'code', 'invalid_input',
+      'message', 'Revisa los datos de la solicitud.');
+  end if;
+  v_phone := v_customer->>'phone';
+  if v_order.id is not null and v_order.customer_phone is distinct from v_phone then
+    return pg_catalog.jsonb_build_object('ok', false, 'code', 'invalid_input',
+      'message', 'Identificador de solicitud ya usado');
+  end if;
+
+  if v_order.id is null then
+    select * into v_settings from wm.online_settings where id = 1;
+    if not found then
+      raise exception 'Falta la configuración de pedidos online';
+    end if;
+    if pg_catalog.jsonb_typeof(p_request->'items') = 'array' then
+      if pg_catalog.jsonb_array_length(p_request->'items') > v_settings.max_lines then
+        return pg_catalog.jsonb_build_object('ok', false, 'code', 'too_many_lines',
+          'message', 'El pedido tiene demasiadas líneas.');
+      end if;
+    end if;
     if pg_catalog.jsonb_typeof(v_customer) is distinct from 'object'
        or pg_catalog.jsonb_typeof(v_customer->'name') is distinct from 'string'
-       or pg_catalog.jsonb_typeof(v_customer->'phone') is distinct from 'string'
        or pg_catalog.char_length(pg_catalog.btrim(v_customer->>'name')) not between 2 and 120
-       or (v_customer->>'phone') !~ '^\+[1-9][0-9]{7,14}$'
+       or (v_customer->>'name') ~ '[[:cntrl:]]'
        or pg_catalog.jsonb_typeof(p_request->'items') is distinct from 'array' then
       return pg_catalog.jsonb_build_object('ok', false, 'code', 'invalid_input',
         'message', 'Revisa los datos de la solicitud.');
@@ -56,7 +75,6 @@ begin
         'message', 'El pedido debe contener al menos una línea.');
     end if;
     v_name := pg_catalog.btrim(v_customer->>'name');
-    v_phone := v_customer->>'phone';
 
     if (v_customer ? 'email' and pg_catalog.jsonb_typeof(v_customer->'email') not in ('string', 'null'))
        or (v_customer ? 'document' and pg_catalog.jsonb_typeof(v_customer->'document') not in ('string', 'null'))
@@ -68,7 +86,8 @@ begin
     v_email := v_customer->>'email';
     v_document := v_customer->>'document';
     v_notes := p_request->>'notes';
-    if (v_email is not null and v_email !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$')
+    if (v_email is not null and (pg_catalog.char_length(v_email) > 254
+                                or v_email !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$'))
        or (v_document is not null and v_document !~ '^[VEJPG]-?[0-9]{5,10}$')
        or pg_catalog.char_length(v_notes) > 500 then
       return pg_catalog.jsonb_build_object('ok', false, 'code', 'invalid_input',
@@ -99,27 +118,18 @@ begin
         return pg_catalog.jsonb_build_object('ok', false, 'code', 'invalid_input',
           'message', 'Revisa las líneas de la solicitud.');
       end if;
-      v_variant := (v_item->>'variant_id')::uuid;
-      v_branch := (v_item->>'branch_id')::uuid;
-      v_quantity := (v_item->>'quantity')::int;
-      if exists (select 1 from pg_catalog.jsonb_to_recordset(v_items)
-                   as i(variant_id uuid, branch_id uuid, quantity int)
-                 where i.variant_id = v_variant and i.branch_id = v_branch) then
-        return pg_catalog.jsonb_build_object('ok', false, 'code', 'invalid_input',
-          'message', 'Hay una variante repetida en la misma sucursal.');
-      end if;
       v_items := v_items || pg_catalog.jsonb_build_array(
-        pg_catalog.jsonb_build_object('variant_id', v_variant, 'branch_id', v_branch,
-                                      'quantity', v_quantity));
+        pg_catalog.jsonb_build_object('variant_id', (v_item->>'variant_id')::uuid,
+          'branch_id', (v_item->>'branch_id')::uuid,
+          'quantity', (v_item->>'quantity')::int));
     end loop;
-
-    select * into v_settings from wm.online_settings where id = 1;
-    if not found then
-      raise exception 'Falta la configuración de pedidos online';
-    end if;
-    if pg_catalog.jsonb_array_length(v_items) > v_settings.max_lines then
-      return pg_catalog.jsonb_build_object('ok', false, 'code', 'too_many_lines',
-        'message', 'El pedido tiene demasiadas líneas.');
+    if exists (
+      select 1 from pg_catalog.jsonb_to_recordset(v_items)
+        as i(variant_id uuid, branch_id uuid)
+      group by i.variant_id, i.branch_id having pg_catalog.count(*) > 1
+    ) then
+      return pg_catalog.jsonb_build_object('ok', false, 'code', 'invalid_input',
+        'message', 'Hay una variante repetida en la misma sucursal.');
     end if;
     select pg_catalog.sum(i.quantity) into v_total_units
       from pg_catalog.jsonb_to_recordset(v_items) as i(quantity int);
@@ -194,6 +204,11 @@ begin
         as i(variant_id uuid, branch_id uuid, quantity int)
       join shop.variants v on v.variant_id = i.variant_id
       join wm.products p on p.id = v.product_id;
+    get diagnostics v_inserted_count = row_count;
+    if v_inserted_count <> pg_catalog.jsonb_array_length(v_items) then
+      raise exception 'No se insertaron todas las líneas de la solicitud (% de %)',
+        v_inserted_count, pg_catalog.jsonb_array_length(v_items);
+    end if;
   end if;
 
   -- Rebuild from stored lines on every retry, including expired orders.
