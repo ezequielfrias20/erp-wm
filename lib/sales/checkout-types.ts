@@ -41,6 +41,7 @@ export type CheckoutInput = {
   items: CheckoutItem[];
   status?: "Pagada" | "Pendiente";
   cashea?: CasheaInput;
+  online_order_id?: string;
 };
 
 export type CheckoutResult = {

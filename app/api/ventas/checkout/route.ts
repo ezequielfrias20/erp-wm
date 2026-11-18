@@ -8,6 +8,8 @@ import { isSameOrigin } from "@/lib/same-origin";
 import { REQUEST_ID_RE } from "@/lib/sales/checkout-types";
 import type { CheckoutInput, CheckoutResult } from "@/lib/sales/checkout-types";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Registro de la venta del POS.
  *
@@ -38,6 +40,9 @@ function validate(input: CheckoutInput): string | null {
   }
   if (!input.branch_id) return "No hay sucursal seleccionada.";
   if (!REQUEST_ID_RE.test(input.request_id ?? "")) return "Identificador de operación inválido.";
+  if (input.online_order_id != null && !UUID_RE.test(input.online_order_id)) {
+    return "Identificador de pedido online inválido.";
+  }
   return null;
 }
 
@@ -81,6 +86,7 @@ export async function POST(request: Request) {
     p_status: input.status ?? "Pagada",
     p_cashea: input.cashea ?? null,
     p_seller_id: input.seller_id,
+    p_online_order_id: input.online_order_id ?? null,
   });
 
   if (error) return json(400, { error: error.message });
