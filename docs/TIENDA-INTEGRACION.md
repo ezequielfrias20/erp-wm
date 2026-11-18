@@ -44,8 +44,11 @@ La tienda **solo** interviene hasta la confirmación. Todo lo posterior ocurre e
 2. **Rol de base de datos `storefront`.** Es la única credencial que usa la tienda. Puede:
    - `SELECT` sobre las vistas del esquema `shop`.
    - `EXECUTE` sobre `shop.crear_solicitud`.
-   - **Nada más.** No tiene acceso al esquema `wm` (los datos del ERP), ni a `public`, `auth`,
-     `storage`. Si una consulta tuya toca otra cosa, fallará con `permission denied`: es lo esperado.
+   - No puede leer datos de `public`, `auth`, `storage` ni `wm`: no tiene permisos sobre sus
+     tablas o vistas ni puede ejecutar funciones privilegiadas accesibles fuera de `shop`.
+     Como cualquier rol de PostgreSQL, puede ver el esquema `public` y crear tablas temporales
+     en su propia sesión; eso no expone datos del ERP. Si intentas leer esas tablas, recibirás
+     `permission denied`: es lo esperado.
 3. **No uses** la `service_role`, la anon key ni ninguna credencial del ERP. Si alguien te las
    ofrece, recházalas.
 4. **El esquema `shop` no está en la API REST** (PostgREST). Se accede por conexión Postgres.

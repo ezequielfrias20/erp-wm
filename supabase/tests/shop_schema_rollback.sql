@@ -1,8 +1,8 @@
--- Run from repository root. This transaction touches production data but rolls back.
+-- Run from repository root against a local Supabase copy; all fixture changes roll back.
 \set ON_ERROR_STOP 1
 begin;
 
--- R1: never consume a production invoice or online-order sequence value.
+-- R1: sequence values do not roll back, so use test defaults before inserts.
 alter table wm.sales alter column invoice_number
   set default ('TEST-' || gen_random_uuid()::text);
 do $$ begin
@@ -139,12 +139,24 @@ declare
   v_expected record;
   v_columns text[];
   v_setting text;
+  v_privileged_function_count int;
+  v_privileged_functions text;
+  v_usable_schemas text[];
   v_variant uuid := (select id from pg_temp.shop_test_ids where name = 'variant');
   v_branch uuid := (select id from pg_temp.shop_test_ids where name = 'branch');
   v_off uuid := (select id from pg_temp.shop_test_ids where name = 'off_branch');
   v_product uuid := (select id from pg_temp.shop_test_ids where name = 'complete');
   v_order uuid;
 begin
+  select pg_catalog.array_agg(n.nspname::text order by n.nspname)
+    into v_usable_schemas
+  from pg_catalog.pg_namespace n
+  where pg_catalog.has_schema_privilege('storefront', n.oid, 'USAGE')
+    and n.nspname !~ '^pg_(toast_)?temp_' and n.nspname <> 'pg_toast';
+  if v_usable_schemas is distinct from
+     array['information_schema', 'pg_catalog', 'public', 'shop']::text[] then
+    raise exception 'esquemas utilizables por storefront inesperados: %', v_usable_schemas;
+  end if;
   foreach v_schema in array array['wm', 'auth', 'storage'] loop
     if pg_catalog.has_schema_privilege('storefront', v_schema, 'USAGE')
        or pg_catalog.has_schema_privilege('storefront', v_schema, 'CREATE') then
@@ -175,6 +187,36 @@ begin
         v_relation.nspname, v_relation.relname;
     end if;
   end loop;
+  for v_relation in
+    select n.nspname, c.oid, c.relname from pg_catalog.pg_class c
+    join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+    where n.nspname not in ('shop', 'pg_catalog', 'information_schema', 'pg_toast')
+      and n.nspname !~ '^pg_(toast_)?temp_'
+      and pg_catalog.has_schema_privilege('storefront', n.oid, 'USAGE')
+      and c.relkind in ('r', 'p', 'v', 'm', 'f')
+  loop
+    if pg_catalog.has_table_privilege('storefront', v_relation.oid, 'SELECT') then
+      raise exception 'storefront puede leer %.% fuera de shop',
+        v_relation.nspname, v_relation.relname;
+    end if;
+  end loop;
+  select count(*)::int,
+         pg_catalog.string_agg(
+           pg_catalog.format('%I.%I(%s)', n.nspname, p.proname,
+             pg_catalog.pg_get_function_identity_arguments(p.oid)), ', '
+           order by n.nspname, p.proname, p.oid)
+    into v_privileged_function_count, v_privileged_functions
+  from pg_catalog.pg_proc p
+  join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+  where p.prosecdef
+    and n.nspname not in ('shop', 'pg_catalog', 'information_schema', 'pg_toast')
+    and n.nspname !~ '^pg_(toast_)?temp_'
+    and pg_catalog.has_schema_privilege('storefront', n.oid, 'USAGE')
+    and pg_catalog.has_function_privilege('storefront', p.oid, 'EXECUTE');
+  if v_privileged_function_count <> 0 then
+    raise exception 'storefront puede ejecutar funciones SECURITY DEFINER fuera de shop: %',
+      v_privileged_functions;
+  end if;
   for v_expected in
     select * from (values
       ('store_settings', array['company_name','logo_url','logo_dark_url','favicon_url','primary_color','accent_color','store_whatsapp','soft_hold_minutes','max_units_per_line','max_units_per_order','max_lines','max_open_per_phone','display_stock_cap']),
