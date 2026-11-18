@@ -670,9 +670,17 @@ export function PosView({
 
   function restoreDraft(d: PosDraft) {
     const newCart: Record<string, CartLine> = {};
+    const changed: string[] = [];
     for (const l of d.lines) {
       const current = productsByVariant.get(l.variant_id);
-      if (!current || current.stock <= 0) continue;
+      const label = [l.product_name, l.color, l.size].filter(Boolean).join(" · ");
+      if (!current || current.stock <= 0) {
+        changed.push(`${label}: eliminado (sin disponibilidad)`);
+        continue;
+      }
+      if (l.qty > current.stock) {
+        changed.push(`${label}: ${l.qty} → ${current.stock} disponibles`);
+      }
       newCart[l.variant_id] = {
         ...l,
         product_id: current.product_id,
@@ -695,6 +703,9 @@ export function PosView({
     setSingleReference("");
     setDraftsOpen(false);
     toast.success("Borrador restaurado");
+    if (changed.length > 0) {
+      toast.warning(`Se ajustó el borrador por disponibilidad: ${changed.join("; ")}`);
+    }
   }
 
   function deleteDraft(id: string) {
@@ -1219,8 +1230,9 @@ export function PosView({
                 <button
                   key={p.variant_id}
                   onClick={() => add(p)}
+                  aria-disabled={p.stock <= 0}
                   title={variantDescription(p)}
-                  className="hoverlift flex min-h-[220px] flex-col overflow-hidden rounded-2xl border border-border bg-card text-left shadow-card-sm sm:min-h-[258px]"
+                  className={cn("hoverlift flex min-h-[220px] flex-col overflow-hidden rounded-2xl border border-border bg-card text-left shadow-card-sm sm:min-h-[258px]", p.stock <= 0 && "opacity-50")}
                 >
                   <ProductHero
                     product={p}

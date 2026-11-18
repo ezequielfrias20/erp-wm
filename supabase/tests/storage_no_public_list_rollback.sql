@@ -32,6 +32,7 @@ begin
       and policyname = 'wm_authenticated_read' and cmd = 'SELECT'
       and roles = array['authenticated'::name]
       and qual ~ $re$bucket_id[[:space:]]*=[[:space:]]*'wm-public'$re$
+      and qual ~ $re$wm[.]is_member\(\)$re$
   ) then
     raise exception 'falta wm_authenticated_read para wm-public y authenticated';
   end if;
@@ -65,5 +66,45 @@ begin
 
   raise notice 'OK: wm-public sigue público sin listado anónimo; políticas autenticadas preservadas';
 end $$;
+
+-- Verificación real de RLS: un objeto visible para un miembro no aparece para anon.
+select set_config('wm_test.storage_object', 'test/' || gen_random_uuid()::text || '.png', true);
+insert into storage.objects (bucket_id, name)
+values ('wm-public', current_setting('wm_test.storage_object', true));
+
+set local role anon;
+do $$
+begin
+  if (select count(*) from storage.objects
+      where bucket_id = 'wm-public' and name = current_setting('wm_test.storage_object', true)) <> 0 then
+    raise exception 'anon pudo listar wm-public';
+  end if;
+end $$;
+reset role;
+
+set local role authenticated;
+do $$
+begin
+  if (select count(*) from storage.objects
+      where bucket_id = 'wm-public' and name = current_setting('wm_test.storage_object', true)) <> 0 then
+    raise exception 'usuario autenticado ajeno al ERP pudo listar wm-public';
+  end if;
+end $$;
+reset role;
+
+select user_id as admin_user_id from wm.profiles
+where role = 'Super Admin' and status = 'Activo' and system_access = true
+  and user_id is not null order by id limit 1 \gset
+select set_config('request.jwt.claims',
+  json_build_object('sub', :'admin_user_id', 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$
+begin
+  if (select count(*) from storage.objects
+      where bucket_id = 'wm-public' and name = current_setting('wm_test.storage_object', true)) < 1 then
+    raise exception 'miembro ERP no pudo listar wm-public';
+  end if;
+end $$;
+reset role;
 
 rollback;

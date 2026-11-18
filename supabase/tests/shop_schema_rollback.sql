@@ -75,17 +75,19 @@ begin
     values ('T4A-' || v_tag, 'Prueba', 'T4 online', true) returning id into v_branch;
   insert into wm.branches (code, city, name, online_enabled)
     values ('T4B-' || v_tag, 'Prueba', 'T4 offline', false) returning id into v_off_branch;
-  insert into pg_temp.shop_test_ids values ('branch', v_branch), ('off_branch', v_off_branch);
+  insert into pg_temp.shop_test_ids values ('branch', v_branch), ('off_branch', v_off_branch),
+    ('red', v_red), ('blue', v_blue);
 
   foreach v_case in array array[
     'complete', 'hidden', 'category', 'firstLevel', 'brand', 'description',
     'attribute', 'photoTwoColors', 'generalOneColor', 'noColorNoPhoto',
-    'price', 'variantColor', 'optionMissing', 'optionWrong', 'inactive'
+    'price', 'variantColor', 'optionMissing', 'optionWrong', 'inactive', 'noSlug'
   ] loop
     insert into wm.products (name, slug, description, category_id, brand_id,
                              is_active, visible_in_catalog)
     values ('T4 ' || v_case || ' ' || v_tag,
-            't4-' || pg_catalog.lower(v_case) || '-' || v_tag,
+            case when v_case = 'noSlug' then null
+                 else 't4-' || pg_catalog.lower(v_case) || '-' || v_tag end,
             case when v_case = 'description' then E'  \t ' else 'T4 description' end,
             case when v_case = 'category' then null
                  when v_case = 'firstLevel' then v_parent
@@ -124,7 +126,7 @@ begin
       insert into pg_temp.shop_test_ids values ('cap_variant', v_variant);
     end if;
     insert into pg_temp.shop_test_ids values (v_case, v_product);
-    v_expected := v_case in ('complete', 'hidden', 'generalOneColor', 'inactive');
+    v_expected := v_case in ('complete', 'hidden', 'generalOneColor', 'inactive', 'noSlug');
     if wm.product_is_shop_ready(v_product) is distinct from v_expected then
       raise exception 'readiness parity failed for % (expected %)', v_case, v_expected;
     end if;
@@ -146,6 +148,7 @@ declare
   v_branch uuid := (select id from pg_temp.shop_test_ids where name = 'branch');
   v_off uuid := (select id from pg_temp.shop_test_ids where name = 'off_branch');
   v_product uuid := (select id from pg_temp.shop_test_ids where name = 'complete');
+  v_photo_product uuid := (select id from pg_temp.shop_test_ids where name = 'photoTwoColors');
   v_order uuid;
 begin
   select pg_catalog.array_agg(n.nspname::text order by n.nspname)
@@ -269,11 +272,37 @@ begin
      or (select main_photo from shop.products where product_id =
            (select id from pg_temp.shop_test_ids where name = 'generalOneColor')) is null
      or (select count(*) from shop.products where product_id = (select id from pg_temp.shop_test_ids where name = 'hidden')) <> 0
+     or (select count(*) from shop.products where product_id = (select id from pg_temp.shop_test_ids where name = 'noSlug')) <> 0
      or (select count(*) from shop.products where product_id = (select id from pg_temp.shop_test_ids where name = 'description')) <> 0
      or (select count(*) from shop.variants where product_id = (select id from pg_temp.shop_test_ids where name = 'price')) <> 0
      or (select count(*) from shop.branches where branch_id = v_off) <> 0
      or (select count(*) from shop.availability where branch_id = v_off) <> 0 then
     raise exception 'filtros de publicación incorrectos';
+  end if;
+  -- Entre colores activos, nombre antes que sort_order; luego activo antes que inactivo.
+  insert into wm.product_media (product_id, color_id, path)
+  values (v_photo_product, (select id from pg_temp.shop_test_ids where name = 'blue'), 't4/active-blue.webp');
+  update wm.colors set name = 'Z rojo ' || gen_random_uuid()::text
+   where id = (select id from pg_temp.shop_test_ids where name = 'red');
+  update wm.colors set name = 'A azul ' || gen_random_uuid()::text
+   where id = (select id from pg_temp.shop_test_ids where name = 'blue');
+  if (select main_photo from shop.products where product_id = v_photo_product)
+     is distinct from 't4/active-blue.webp' then
+    raise exception 'main_photo no ordenó colores activos por nombre';
+  end if;
+  update wm.colors set name = 'A inactivo ' || gen_random_uuid()::text, is_active = false
+   where id = (select id from pg_temp.shop_test_ids where name = 'red');
+  update wm.colors set name = 'Z activo ' || gen_random_uuid()::text
+   where id = (select id from pg_temp.shop_test_ids where name = 'blue');
+  if (select main_photo from shop.products where product_id = v_photo_product)
+     is distinct from 't4/active-blue.webp' then
+    raise exception 'main_photo no priorizó el color activo';
+  end if;
+  insert into wm.product_media (product_id, color_id, path)
+  values (v_photo_product, null, 't4/general.webp');
+  if (select main_photo from shop.products where product_id = v_photo_product)
+     is distinct from 't4/general.webp' then
+    raise exception 'main_photo no priorizó la foto general';
   end if;
   if (select available from shop.availability where variant_id = v_variant and branch_id = v_branch) <> 3
      or (select available_total from shop.variants where variant_id = v_variant) <> 3

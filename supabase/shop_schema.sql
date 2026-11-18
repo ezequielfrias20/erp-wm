@@ -77,7 +77,7 @@ join wm.v_product_shop_ready r on r.product_id = p.id and r.ready
 join wm.categories c on c.id = p.category_id and c.is_active
 join wm.categories d on d.id = c.parent_id and d.is_active
 join wm.brands b on b.id = p.brand_id and b.is_active
-where p.is_active and p.visible_in_catalog
+where p.is_active and p.visible_in_catalog and p.slug is not null
   and exists (select 1 from wm.product_variants v
               where v.product_id = p.id and v.is_active and v.price > 0);
 revoke all on wm.v_published_shop_products from public, anon, authenticated, storefront;
@@ -209,7 +209,8 @@ left join lateral (
   where m.product_id = p.id
     and exists (select 1 from wm.product_variants v
                 where v.product_id = p.id and v.is_active and v.color_id = col.id)
-  order by col.sort_order, col.name, col.id, m.sort_order, m.id limit 1
+  order by col.is_active desc, pg_catalog.lower(col.name), col.id,
+           m.sort_order, m.id limit 1
 ) color_main on true;
 
 create or replace view shop.variants as

@@ -246,11 +246,14 @@ begin
   end if;
   if p_hours is null then
     select firm_hold_hours into v_hours from wm.online_settings where id = 1;
+    if not found then
+      raise exception 'Falta la configuración de pedidos online';
+    end if;
   else
     v_hours := p_hours;
   end if;
-  if v_hours is null or v_hours <= 0 then
-    raise exception 'Las horas de extensión deben ser mayores que cero';
+  if v_hours is null or v_hours < 1 or v_hours > 168 then
+    raise exception 'Las horas de extensión deben estar entre 1 y 168';
   end if;
   if v_order.firm_expires_at <= pg_catalog.now() then
     for v_candidate in

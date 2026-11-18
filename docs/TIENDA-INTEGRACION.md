@@ -182,7 +182,7 @@ Solo se listan categorías con al menos un producto publicado (y sus departament
 | Columna | Tipo | Notas |
 |---|---|---|
 | `product_id` | uuid | |
-| `slug` | text | Para la URL de la ficha. Único. |
+| `slug` | text | Para la URL de la ficha. Único y siempre presente en productos publicados. |
 | `name` | text | |
 | `description` | text | |
 | `specs` | jsonb | Ficha técnica: `[{ "label": "Tela", "value": "Poliéster 72%…" }]`. |
@@ -193,7 +193,7 @@ Solo se listan categorías con al menos un producto publicado (y sus departament
 | `option_type_code`, `option_type_name` | text, null | Eje de variante de la categoría (p. ej. `talla`/`Talla`). |
 | `attributes` | jsonb | `[{ "code": "genero", "attribute": "Género", "values": ["Dama"] }]`. |
 | `general_photos` | jsonb | Rutas de fotos generales en orden: `["product-images/<id>/<media>.webp", …]`. |
-| `main_photo` | text, null | Ruta de la foto principal (ya resuelta por el ERP). |
+| `main_photo` | text, null | Ruta de la foto principal: primero foto general; si no hay, foto de color activo ordenado por nombre. |
 | `price_min`, `price_max` | numeric | Rango de precio de sus variantes publicadas. |
 | `in_stock` | boolean | Alguna variante con disponibilidad > 0 en alguna sucursal online. |
 | `updated_at` | timestamptz | Último cambio del producto. |

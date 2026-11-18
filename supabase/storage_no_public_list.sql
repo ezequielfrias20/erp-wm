@@ -4,4 +4,4 @@ drop policy if exists "wm_public_read" on storage.objects;
 drop policy if exists "wm_authenticated_read" on storage.objects;
 
 create policy "wm_authenticated_read" on storage.objects
-  for select to authenticated using (bucket_id = 'wm-public');
+  for select to authenticated using (bucket_id = 'wm-public' and wm.is_member());

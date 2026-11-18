@@ -234,6 +234,7 @@ declare
   v_collision_item uuid := (select id from pg_temp.staff_test_ids where name = 'collision_item');
   v_order wm.online_orders;
   v_prior_expiry timestamptz;
+  v_hours int;
   v_rejected boolean;
 begin
   v_order := wm.online_order_accept(v_accept);
@@ -360,6 +361,16 @@ begin
   if v_order.firm_expires_at <> v_prior_expiry + interval '24 hours' then
     raise exception 'extend no sumó 24 h al apartado firme';
   end if;
+  foreach v_hours in array array[0, -1, 169] loop
+    v_rejected := false;
+    begin
+      perform wm.online_order_extend(v_extend, v_hours);
+    exception when others then
+      if sqlerrm not like '%Las horas de extensión deben estar entre 1 y 168%' then raise; end if;
+      v_rejected := true;
+    end;
+    if not v_rejected then raise exception 'extend aceptó % horas', v_hours; end if;
+  end loop;
   v_rejected := false;
   begin
     perform wm.online_order_extend(v_extend_expired);
@@ -386,6 +397,23 @@ begin
   end if;
 end $$;
 reset role;
+
+-- El borrado de settings se hace como postgres; la llamada se prueba como miembro ERP.
+delete from wm.online_settings where id = 1;
+set local role authenticated;
+do $$
+declare v_rejected boolean := false;
+begin
+  begin
+    perform wm.online_order_extend((select id from pg_temp.staff_test_ids where name = 'extend'));
+  exception when others then
+    if sqlerrm not like '%Falta la configuración de pedidos online%' then raise; end if;
+    v_rejected := true;
+  end;
+  if not v_rejected then raise exception 'extend aceptó configuración ausente'; end if;
+end $$;
+reset role;
+insert into wm.online_settings (id, firm_hold_hours) values (1, 24);
 
 select set_config('request.jwt.claims',
   json_build_object('sub', (select id from pg_temp.staff_test_ids where name = 'inventory_user'),

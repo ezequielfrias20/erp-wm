@@ -500,7 +500,7 @@ export function InventarioView({
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-3 text-[12px] text-warning">
+                    <td className={cn("px-3 py-3 text-[12px]", r.online_held > 0 ? "text-warning" : "text-text-3")}>
                       {r.online_held > 0 ? r.online_held : "—"}
                     </td>
                     <td className="px-3 py-3 text-right text-[12px] text-text-2">{fmtUSD(r.cost)}</td>
