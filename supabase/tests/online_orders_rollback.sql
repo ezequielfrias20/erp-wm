@@ -82,6 +82,21 @@ begin
      or wm.online_held(v_variant_id, v_branch_id, v_order_id) <> 0 then
     raise exception 'apartado firme o exclusión de pedido incorrectos';
   end if;
+  begin
+    insert into wm.online_orders
+      (request_id, status, customer_name, customer_phone, soft_expires_at, firm_expires_at)
+    values
+      (gen_random_uuid(), 'aceptada', 'Sin vencimiento firme', '+584141234567',
+       now() + interval '30 minutes', null);
+    raise exception 'se aceptó un pedido aceptado sin vencimiento firme';
+  exception when check_violation then
+    null;
+  end;
+  if pg_catalog.pg_get_functiondef(
+    'wm.online_held(uuid, uuid, uuid)'::pg_catalog.regprocedure
+  ) not ilike '%is_member%' then
+    raise exception 'online_held no comprueba membresía para authenticated';
+  end if;
 
   update wm.online_orders set firm_expires_at = now() - interval '1 minute' where id = v_order_id;
   if wm.online_held(v_variant_id, v_branch_id) <> 0

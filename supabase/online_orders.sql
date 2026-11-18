@@ -57,6 +57,19 @@ create table if not exists wm.online_orders (
   updated_at timestamptz not null default now()
 );
 
+do $$
+begin
+  if not exists (
+    select 1 from pg_catalog.pg_constraint
+    where conrelid = 'wm.online_orders'::pg_catalog.regclass
+      and conname = 'online_orders_accepted_has_firm_expiry'
+  ) then
+    alter table wm.online_orders
+      add constraint online_orders_accepted_has_firm_expiry
+      check (status <> 'aceptada' or firm_expires_at is not null);
+  end if;
+end $$;
+
 create index if not exists online_orders_status_created_idx
   on wm.online_orders (status, created_at desc);
 create index if not exists online_orders_customer_phone_idx
@@ -118,7 +131,12 @@ returns int
 language sql stable security definer
 set search_path = ''
 as $$
-  select coalesce(pg_catalog.sum(h.held), 0)::pg_catalog.int4
+  select case
+    -- SECURITY DEFINER cambia current_user al dueño; role conserva el rol de PostgREST.
+    when (current_user = 'authenticated' or pg_catalog.current_setting('role', true) = 'authenticated')
+      and not wm.is_member() then 0
+    else coalesce(pg_catalog.sum(h.held), 0)::pg_catalog.int4
+  end
   from wm.online_holds h
   where h.variant_id = p_variant
     and h.branch_id = p_branch
@@ -131,7 +149,26 @@ create or replace view wm.v_online_orders
 with (security_invoker = true)
 as
 select
-  o.*,
+  o.id,
+  o.number,
+  o.request_id,
+  o.status,
+  o.customer_name,
+  o.customer_phone,
+  o.customer_email,
+  o.customer_document,
+  o.notes,
+  o.soft_expires_at,
+  o.firm_expires_at,
+  o.accepted_by,
+  o.accepted_at,
+  o.closed_by,
+  o.closed_at,
+  o.close_reason,
+  o.customer_id,
+  o.source_ip,
+  o.created_at,
+  o.updated_at,
   case
     when o.status = 'solicitada' and o.soft_expires_at <= now() then 'vencida'
     when o.status = 'aceptada' and o.firm_expires_at <= now() then 'vencida'
