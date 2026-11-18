@@ -653,6 +653,7 @@ export type VInventory = {
   branch_code: string;
   estado: "Agotado" | "Stock bajo" | "En stock";
   stock_value: number;
+  online_held: number;
 }
 
 export type VBranchStats = {

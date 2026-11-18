@@ -99,6 +99,7 @@ export type PosProduct = {
   color_hex: string | null;
   size: string | null;
   stock: number;
+  online_held: number;
 };
 export type PosCustomer = {
   id: string;
@@ -428,7 +429,11 @@ export function PosView({
       const existing = c[p.variant_id];
       const qty = (existing?.qty ?? 0) + 1;
       if (qty > p.stock) {
-        toast.warning(`Solo hay ${p.stock} en stock de ${variantDescription(p)}`);
+        toast.warning(
+          p.online_held > 0
+            ? `Solo hay ${p.stock} disponibles de ${variantDescription(p)} (${p.online_held} apartados para pedidos online)`
+            : `Solo hay ${p.stock} en stock de ${variantDescription(p)}`,
+        );
         return c;
       }
       return { ...c, [p.variant_id]: { ...p, qty } };
@@ -667,14 +672,18 @@ export function PosView({
     const newCart: Record<string, CartLine> = {};
     for (const l of d.lines) {
       const current = productsByVariant.get(l.variant_id);
+      if (!current || current.stock <= 0) continue;
       newCart[l.variant_id] = {
         ...l,
-        product_id: current?.product_id ?? l.product_id ?? l.variant_id,
-        product_image_url: current?.product_image_url ?? l.product_image_url ?? null,
-        aliases: current?.aliases ?? [],
+        product_id: current.product_id,
+        product_image_url: current.product_image_url,
+        aliases: current.aliases,
         brand: l.brand ?? null,
         color: l.color ?? null,
         size: l.size ?? null,
+        stock: current.stock,
+        online_held: current.online_held,
+        qty: Math.min(l.qty, current.stock),
       };
     }
     setCart(newCart);
@@ -1230,6 +1239,7 @@ export function PosView({
                       </div>
                       <div className="flex-none text-[10.5px] font-medium text-text-3">
                         {p.stock} disp.
+                        {p.online_held > 0 && ` · ${p.online_held} apartado(s) online`}
                       </div>
                     </div>
                     <div className="line-clamp-3 text-[13px] leading-snug font-semibold text-foreground">

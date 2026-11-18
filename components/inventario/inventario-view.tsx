@@ -407,7 +407,7 @@ export function InventarioView({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-[1080px] w-full table-fixed border-collapse">
+          <table className="min-w-[1180px] w-full table-fixed border-collapse">
             <thead className="border-b border-border text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
               <tr>
                 <th className="w-[24%] px-[22px] py-2 text-left">Producto</th>
@@ -416,6 +416,7 @@ export function InventarioView({
                 <th className="w-[7%] px-3 py-2 text-left">Talla</th>
                 <th className="w-[11%] px-3 py-2 text-left">Color</th>
                 <th className="w-[14%] px-3 py-2 text-left">Stock</th>
+                <th className="w-[10%] px-3 py-2 text-left">Apartado online</th>
                 <th className="w-[8%] px-3 py-2 text-right">Costo</th>
                 <th className="w-[8%] px-3 py-2 text-right">Precio</th>
                 <th className="w-[11%] px-3 py-2 text-left">Sucursal</th>
@@ -499,6 +500,9 @@ export function InventarioView({
                         </div>
                       </div>
                     </td>
+                    <td className="px-3 py-3 text-[12px] text-warning">
+                      {r.online_held > 0 ? r.online_held : "—"}
+                    </td>
                     <td className="px-3 py-3 text-right text-[12px] text-text-2">{fmtUSD(r.cost)}</td>
                     <td className="px-3 py-3 text-right text-[12.5px] font-medium text-foreground">
                       {fmtUSD(r.price)}
@@ -533,7 +537,7 @@ export function InventarioView({
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="px-[22px] py-10 text-center text-[13px] text-text-3">
+                  <td colSpan={12} className="px-[22px] py-10 text-center text-[13px] text-text-3">
                     No hay productos en esta vista.
                     {canEdit ? " Si el producto es nuevo, usa Agregar inventario." : ""}
                   </td>

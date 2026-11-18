@@ -15,10 +15,12 @@ begin
 end $$;
 
 \i supabase/online_orders.sql
+\i supabase/v_inventory_online_held.sql
 -- En la primera instalación, la tabla nace en el \i anterior.
 alter table wm.online_orders alter column number
   set default ('TEST-' || gen_random_uuid()::text);
 \i supabase/online_orders.sql
+\i supabase/v_inventory_online_held.sql
 
 do $$
 declare
@@ -30,15 +32,19 @@ declare
   v_number text;
   v_count int;
 begin
-  select v.id, b.id into v_variant_id, v_branch_id
-  from wm.product_variants v cross join wm.branches b
+  select i.variant_id, i.branch_id into v_variant_id, v_branch_id
+  from wm.inventory i
   where not exists (
     select 1 from wm.online_holds h
-    where h.variant_id = v.id and h.branch_id = b.id
+    where h.variant_id = i.variant_id and h.branch_id = i.branch_id
   )
   limit 1;
   if v_variant_id is null or v_branch_id is null then
-    raise exception 'prueba sin datos: se requiere una variante y sucursal sin apartados vigentes';
+    raise exception 'prueba sin datos: se requiere una fila de inventario sin apartados vigentes';
+  end if;
+  if (select online_held from wm.v_inventory
+      where variant_id = v_variant_id and branch_id = v_branch_id) is distinct from 0 then
+    raise exception 'v_inventory debe mostrar cero sin apartados vigentes';
   end if;
 
   if (select count(*) from wm.online_settings) <> 1
@@ -63,12 +69,20 @@ begin
      or (select count(*) from wm.online_holds where order_id = v_order_id and held = 2) <> 1 then
     raise exception 'pedido solicitado vigente debe apartar dos unidades';
   end if;
+  if (select online_held from wm.v_inventory
+      where variant_id = v_variant_id and branch_id = v_branch_id) is distinct from 2 then
+    raise exception 'v_inventory no muestra las dos unidades apartadas';
+  end if;
   if (select total from wm.v_online_orders where id = v_order_id) <> 25.00
      or (select branch_count from wm.v_online_orders where id = v_order_id) <> 1 then
     raise exception 'total o cantidad de sucursales incorrectos';
   end if;
 
   update wm.online_orders set soft_expires_at = now() - interval '1 minute' where id = v_order_id;
+  if (select online_held from wm.v_inventory
+      where variant_id = v_variant_id and branch_id = v_branch_id) is distinct from 0 then
+    raise exception 'v_inventory no liberó las unidades al vencer el pedido';
+  end if;
   if wm.online_held(v_variant_id, v_branch_id) <> 0
      or (select effective_status from wm.v_online_orders where id = v_order_id) <> 'vencida'
      or (select status from wm.online_orders where id = v_order_id) <> 'solicitada' then

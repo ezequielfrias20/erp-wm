@@ -7,6 +7,7 @@ import { fetchBcvRate, BCV_FALLBACK } from "@/lib/bcv";
 import { fetchAllRows } from "@/lib/supabase/pagination";
 import { PosView, type PosProduct } from "@/components/ventas/pos-view";
 import { getMainPhotoUrls } from "@/lib/queries/catalog";
+import { sellableStock } from "@/lib/sales/stock";
 
 export const metadata = { title: "Punto de venta · World Medics ERP" };
 
@@ -48,6 +49,7 @@ export default async function VentasPage() {
     color_hex: string | null;
     size: string | null;
     quantity: number;
+    online_held: number;
   };
 
   let customersQ = supabase
@@ -76,7 +78,7 @@ export default async function VentasPage() {
           supabase
             .from("v_inventory")
             .select(
-              "product_id, variant_id, sku, product_name, category, brand, price, cost, color, color_hex, size, quantity",
+              "product_id, variant_id, sku, product_name, category, brand, price, cost, color, color_hex, size, quantity, online_held",
             )
             .eq("branch_id", branchId)
             .gt("quantity", 0)
@@ -136,7 +138,8 @@ export default async function VentasPage() {
     color: r.color,
     color_hex: r.color_hex,
     size: r.size,
-    stock: r.quantity,
+    stock: sellableStock(r.quantity, r.online_held),
+    online_held: r.online_held,
   }));
 
   const s = settingsRes.data;
