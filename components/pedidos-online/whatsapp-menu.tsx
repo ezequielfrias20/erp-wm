@@ -14,13 +14,14 @@ const OPTIONS: { key: TemplateKey; label: string }[] = [
   { key: "por_vencer", label: "Pedido por vencer" },
 ];
 
-export function WhatsAppMenu({ order, groups, templates }: {
+export function WhatsAppMenu({ order, groups, templates, now }: {
   order: OnlineOrderView;
   groups: BranchGroup[];
   templates: Record<TemplateKey, string>;
+  now: number;
 }) {
   if (!buildWhatsAppUrl(order.customerPhone, "")) return null;
-  const vars = templateVars(order, groups, new Date());
+  const vars = templateVars(order, groups, new Date(now));
 
   return <DropdownMenu>
     <DropdownMenuTrigger asChild><Button type="button" variant="outline"><MessageCircle /> WhatsApp</Button></DropdownMenuTrigger>

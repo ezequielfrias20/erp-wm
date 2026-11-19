@@ -44,6 +44,22 @@ const DATETIME_FMT = new Intl.DateTimeFormat("es-VE", {
   minute: "2-digit",
 });
 
+const DATE_CARACAS_FMT = new Intl.DateTimeFormat("es-VE", {
+  timeZone: "America/Caracas",
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+});
+
+const DATETIME_CARACAS_FMT = new Intl.DateTimeFormat("es-VE", {
+  timeZone: "America/Caracas",
+  day: "2-digit",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
 export function fmtDate(d: string | Date | null | undefined): string {
   if (!d) return "—";
   return DATE_FMT.format(new Date(d));
@@ -54,11 +70,16 @@ export function fmtDateTime(d: string | Date | null | undefined): string {
   return DATETIME_FMT.format(new Date(d));
 }
 
+export function fmtDateTimeCaracas(d: string | Date | null | undefined): string {
+  if (!d) return "—";
+  return DATETIME_CARACAS_FMT.format(new Date(d));
+}
+
 /** "hace 5 min" style relative time. */
-export function fmtRelative(d: string | Date | null | undefined): string {
+export function fmtRelative(d: string | Date | null | undefined, now = Date.now()): string {
   if (!d) return "—";
   const date = new Date(d);
-  const diff = Date.now() - date.getTime();
+  const diff = now - date.getTime();
   const min = Math.round(diff / 60000);
   if (min < 1) return "hace un momento";
   if (min < 60) return `hace ${min} min`;
@@ -66,7 +87,7 @@ export function fmtRelative(d: string | Date | null | undefined): string {
   if (hrs < 24) return `hace ${hrs} h`;
   const days = Math.round(hrs / 24);
   if (days < 7) return `hace ${days} días`;
-  return fmtDate(date);
+  return DATE_CARACAS_FMT.format(date);
 }
 
 /** USD -> Bs. usando la tasa BCV. */

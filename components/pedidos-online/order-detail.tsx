@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { reportActionError } from "@/lib/action-error";
-import { fmtDateTime, fmtDual, fmtUSD } from "@/lib/format";
+import { fmtDateTimeCaracas, fmtDual, fmtUSD } from "@/lib/format";
 import { availableActions, groupByBranch, timeLeftLabel } from "@/lib/online-orders/rules";
 import type { OnlineOrderView } from "@/lib/online-orders/types";
 import type { TemplateKey } from "@/lib/online-orders/whatsapp";
@@ -30,13 +30,14 @@ const GROUP_STATE = {
   liberado: { label: "Liberado", className: "bg-surface-2 text-text-3" },
 } as const;
 
-export function OrderDetail({ order, rate, canManage, branches, firmHoldHours, templates }: {
+export function OrderDetail({ order, rate, canManage, branches, firmHoldHours, templates, now }: {
   order: OnlineOrderView;
   rate: number;
   canManage: boolean;
   branches: Branch[];
   firmHoldHours: number;
   templates: Record<TemplateKey, string>;
+  now: number;
 }) {
   const router = useRouter();
   const groups = groupByBranch(order.items);
@@ -92,11 +93,11 @@ export function OrderDetail({ order, rate, canManage, branches, firmHoldHours, t
     <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div>
         <div className="flex flex-wrap items-center gap-3"><h1 className="text-[25px] font-bold tracking-tight text-foreground">Pedido {order.number}</h1><StatusBadge status={order.status} /></div>
-        <div className="mt-1 text-[13px] text-text-2">Creado {fmtDateTime(order.createdAt)} · {timeLeftLabel(order.expiresAt, new Date())}</div>
-        {order.expiresAt && <div className="mt-0.5 text-[12px] text-text-3">Vence: {fmtDateTime(order.expiresAt)}</div>}
+        <div className="mt-1 text-[13px] text-text-2">Creado {fmtDateTimeCaracas(order.createdAt)} · {timeLeftLabel(order.expiresAt, new Date(now))}</div>
+        {order.expiresAt && <div className="mt-0.5 text-[12px] text-text-3">Vence: {fmtDateTimeCaracas(order.expiresAt)}</div>}
       </div>
       <div className="flex flex-wrap gap-2">
-        <WhatsAppMenu order={order} groups={groups} templates={templates} />
+        <WhatsAppMenu order={order} groups={groups} templates={templates} now={now} />
         {actions.includes("aceptar") && <Button type="button" onClick={() => setAcceptOpen(true)} disabled={acceptOpen}>Aceptar</Button>}
         {actions.includes("rechazar") && <Button type="button" variant="outline" onClick={() => openDialog("rechazar")} disabled={busy.rechazar}>Rechazar</Button>}
         {actions.includes("extender") && <Button type="button" variant="outline" onClick={() => openDialog("extender")} disabled={busy.extender}>Extender</Button>}
@@ -139,7 +140,7 @@ export function OrderDetail({ order, rate, canManage, branches, firmHoldHours, t
       <div className="flex flex-wrap items-baseline justify-between gap-2"><span className="text-sm font-semibold text-text-2">Total del pedido</span><span className="text-lg font-bold text-foreground">{fmtDual(order.total, rate)}</span></div>
     </div>
 
-    <AcceptDialog order={order} branches={branches} open={acceptOpen} onOpenChange={setAcceptOpen} />
+    {acceptOpen && <AcceptDialog order={order} branches={branches} open={acceptOpen} onOpenChange={setAcceptOpen} />}
     <Dialog open={dialogAction !== null} onOpenChange={(open) => { if (!open && !dialogBusy) setDialogAction(null); }}>
       <DialogContent>
         <DialogHeader><DialogTitle>{dialogAction === "rechazar" ? "Rechazar pedido" : dialogAction === "cancelar" ? "Cancelar pedido" : "Extender reserva"}</DialogTitle></DialogHeader>

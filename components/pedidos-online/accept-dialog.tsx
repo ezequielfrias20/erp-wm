@@ -46,11 +46,12 @@ export function AcceptDialog({ order, branches, open, onOpenChange }: {
         toast.error(`La cantidad de ${item.productName} debe estar entre 0 y ${item.quantity}.`);
         return;
       }
-      if (quantity > 0 && !available.some((branch) => branch.id === value.branchId)) {
+      const changed = value.branchId !== item.branchId || quantity !== item.quantity;
+      if (changed && !available.some((branch) => branch.id === value.branchId)) {
         toast.error(`Selecciona una sucursal online activa para ${item.productName}.`);
         return;
       }
-      if (value.branchId !== item.branchId || quantity !== item.quantity) {
+      if (changed) {
         lines.push({ itemId: item.id, branchId: value.branchId, quantity });
       }
     }

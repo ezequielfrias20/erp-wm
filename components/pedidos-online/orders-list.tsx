@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtDateTime, fmtDual, fmtRelative } from "@/lib/format";
+import { fmtDateTimeCaracas, fmtDual, fmtRelative } from "@/lib/format";
 import { groupByBranch, timeLeftLabel } from "@/lib/online-orders/rules";
 import type { OnlineOrderStatus, OnlineOrderView } from "@/lib/online-orders/types";
 import { StatusBadge } from "./status-badge";
@@ -25,11 +25,12 @@ const FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "todas", label: "Todas" },
 ];
 
-export function OrdersList({ orders, status, q, rate }: {
+export function OrdersList({ orders, status, q, rate, now }: {
   orders: OnlineOrderView[];
   status: StatusFilter;
   q: string;
   rate: number;
+  now: number;
 }) {
   const router = useRouter();
   const [search, setSearch] = useState(q);
@@ -92,8 +93,8 @@ export function OrdersList({ orders, status, q, rate }: {
             <TableCell><div className="flex flex-wrap gap-1">{groupByBranch(order.items).map((group) => <Badge key={group.branchId} variant="outline" className="bg-surface-2 text-text-2">{group.branchName}</Badge>)}</div></TableCell>
             <TableCell className="font-medium text-foreground">{fmtDual(order.total, rate)}</TableCell>
             <TableCell><StatusBadge status={order.status} /></TableCell>
-            <TableCell className={order.status === "vencida" ? "text-danger" : "text-text-2"}>{timeLeftLabel(order.expiresAt, new Date())}</TableCell>
-            <TableCell className="text-text-2"><span title={fmtDateTime(order.createdAt)}>{fmtRelative(order.createdAt)}</span></TableCell>
+            <TableCell className={order.status === "vencida" ? "text-danger" : "text-text-2"}>{timeLeftLabel(order.expiresAt, new Date(now))}</TableCell>
+            <TableCell className="text-text-2"><span title={fmtDateTimeCaracas(order.createdAt)}>{fmtRelative(order.createdAt, now)}</span></TableCell>
           </TableRow>)}
         </TableBody>
       </Table>

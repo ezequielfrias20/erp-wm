@@ -32,6 +32,9 @@ export default async function OnlineOrdersPage({
     listOnlineOrders({ branchId, status, q }),
     fetchBcvRate().catch(() => ({ rate: BCV_FALLBACK })),
   ]);
+  // The server snapshot is serialized for the client, so hydration uses the same instant.
+  // eslint-disable-next-line react-hooks/purity
+  const now = Date.now();
 
-  return <OrdersList orders={orders} status={status} q={q} rate={bcv.rate} />;
+  return <OrdersList orders={orders} status={status} q={q} rate={bcv.rate} now={now} />;
 }

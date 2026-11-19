@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/queries/session";
 import { canEdit, canView } from "@/lib/permissions";
+import { getProfileBranchScope } from "@/lib/branch";
 import { fetchBcvRate, BCV_FALLBACK } from "@/lib/bcv";
 import { isUuid } from "@/lib/online-orders/rules";
 import { getOnlineBranches, getOnlineOrder, getOnlineSettings } from "@/lib/queries/online-orders";
@@ -26,12 +27,17 @@ export default async function OnlineOrderDetailPage({
     fetchBcvRate().catch(() => ({ rate: BCV_FALLBACK })),
   ]);
   if (!order) notFound();
+  const branchScope = getProfileBranchScope(session.profile);
+  // The server snapshot is serialized for the client, so hydration uses the same instant.
+  // eslint-disable-next-line react-hooks/purity
+  const now = Date.now();
 
   return <OrderDetail
     order={order}
     rate={bcv.rate}
     canManage={canEdit(session.permissions, "Ventas")}
-    branches={branches}
+    branches={branchScope === null ? branches : branches.filter((branch) => branch.id === branchScope)}
+    now={now}
     firmHoldHours={settings.firmHoldHours}
     templates={settings.templates}
   />;
