@@ -46,12 +46,11 @@ export function NewOrdersWatcher() {
               label: "Ver",
               onClick: () => {
                 router.push("/pedidos-online");
-                router.refresh();
               },
             },
           });
         }
-        if (previousCount !== summary.count) router.refresh();
+        if (hasBaseline && previousCount !== summary.count) router.refresh();
         previousCount = summary.count;
         previousAt = summary.latestAt;
         hasBaseline = true;

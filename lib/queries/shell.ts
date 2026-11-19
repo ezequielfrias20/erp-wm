@@ -20,7 +20,7 @@ export async function getShellData(
   const supabase = await createClient();
   const session = await getSession();
   const onlineNewPromise = session && canView(session.permissions, "Ventas")
-    ? countNewOnlineOrders(branchId).then((result) => result.count)
+    ? countNewOnlineOrders(branchId).then((result) => result.count).catch(() => 0)
     : Promise.resolve(0);
 
   let saleQ = supabase
