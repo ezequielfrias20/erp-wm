@@ -239,6 +239,7 @@ Utilidades extra: `bg-brand`, `text-brand`, `bg-brand-soft`, `text-success`,
 ## Cómo correr
 ```bash
 npm run dev      # http://localhost:3000  (→ /login)
+SUPABASE_LOCAL_DIR=/ruta/al/proyecto scripts/dev-local.sh 3100 # app contra Supabase local
 npm run build    # build de producción
 npm run lint
 ```

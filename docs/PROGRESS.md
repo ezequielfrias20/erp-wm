@@ -172,6 +172,9 @@ planes): `docs/superpowers/plans/2026-11-11-catalogo-00-hoja-de-ruta.md` · Runb
 - **Plan 2:** módulo «Pedidos online» del ERP pendiente.
 - **Plan 3:** storefront en repositorio separado pendiente.
 
+## Cómo verificar
+Con Supabase local iniciado: `SUPABASE_LOCAL_DIR=/ruta/al/proyecto scripts/dev-local.sh 3100` y abrir `http://localhost:3100/login`.
+
 ## Cómo reanudar
 1. Leer `CLAUDE.md` (stack, Supabase, RLS, credenciales, convenciones).
 2. Revisar la última fila ✅/🚧 de esta tabla y continuar por la siguiente ⬜.
