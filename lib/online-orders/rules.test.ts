@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STATUS_LABEL, STATUS_TONE, availableActions, canConvertGroup, groupByBranch, timeLeftLabel } from "./rules";
+import { STATUS_LABEL, STATUS_TONE, availableActions, branchScopeError, canConvertGroup, groupByBranch, isUuid, timeLeftLabel } from "./rules";
 import type { BranchGroup, OnlineOrderItemView } from "./types";
 
 const itemA1: OnlineOrderItemView = {
@@ -68,6 +68,36 @@ describe("canConvertGroup", () => {
 
   it("rechaza grupos sin líneas pendientes", () => {
     expect(canConvertGroup({ ...pendingGroupA, state: "vendido" }, { assignedBranchId: null })).toEqual({ ok: false, reason: "Este grupo ya no tiene productos pendientes" });
+  });
+});
+
+describe("branchScopeError", () => {
+  it("permite gestionar cualquier sucursal sin asignación", () => {
+    expect(branchScopeError(null, ["A"], ["B"])).toBeNull();
+    expect(branchScopeError(null, [], [])).toBeNull();
+  });
+
+  it("exige que el pedido tenga una línea en la sucursal asignada", () => {
+    expect(branchScopeError("A", ["B"], [])).toBe("Este pedido no tiene productos de tu sucursal");
+    expect(branchScopeError("A", [], ["B"])).toBe("Este pedido no tiene productos de tu sucursal");
+  });
+
+  it("impide asignar líneas a otra sucursal", () => {
+    expect(branchScopeError("A", ["A", "B"], ["B"])).toBe("Sólo puedes asignar productos a tu sucursal");
+    expect(branchScopeError("A", ["A"], ["A", "B"])).toBe("Sólo puedes asignar productos a tu sucursal");
+  });
+
+  it("permite cambios dentro de la sucursal asignada", () => {
+    expect(branchScopeError("A", ["A", "B"], ["A"])).toBeNull();
+    expect(branchScopeError("A", ["A"], [])).toBeNull();
+  });
+});
+
+describe("isUuid", () => {
+  it("acepta UUID y rechaza valores inválidos", () => {
+    expect(isUuid("0d9e5258-72d3-4c0c-9fce-6fdaabf81750")).toBe(true);
+    expect(isUuid("no-es-un-uuid")).toBe(false);
+    expect(isUuid(null)).toBe(false);
   });
 });
 

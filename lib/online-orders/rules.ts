@@ -19,6 +19,24 @@ export const STATUS_TONE: Record<OnlineOrderStatus, "brand" | "success" | "muted
   vencida: "danger",
 };
 
+export function branchScopeError(
+  assigned: string | null,
+  orderBranchIds: string[],
+  requestedBranchIds: string[],
+): string | null {
+  if (assigned === null) return null;
+  if (!orderBranchIds.includes(assigned)) return "Este pedido no tiene productos de tu sucursal";
+  if (requestedBranchIds.some((branchId) => branchId !== assigned)) {
+    return "Sólo puedes asignar productos a tu sucursal";
+  }
+  return null;
+}
+
+export function isUuid(value: unknown): value is string {
+  return typeof value === "string"
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
 export function groupByBranch(items: OnlineOrderItemView[]): BranchGroup[] {
   const branches = new Map<string, BranchGroup>();
 

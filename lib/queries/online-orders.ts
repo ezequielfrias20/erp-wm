@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSession } from "@/lib/queries/session";
 import { canEdit, canView } from "@/lib/permissions";
 import { mapOrderRow, type ItemRow, type VOnlineOrderRow } from "@/lib/online-orders/map";
+import { branchScopeError, isUuid } from "@/lib/online-orders/rules";
 import type { OnlineOrderStatus, OnlineOrderView } from "@/lib/online-orders/types";
 import { DEFAULT_TEMPLATES, type TemplateKey } from "@/lib/online-orders/whatsapp";
 
@@ -73,7 +74,7 @@ async function branchOrderIds(branchId: string): Promise<string[]> {
   const ids = new Set<string>();
   for (let start = 0; ; start += 1000) {
     const { data, error } = await supabase.from("online_order_items")
-      .select("order_id").eq("branch_id", branchId).range(start, start + 999);
+      .select("order_id").eq("branch_id", branchId).order("id").range(start, start + 999);
     if (error) throw new Error(error.message);
     for (const item of data ?? []) ids.add(item.order_id);
     if (!data || data.length < 1000) break;
@@ -87,7 +88,8 @@ export async function listOnlineOrders(opts: {
   q?: string;
   limit?: number;
 }): Promise<OnlineOrderView[]> {
-  await requireSalesView();
+  const session = await requireSalesView();
+  const branchId = getProfileBranchScope(session.profile) ?? opts.branchId;
   const supabase = await createClient();
   const term = opts.q?.trim().replace(/[^\p{L}\p{N}\s+@_-]/gu, " ").replace(/\s+/g, " ").trim();
   const limit = Math.min(200, Math.max(1, Math.trunc(opts.limit ?? 200) || 200));
@@ -108,28 +110,37 @@ export async function listOnlineOrders(opts: {
     return data ?? [];
   }
 
-  if (!opts.branchId) return hydrateOrders(await fetchRows());
-  const ids = await branchOrderIds(opts.branchId);
+  if (!branchId) return hydrateOrders(await fetchRows());
+  const ids = await branchOrderIds(branchId);
   const rows = await inChunks(ids, fetchRows);
   rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
   return hydrateOrders(rows.slice(0, limit));
 }
 
 export async function getOnlineOrder(id: string): Promise<OnlineOrderView | null> {
-  await requireSalesView();
+  const session = await requireSalesView();
+  if (!isUuid(id)) return null;
   const supabase = await createClient();
   const { data, error } = await supabase.from("v_online_orders").select("*").eq("id", id).maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) return null;
+  const assignedBranch = getProfileBranchScope(session.profile);
+  if (assignedBranch) {
+    const { data: items, error: itemError } = await supabase.from("online_order_items")
+      .select("branch_id").eq("order_id", id).eq("branch_id", assignedBranch).limit(1);
+    if (itemError) throw new Error(itemError.message);
+    if (branchScopeError(assignedBranch, (items ?? []).map((item) => item.branch_id), [])) return null;
+  }
   return (await hydrateOrders([data]))[0];
 }
 
 export async function countNewOnlineOrders(branchId: string | null): Promise<{
   count: number; latestNumber: string | null; latestAt: string | null;
 }> {
-  await requireSalesView();
+  const session = await requireSalesView();
+  const effectiveBranchId = getProfileBranchScope(session.profile) ?? branchId;
   const supabase = await createClient();
-  if (!branchId) {
+  if (!effectiveBranchId) {
     const { data, error, count } = await supabase.from("v_online_orders")
       .select("number, created_at", { count: "exact" })
       .eq("effective_status", "solicitada")
@@ -138,15 +149,24 @@ export async function countNewOnlineOrders(branchId: string | null): Promise<{
     return { count: count ?? 0, latestNumber: data?.[0]?.number ?? null, latestAt: data?.[0]?.created_at ?? null };
   }
 
-  // Page through branch lines so the exact badge count is not capped by PostgREST's row limit.
-  const rows = await inChunks(await branchOrderIds(branchId), async (ids) => {
+  // Read new orders first, then look for lines in the effective branch.
+  const requested = [] as { id: string; number: string; created_at: string }[];
+  for (let start = 0; ; start += 1000) {
     const { data, error } = await supabase.from("v_online_orders")
-      .select("number, created_at").in("id", ids).eq("effective_status", "solicitada");
+      .select("id, number, created_at").eq("effective_status", "solicitada")
+      .order("created_at", { ascending: false }).order("id").range(start, start + 999);
+    if (error) throw new Error(error.message);
+    requested.push(...(data ?? []));
+    if (!data || data.length < 1000) break;
+  }
+  const matchedIds = new Set((await inChunks(requested.map((row) => row.id), async (ids) => {
+    const { data, error } = await supabase.from("online_order_items")
+      .select("order_id").in("order_id", ids).eq("branch_id", effectiveBranchId);
     if (error) throw new Error(error.message);
     return data ?? [];
-  });
-  rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
-  return { count: rows.length, latestNumber: rows[0]?.number ?? null, latestAt: rows[0]?.created_at ?? null };
+  })).map((item) => item.order_id));
+  const latest = requested.find((row) => matchedIds.has(row.id));
+  return { count: matchedIds.size, latestNumber: latest?.number ?? null, latestAt: latest?.created_at ?? null };
 }
 
 export async function getOnlineSettings(): Promise<{
@@ -179,6 +199,7 @@ export async function getOnlineSettings(): Promise<{
 
 export async function getOnlineOrderForPos(orderId: string, branchId: string): Promise<PosOnlineOrder | null> {
   const session = await requireSalesView();
+  if (!isUuid(orderId)) return null;
   if (!canEdit(session.permissions, "Ventas")) return null;
   const assignedBranch = getProfileBranchScope(session.profile);
   if (assignedBranch && assignedBranch !== branchId) return null;
@@ -200,7 +221,7 @@ export async function getOnlineOrderForPos(orderId: string, branchId: string): P
   const document = order.customer_document?.trim();
   if (document) {
     const { data, error } = await supabase.from("customers").select("id")
-      .ilike("document", document).limit(1).maybeSingle();
+      .eq("branch_id", branchId).ilike("document", document).limit(1).maybeSingle();
     if (error) throw new Error(error.message);
     matchedCustomerId = data?.id ?? null;
   }
@@ -210,7 +231,7 @@ export async function getOnlineOrderForPos(orderId: string, branchId: string): P
       // Interleaved wildcards also find formatted numbers; final comparison prevents partial matches.
       const pattern = "%" + last10.split("").join("%") + "%";
       const { data, error } = await supabase.from("customers").select("id, phone")
-        .ilike("phone", pattern).limit(20);
+        .eq("branch_id", branchId).ilike("phone", pattern).limit(20);
       if (error) throw new Error(error.message);
       matchedCustomerId = data?.find((customer) =>
         customer.phone?.replace(/\D/g, "").slice(-10) === last10)?.id ?? null;
