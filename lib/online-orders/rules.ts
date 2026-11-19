@@ -35,7 +35,8 @@ export function groupByBranch(items: OnlineOrderItemView[]): BranchGroup[] {
     .map((group) => ({
       ...group,
       subtotal: roundMoney(group.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)),
-      state: group.items.every((item) => item.saleId !== null)
+      state: group.items.every((item) => item.saleId !== null || item.releasedAt !== null)
+        && group.items.some((item) => item.saleId !== null)
         ? "vendido" as const
         : group.items.every((item) => item.releasedAt !== null && item.saleId === null)
           ? "liberado" as const
@@ -69,7 +70,7 @@ export function timeLeftLabel(expiresAt: string | null, now: Date): string {
   if (!expiresAt) return "—";
   const milliseconds = new Date(expiresAt).getTime() - now.getTime();
   if (milliseconds <= 0) return "Vencido";
-  const minutes = Math.ceil(milliseconds / 60_000);
-  if (milliseconds < 60 * 60_000) return `Vence en ${minutes} min`;
+  const minutes = Math.floor(milliseconds / 60_000);
+  if (minutes < 60) return `Vence en ${Math.max(1, minutes)} min`;
   return `Vence en ${Math.floor(minutes / 60)} h ${minutes % 60} min`;
 }

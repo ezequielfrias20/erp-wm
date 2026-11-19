@@ -19,8 +19,9 @@ describe("groupByBranch", () => {
     expect(groupByBranch([itemB1, itemA1, itemA2])[0].items.map((item) => item.id)).toEqual(["a1", "a2"]);
   });
 
-  it("marca vendido sólo si todas las líneas tienen venta", () => {
+  it("marca vendido si hay venta y no quedan líneas pendientes", () => {
     expect(groupByBranch([{ ...itemA1, saleId: "s1" }])[0].state).toBe("vendido");
+    expect(groupByBranch([{ ...itemA1, saleId: "s1" }, { ...itemA2, releasedAt: "2026-11-19T10:00:00Z" }])[0].state).toBe("vendido");
     expect(groupByBranch([{ ...itemA1, saleId: "s1" }, itemA2])[0].state).toBe("pendiente");
   });
 
@@ -79,7 +80,8 @@ describe("timeLeftLabel", () => {
 
   it("muestra minutos cuando falta menos de una hora", () => {
     expect(timeLeftLabel("2026-11-19T10:30:00Z", now)).toBe("Vence en 30 min");
-    expect(timeLeftLabel("2026-11-19T10:59:59Z", now)).toBe("Vence en 60 min");
+    expect(timeLeftLabel("2026-11-19T10:59:59Z", now)).toBe("Vence en 59 min");
+    expect(timeLeftLabel("2026-11-19T10:00:01Z", now)).toBe("Vence en 1 min");
   });
 
   it("muestra horas y minutos desde una hora", () => {

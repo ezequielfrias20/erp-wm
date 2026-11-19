@@ -44,4 +44,10 @@ export SUPABASE_SECRET_KEY="${local_secret:-$local_service_role}"
 export SUPABASE_SERVICE_ROLE_KEY="${local_service_role:-$local_secret}"
 export SUPABASE_AUTH_JWKS="$local_jwks"
 
+# En desarrollo local, nunca envíes correos reales ni aceptes webhooks de producción.
+export RESEND_API_KEY=""
+export RESEND_FROM=""
+export CONFERENCES_API_SECRET=""
+export COURSES_API_SECRET=""
+
 exec npx next dev -p "${1:-3100}"
