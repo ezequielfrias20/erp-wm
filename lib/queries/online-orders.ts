@@ -197,6 +197,18 @@ export async function getOnlineSettings(): Promise<{
   };
 }
 
+export async function getOnlineBranches(): Promise<{ id: string; name: string; city: string }[]> {
+  await requireSalesView();
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("branches")
+    .select("id, name, city")
+    .eq("is_active", true)
+    .eq("online_enabled", true)
+    .order("name");
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 export async function getOnlineOrderForPos(orderId: string, branchId: string): Promise<PosOnlineOrder | null> {
   const session = await requireSalesView();
   if (!isUuid(orderId)) return null;
