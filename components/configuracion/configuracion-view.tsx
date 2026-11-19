@@ -11,6 +11,7 @@ import {
   Palette,
   SunMoon,
   ShoppingCart,
+  Globe,
   Boxes,
   Shield,
   Bell,
@@ -44,6 +45,7 @@ import { fmtVES, fmtDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { AuditLog, PaymentMethod, Profile, Settings } from "@/lib/database.types";
 import { CatalogoSection } from "@/components/configuracion/catalogo/catalogo-section";
+import { TiendaOnlineSection } from "@/components/configuracion/tienda-online-section";
 
 const SWATCHES = ["#0EA5E9", "#6366F1", "#10B981", "#F59E0B", "#F43F5E", "#8B5CF6"];
 
@@ -53,6 +55,7 @@ const SECTIONS = [
   { id: "marca", label: "Marca", icon: Palette },
   { id: "apariencia", label: "Apariencia", icon: SunMoon },
   { id: "ventas", label: "Ventas", icon: ShoppingCart },
+  { id: "tienda", label: "Tienda online", icon: Globe },
   { id: "catalogo", label: "Catálogo", icon: Boxes },
   { id: "usuarios", label: "Usuarios", icon: Shield },
   { id: "notif", label: "Notificaciones", icon: Bell },
@@ -103,6 +106,7 @@ export function ConfiguracionView(props: Data) {
           {section === "marca" && <ColorsSection {...props} which="primary" />}
           {section === "apariencia" && <AparienciaSection {...props} />}
           {section === "ventas" && <VentasSection {...props} />}
+          {section === "tienda" && <TiendaOnlineSection />}
           {section === "catalogo" && <CatalogoSection canEdit={props.canEditCatalog} />}
           {section === "usuarios" && <UsuariosSection />}
           {section === "notif" && <NotifSection {...props} />}
