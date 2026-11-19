@@ -20,7 +20,7 @@ Estado por fase. Actualizar al cerrar cada módulo. Leyenda: ✅ hecho · 🚧 e
 | 13 | Mejoras operativas (carga masiva, POS avanzado, reportes con rango y factura) | ✅ | Ver detalle abajo; build de producción OK |
 | 14 | Cashea (financiamiento: inicial en caja + cuenta por cobrar, conciliación, comisión) | ✅ | Ver detalle abajo; build de producción OK |
 | 16 | Catálogo clasificado para ecommerce | 🚧 | Planes 1 y 2 ✅ (limpieza aplicada en producción 2026-11-16); plan 3 en curso; ver detalle abajo |
-| 17 | Tienda online / Pedidos online | 🚧 | Base de datos fase 1 preparada; despliegue en producción pendiente; módulo ERP y storefront pendientes |
+| 17 | Tienda online / Pedidos online | 🚧 | Base de datos fase 1 aplicada en producción (2026-11-19); falta desplegar la app; módulo ERP y storefront pendientes |
 
 ## Fase 13 — Mejoras operativas
 
@@ -161,8 +161,14 @@ planes): `docs/superpowers/plans/2026-11-11-catalogo-00-hoja-de-ruta.md` · Runb
   y política de listado de storage terminados en el repositorio. Bootstrap y `apply_pending.sh`
   integrados. Las seis pruebas SQL con rollback pasaron en una copia local; el bootstrap en otra
   base local vacía y `apply_pending.sh` terminaron sin errores (33 OK, 0 FALTA).
-- **Producción:** aplicación de migraciones, contraseña del rol `storefront` y comprobaciones
-  manuales pendientes. Aplicar los siete scripts antes del despliegue de la app.
+- **Producción:** los siete scripts se aplicaron el **2026-11-19 ~10:12** (Caracas) en una sola
+  transacción (`psql -1`, `lock_timeout=5s`), sin errores. Comprobado después: una sola
+  `create_sale` (11 argumentos); `storefront` sin acceso fuera de `shop` (0 tablas legibles y 0
+  funciones privilegiadas ejecutables, también contra el CRM en `public`); `wm-public` no se lista
+  como anon ni como autenticado ajeno (0 de 476) y sí como miembro; URL pública 200; venta del POS
+  con la app vieja OK (FAC-004163). Pendiente: desplegar la app, revisar en el navegador POS e
+  Inventario y subir/borrar foto/logo/avatar; fijar la contraseña de `storefront` cuando exista
+  la tienda; ninguna sucursal tiene `online_enabled` todavía.
 - **Plan 2:** módulo «Pedidos online» del ERP pendiente.
 - **Plan 3:** storefront en repositorio separado pendiente.
 

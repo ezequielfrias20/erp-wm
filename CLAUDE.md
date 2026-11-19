@@ -90,7 +90,8 @@ handoff de diseño `World Medics ERP.dc.html` (claude.ai/design) **tal cual**.
       -f supabase/storage_no_public_list.sql
     ```
     `apply_pending.sh` agrupa los archivos de tienda de forma atómica en dos transacciones por
-    sus dependencias con las migraciones previas. Aplicación en producción pendiente.
+    sus dependencias con las migraciones previas. Aplicada en producción el 2026-11-19 (ver
+    `docs/PROGRESS.md`).
 Bootstrap del admin (login) se hizo con `execute_sql` (crea `auth.users` + `auth.identities`).
 
 ### Modelo RLS
