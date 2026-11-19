@@ -143,6 +143,22 @@ Utilidades extra: `bg-brand`, `text-brand`, `bg-brand-soft`, `text-success`,
   tienda: `docs/TIENDA-INTEGRACION.md`; diseño y plan:
   `docs/superpowers/specs/2026-11-18-ecommerce-catalogo-pedidos-online-design.md` y
   `docs/superpowers/plans/2026-11-18-tienda-fase1-base-erp.md`.
+- **Pedidos online (fase 2):** `/pedidos-online` lista solicitudes y `/pedidos-online/[id]`
+  muestra grupos por sucursal y permite aceptar, rechazar, extender o cancelar; ver exige
+  permiso **Ventas** de lectura y gestionar exige **Ventas** de edición. Los usuarios ligados
+  a una sucursal solo ven pedidos con líneas de esa sucursal y no pueden asignar líneas ni
+  convertir ventas de otra. «Convertir en venta» abre `/ventas?pedido=<id>` por grupo:
+  una venta por sucursal, con precios congelados del pedido, stock propio apartado sumado al
+  disponible y cliente buscado por cédula/teléfono o creado desde el POS. Tras cobrar, el
+  aviso de venta registrada enlaza al pedido (`?convertido=…` conserva el aviso al recargar).
+  El menú muestra un contador de solicitudes nuevas; `GET /api/pedidos-online/resumen` se
+  consulta cada 60 s mientras la app está visible y avisa con un toast cuando llega otra.
+  **Configuración → Tienda online** permite editar apartados corto/firme, WhatsApp de la tienda
+  y cinco plantillas (permiso **Configuración** de edición); «Vende online» por sucursal exige
+  **Sucursales** de edición. La sección se ve con **Configuración** de lectura.
+  Para verificar contra Supabase local, ejecutar
+  `SUPABASE_LOCAL_DIR=/ruta/al/proyecto scripts/dev-local.sh 3100`: toma URL y claves locales,
+  nunca toca la base de producción y deja vacíos los secretos de Resend y webhooks.
 - Rutas protegidas bajo `app/(app)/`; auth bajo `app/(auth)/`. `middleware.ts` refresca
   sesión y redirige a `/login`.
 - Lectura inicial en Server Components; mutaciones con **Server Actions** en `app/(app)/<modulo>/actions.ts`.

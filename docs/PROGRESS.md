@@ -20,7 +20,7 @@ Estado por fase. Actualizar al cerrar cada módulo. Leyenda: ✅ hecho · 🚧 e
 | 13 | Mejoras operativas (carga masiva, POS avanzado, reportes con rango y factura) | ✅ | Ver detalle abajo; build de producción OK |
 | 14 | Cashea (financiamiento: inicial en caja + cuenta por cobrar, conciliación, comisión) | ✅ | Ver detalle abajo; build de producción OK |
 | 16 | Catálogo clasificado para ecommerce | 🚧 | Planes 1 y 2 ✅ (limpieza aplicada en producción 2026-11-16); plan 3 en curso; ver detalle abajo |
-| 17 | Tienda online / Pedidos online | 🚧 | Base de datos fase 1 aplicada en producción (2026-11-19); falta desplegar la app; módulo ERP y storefront pendientes |
+| 17 | Tienda online / Pedidos online | 🚧 | Base de datos fase 1 aplicada en producción (2026-11-19); fase 2 del ERP terminada en esta rama, pendiente de despliegue; fase 3 (storefront) pendiente |
 
 ## Fase 13 — Mejoras operativas
 
@@ -169,7 +169,17 @@ planes): `docs/superpowers/plans/2026-11-11-catalogo-00-hoja-de-ruta.md` · Runb
   con la app vieja OK (FAC-004163). Pendiente: desplegar la app, revisar en el navegador POS e
   Inventario y subir/borrar foto/logo/avatar; fijar la contraseña de `storefront` cuando exista
   la tienda; ninguna sucursal tiene `online_enabled` todavía.
-- **Plan 2:** módulo «Pedidos online» del ERP pendiente.
+- **Plan 2, módulo ERP:** terminado en `feat/tienda-fase2-pedidos-online`, pendiente de despliegue.
+  `/pedidos-online` filtra por estado, número, cliente o teléfono; el detalle agrupa líneas y
+  facturas por sucursal. Lectura con permiso Ventas; aceptar (con ajuste de cantidades/sucursal),
+  rechazar, extender y cancelar con Ventas de edición. Los perfiles ligados a una sucursal solo
+  ven pedidos con líneas allí, solo pueden asignar líneas a ella y convertir su grupo; rechazar,
+  extender o cancelar afecta al pedido completo. La conversión abre el POS por sucursal, respeta
+  los precios del pedido y su apartado de stock, busca o crea al cliente y deja un aviso con
+  enlace al pedido tras la venta. El menú cuenta solicitudes nuevas; sondeo cada 60 s y toast
+  al llegar una.
+  Configuración → Tienda online gestiona apartados, WhatsApp, cinco plantillas y el interruptor
+  «Vende online» por sucursal, con permisos Configuración/Sucursales respectivos.
 - **Plan 3:** storefront en repositorio separado pendiente.
 
 ## Cómo verificar
