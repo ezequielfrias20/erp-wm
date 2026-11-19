@@ -10,12 +10,13 @@ import { getMainPhotoUrls } from "@/lib/queries/catalog";
 import { sellableStock } from "@/lib/sales/stock";
 import { getOnlineOrderForPos } from "@/lib/queries/online-orders";
 import { stockWithOwnHold } from "@/lib/online-orders/pos";
-import { MissingOnlineOrderToast } from "@/components/ventas/online-order-banner";
+import { isUuid } from "@/lib/online-orders/rules";
+import { MissingOnlineOrderToast, type CompletedOnlineOrder } from "@/components/ventas/online-order-banner";
 
 export const metadata = { title: "Punto de venta · World Medics ERP" };
 
 export default async function VentasPage({ searchParams }: {
-  searchParams: Promise<{ pedido?: string }>;
+  searchParams: Promise<{ pedido?: string; convertido?: string; factura?: string; numero?: string }>;
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -40,8 +41,13 @@ export default async function VentasPage({ searchParams }: {
       .maybeSingle();
     branchId = first?.id ?? null;
   }
-  const pedido = (await searchParams).pedido;
+  const { pedido, convertido, factura, numero } = await searchParams;
   const onlineOrder = pedido && branchId ? await getOnlineOrderForPos(pedido, branchId) : null;
+  const initialCompletedOrder: CompletedOnlineOrder | null =
+    !pedido && isUuid(convertido) && typeof factura === "string" && /^FAC-\d+$/.test(factura)
+      && typeof numero === "string" && /^W-\d{6}$/.test(numero)
+      ? { orderId: convertido, number: numero, invoice: factura }
+      : null;
 
   type PosInventoryRow = {
     product_id: string;
@@ -157,6 +163,7 @@ export default async function VentasPage({ searchParams }: {
         key={onlineOrder ? `${onlineOrder.branchId}:${onlineOrder.orderId}` : "normal"}
         products={onlineOrder ? stockWithOwnHold(products, onlineOrder) : products}
         onlineOrder={onlineOrder}
+        initialCompletedOrder={initialCompletedOrder}
         customers={customersRes.data ?? []}
         paymentMethods={(pmRes.data ?? []).map((p) => ({
           name: p.name,

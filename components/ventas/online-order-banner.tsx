@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { PosOnlineOrder } from "@/lib/queries/online-orders";
 
+export type CompletedOnlineOrder = { orderId: string; number: string; invoice: string };
+
 export function MissingOnlineOrderToast() {
   const shown = useRef(false);
   useEffect(() => {
@@ -42,6 +44,29 @@ export function OnlineOrderBanner({ order, invoice, needsCustomer, creatingCusto
             </Button>
           )}
           {!invoice && <Button type="button" variant="outline" size="sm" onClick={onCancel}>Cancelar conversión</Button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function CompletedOnlineOrderBanner({ completed, onDismiss }: {
+  completed: CompletedOnlineOrder;
+  onDismiss: () => void;
+}) {
+  return (
+    <div className="mb-3 rounded-xl border border-border bg-success-soft px-4 py-3 shadow-card-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-sm font-semibold text-foreground">
+          Pedido {completed.number}: venta {completed.invoice} registrada
+        </div>
+        <div className="flex items-center gap-2">
+          <Button asChild type="button" variant="outline" size="sm">
+            <Link href={`/pedidos-online/${completed.orderId}`}>Ver pedido</Link>
+          </Button>
+          <Button type="button" variant="ghost" size="icon" aria-label="Cerrar aviso de venta" onClick={onDismiss}>
+            ×
+          </Button>
         </div>
       </div>
     </div>

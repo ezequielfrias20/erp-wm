@@ -17,6 +17,7 @@ export type PosOnlineOrder = {
   holdLive: boolean;
   customer: { name: string; phone: string; email: string | null; document: string | null };
   matchedCustomerId: string | null;
+  matchedCustomer: { id: string; name: string; document: string | null; segment: string } | null;
   lines: {
     variantId: string;
     quantity: number;
@@ -229,24 +230,27 @@ export async function getOnlineOrderForPos(orderId: string, branchId: string): P
   if (itemError) throw new Error(itemError.message);
   if (!items?.length) return null;
 
-  let matchedCustomerId: string | null = null;
+  let matchedCustomer: PosOnlineOrder["matchedCustomer"] = null;
   const document = order.customer_document?.trim();
   if (document) {
-    const { data, error } = await supabase.from("customers").select("id")
+    const { data, error } = await supabase.from("customers").select("id, name, document, segment")
       .eq("branch_id", branchId).ilike("document", document).limit(1).maybeSingle();
     if (error) throw new Error(error.message);
-    matchedCustomerId = data?.id ?? null;
+    matchedCustomer = data ?? null;
   }
-  if (!matchedCustomerId) {
+  if (!matchedCustomer) {
     const last10 = order.customer_phone.replace(/\D/g, "").slice(-10);
     if (last10.length === 10) {
       // Interleaved wildcards also find formatted numbers; final comparison prevents partial matches.
       const pattern = "%" + last10.split("").join("%") + "%";
-      const { data, error } = await supabase.from("customers").select("id, phone")
+      const { data, error } = await supabase.from("customers").select("id, name, document, segment, phone")
         .eq("branch_id", branchId).ilike("phone", pattern).limit(20);
       if (error) throw new Error(error.message);
-      matchedCustomerId = data?.find((customer) =>
-        customer.phone?.replace(/\D/g, "").slice(-10) === last10)?.id ?? null;
+      const match = data?.find((customer) =>
+        customer.phone?.replace(/\D/g, "").slice(-10) === last10);
+      matchedCustomer = match ? {
+        id: match.id, name: match.name, document: match.document, segment: match.segment,
+      } : null;
     }
   }
 
@@ -261,7 +265,8 @@ export async function getOnlineOrderForPos(orderId: string, branchId: string): P
       email: order.customer_email,
       document: order.customer_document,
     },
-    matchedCustomerId,
+    matchedCustomerId: matchedCustomer?.id ?? null,
+    matchedCustomer,
     lines: items.map((item) => ({
       variantId: item.variant_id,
       quantity: Number(item.quantity),

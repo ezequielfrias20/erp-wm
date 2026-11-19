@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PosProduct } from "@/components/ventas/pos-view";
 import type { PosOnlineOrder } from "@/lib/queries/online-orders";
-import { cartFromOnlineOrder, stockWithOwnHold } from "./pos";
+import { cartFromOnlineOrder, clampToStock, stockWithOwnHold } from "./pos";
 
 const product: PosProduct = {
   product_id: "P", variant_id: "V", product_image_url: null, sku: "SKU-V",
@@ -12,6 +12,7 @@ const order: PosOnlineOrder = {
   orderId: "O", number: "W-000123", branchId: "A", holdLive: true,
   customer: { name: "Ana", phone: "04121234567", email: null, document: null },
   matchedCustomerId: null,
+  matchedCustomer: null,
   lines: [
     { variantId: "V", quantity: 2, unitPrice: 31.25, productName: "Bata", variantLabel: "Azul", sku: "SKU-V" },
     { variantId: "M", quantity: 1, unitPrice: 10, productName: "Guantes", variantLabel: "Mediano", sku: "SKU-M" },
@@ -34,6 +35,22 @@ describe("cartFromOnlineOrder", () => {
     expect(cartFromOnlineOrder(order, [product])).toEqual({
       lines: [{ variantId: "V", qty: 2, price: 31.25 }],
       missing: ["Guantes · Mediano · SKU SKU-M"],
+    });
+  });
+});
+
+describe("clampToStock", () => {
+  it("reduce una línea al stock disponible y conserva el precio del pedido", () => {
+    expect(clampToStock([{ variantId: "V", qty: 2, price: 31.25 }], [{ ...product, stock: 1 }])).toEqual({
+      lines: [{ variantId: "V", qty: 1, price: 31.25 }],
+      limited: ["Bata: pedido 2, disponible 1"],
+    });
+  });
+
+  it("omite una línea sin stock", () => {
+    expect(clampToStock([{ variantId: "V", qty: 2, price: 31.25 }], [{ ...product, stock: 0 }])).toEqual({
+      lines: [],
+      limited: ["Bata: pedido 2, disponible 0"],
     });
   });
 });

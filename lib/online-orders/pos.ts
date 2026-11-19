@@ -3,6 +3,27 @@ import type { PosOnlineOrder } from "@/lib/queries/online-orders";
 
 export type CartLineSeed = { variantId: string; qty: number; price: number };
 
+export function clampToStock(
+  lines: CartLineSeed[],
+  products: PosProduct[],
+): { lines: CartLineSeed[]; limited: string[] } {
+  const byVariant = new Map(products.map((product) => [product.variant_id, product]));
+  const remaining = new Map(products.map((product) => [product.variant_id, Math.max(product.stock, 0)]));
+  const clamped: CartLineSeed[] = [];
+  const limited: string[] = [];
+  for (const line of lines) {
+    const product = byVariant.get(line.variantId);
+    const available = remaining.get(line.variantId) ?? 0;
+    const qty = Math.min(line.qty, available);
+    if (qty > 0) clamped.push({ ...line, qty });
+    remaining.set(line.variantId, available - qty);
+    if (qty < line.qty) {
+      limited.push(`${product?.product_name ?? line.variantId}: pedido ${line.qty}, disponible ${qty}`);
+    }
+  }
+  return { lines: clamped, limited };
+}
+
 export function stockWithOwnHold(products: PosProduct[], order: PosOnlineOrder): PosProduct[] {
   if (!order.holdLive) return products;
   const heldByVariant = new Map<string, number>();

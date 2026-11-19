@@ -84,9 +84,9 @@ import {
   draftsServerSnapshot,
   type PosDraft,
 } from "@/lib/pos-drafts";
-import { cartFromOnlineOrder } from "@/lib/online-orders/pos";
+import { cartFromOnlineOrder, clampToStock } from "@/lib/online-orders/pos";
 import type { PosOnlineOrder } from "@/lib/queries/online-orders";
-import { OnlineOrderBanner } from "./online-order-banner";
+import { CompletedOnlineOrderBanner, OnlineOrderBanner, type CompletedOnlineOrder } from "./online-order-banner";
 
 export type PosProduct = {
   product_id: string;
@@ -302,6 +302,7 @@ export function PosView({
   company,
   cashier,
   onlineOrder,
+  initialCompletedOrder,
 }: {
   products: PosProduct[];
   customers: PosCustomer[];
@@ -312,31 +313,41 @@ export function PosView({
   company: InvoiceCompany;
   cashier: string | null;
   onlineOrder?: PosOnlineOrder | null;
+  initialCompletedOrder?: CompletedOnlineOrder | null;
 }) {
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("");
   const [brand, setBrand] = useState("");
   const [size, setSize] = useState("");
   const [color, setColor] = useState("");
-  const [orderSeed] = useState(() => onlineOrder
-    ? cartFromOnlineOrder(onlineOrder, products)
-    : { lines: [], missing: [] });
+  const [orderSeed] = useState(() => {
+    if (!onlineOrder) return { lines: [], missing: [] };
+    const seed = cartFromOnlineOrder(onlineOrder, products);
+    const clamped = clampToStock(seed.lines, products);
+    return { lines: clamped.lines, missing: [...seed.missing, ...clamped.limited] };
+  });
   const [cart, setCart] = useState<Record<string, CartLine>>(() => Object.fromEntries(
     orderSeed.lines.flatMap((line) => {
       const product = products.find((entry) => entry.variant_id === line.variantId);
       return product ? [[line.variantId, { ...product, qty: line.qty, price: line.price }]] : [];
     }),
   ));
+  const localCustomers = onlineOrder?.matchedCustomer
+    && !customers.some((entry) => entry.id === onlineOrder.matchedCustomer?.id)
+    ? [...customers, onlineOrder.matchedCustomer] : customers;
   const [customer, setCustomer] = useState<PosCustomer | null>(() =>
-    customers.find((entry) => entry.id === onlineOrder?.matchedCustomerId) ?? null);
+    onlineOrder?.matchedCustomer
+      ?? localCustomers.find((entry) => entry.id === onlineOrder?.matchedCustomerId)
+      ?? null);
   const [orderMode, setOrderMode] = useState(onlineOrder ?? null);
-  const [completedOrder, setCompletedOrder] = useState<{ order: PosOnlineOrder; invoice: string } | null>(null);
+  const [completedOrder, setCompletedOrder] = useState<CompletedOnlineOrder | null>(initialCompletedOrder ?? null);
   const [creatingOrderCustomer, setCreatingOrderCustomer] = useState(false);
+  const createOrderCustomerLock = useRef(false);
   const missingWarned = useRef(false);
   useEffect(() => {
     if (missingWarned.current || orderSeed.missing.length === 0) return;
     missingWarned.current = true;
-    toast.warning(`Productos del pedido no disponibles en el POS: ${orderSeed.missing.join("; ")}`);
+    toast.warning(`Aviso del pedido: ${orderSeed.missing.join("; ")}`);
   }, [orderSeed]);
   const [custOpen, setCustOpen] = useState(false);
   const [sellerId, setSellerId] = useState("");
@@ -540,13 +551,17 @@ export function PosView({
 
   function finishCompletedOrder() {
     if (!completedOrder) return;
+    router.replace(`/ventas?convertido=${completedOrder.orderId}&factura=${encodeURIComponent(completedOrder.invoice)}&numero=${completedOrder.number}`);
+  }
+
+  function dismissCompletedOrder() {
     setCompletedOrder(null);
     router.replace("/ventas");
-    router.refresh();
   }
 
   async function createOrderCustomer() {
-    if (!orderMode || creatingOrderCustomer || !branch) return;
+    if (!orderMode || createOrderCustomerLock.current || !branch) return;
+    createOrderCustomerLock.current = true;
     setCreatingOrderCustomer(true);
     try {
       const result = await createPosCustomer({
@@ -570,6 +585,7 @@ export function PosView({
     } catch (error) {
       reportActionError(error, "No se pudo crear el cliente del pedido.");
     } finally {
+      createOrderCustomerLock.current = false;
       setCreatingOrderCustomer(false);
     }
   }
@@ -694,7 +710,7 @@ export function PosView({
         }
         checkoutRequestId.current = null;
         if (orderMode) {
-          setCompletedOrder({ order: orderMode, invoice: res.invoice ?? "—" });
+          setCompletedOrder({ orderId: orderMode.orderId, number: orderMode.number, invoice: res.invoice ?? "—" });
           setOrderMode(null);
         }
         clearTicket();
@@ -1209,13 +1225,17 @@ export function PosView({
       {/* Catálogo */}
       <div className="flex min-h-0 flex-col xl:overflow-hidden">
         <div className="px-4 pt-4 sm:px-5 lg:px-[30px] lg:pt-[22px]">
-          {(orderMode || completedOrder) && <OnlineOrderBanner
-            order={orderMode ?? completedOrder!.order}
-            invoice={completedOrder?.invoice ?? null}
+          {orderMode && <OnlineOrderBanner
+            order={orderMode}
+            invoice={null}
             needsCustomer={!customer}
             creatingCustomer={creatingOrderCustomer}
             onCreateCustomer={() => void createOrderCustomer()}
             onCancel={leaveOrderMode}
+          />}
+          {completedOrder && <CompletedOnlineOrderBanner
+            completed={completedOrder}
+            onDismiss={dismissCompletedOrder}
           />}
           <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
             <div>
@@ -1460,7 +1480,7 @@ export function PosView({
       <CustomerDialog
         open={custOpen}
         onOpenChange={setCustOpen}
-        customers={customers}
+        customers={localCustomers}
         branchId={branch?.id ?? null}
         onSelect={(c) => {
           setCustomer(c);
