@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -83,6 +84,9 @@ import {
   draftsServerSnapshot,
   type PosDraft,
 } from "@/lib/pos-drafts";
+import { cartFromOnlineOrder } from "@/lib/online-orders/pos";
+import type { PosOnlineOrder } from "@/lib/queries/online-orders";
+import { OnlineOrderBanner } from "./online-order-banner";
 
 export type PosProduct = {
   product_id: string;
@@ -297,6 +301,7 @@ export function PosView({
   rate,
   company,
   cashier,
+  onlineOrder,
 }: {
   products: PosProduct[];
   customers: PosCustomer[];
@@ -306,14 +311,33 @@ export function PosView({
   rate: number;
   company: InvoiceCompany;
   cashier: string | null;
+  onlineOrder?: PosOnlineOrder | null;
 }) {
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("");
   const [brand, setBrand] = useState("");
   const [size, setSize] = useState("");
   const [color, setColor] = useState("");
-  const [cart, setCart] = useState<Record<string, CartLine>>({});
-  const [customer, setCustomer] = useState<PosCustomer | null>(null);
+  const [orderSeed] = useState(() => onlineOrder
+    ? cartFromOnlineOrder(onlineOrder, products)
+    : { lines: [], missing: [] });
+  const [cart, setCart] = useState<Record<string, CartLine>>(() => Object.fromEntries(
+    orderSeed.lines.flatMap((line) => {
+      const product = products.find((entry) => entry.variant_id === line.variantId);
+      return product ? [[line.variantId, { ...product, qty: line.qty, price: line.price }]] : [];
+    }),
+  ));
+  const [customer, setCustomer] = useState<PosCustomer | null>(() =>
+    customers.find((entry) => entry.id === onlineOrder?.matchedCustomerId) ?? null);
+  const [orderMode, setOrderMode] = useState(onlineOrder ?? null);
+  const [completedOrder, setCompletedOrder] = useState<{ order: PosOnlineOrder; invoice: string } | null>(null);
+  const [creatingOrderCustomer, setCreatingOrderCustomer] = useState(false);
+  const missingWarned = useRef(false);
+  useEffect(() => {
+    if (missingWarned.current || orderSeed.missing.length === 0) return;
+    missingWarned.current = true;
+    toast.warning(`Productos del pedido no disponibles en el POS: ${orderSeed.missing.join("; ")}`);
+  }, [orderSeed]);
   const [custOpen, setCustOpen] = useState(false);
   const [sellerId, setSellerId] = useState("");
   const [discountMode, setDiscountMode] = useState<DiscountMode>("percent");
@@ -436,7 +460,7 @@ export function PosView({
         );
         return c;
       }
-      return { ...c, [p.variant_id]: { ...p, qty } };
+      return { ...c, [p.variant_id]: { ...p, qty, price: existing?.price ?? p.price } };
     });
   }
   function setQty(id: string, qty: number) {
@@ -506,6 +530,50 @@ export function PosView({
     setPaymentMismatch(null);
   }
 
+  function leaveOrderMode() {
+    setOrderMode(null);
+    setCompletedOrder(null);
+    clearTicket();
+    router.replace("/ventas");
+    router.refresh();
+  }
+
+  function finishCompletedOrder() {
+    if (!completedOrder) return;
+    setCompletedOrder(null);
+    router.replace("/ventas");
+    router.refresh();
+  }
+
+  async function createOrderCustomer() {
+    if (!orderMode || creatingOrderCustomer || !branch) return;
+    setCreatingOrderCustomer(true);
+    try {
+      const result = await createPosCustomer({
+        name: orderMode.customer.name,
+        phone: orderMode.customer.phone,
+        email: orderMode.customer.email ?? undefined,
+        document: orderMode.customer.document ?? undefined,
+        branch_id: branch.id,
+      });
+      if (result.error || !result.customer) {
+        toast.error(result.error ?? "No se pudo crear el cliente del pedido.");
+        return;
+      }
+      setCustomer({
+        id: result.customer.id,
+        name: result.customer.name,
+        document: result.customer.document,
+        segment: result.customer.segment,
+      });
+      toast.success("Cliente del pedido registrado y seleccionado");
+    } catch (error) {
+      reportActionError(error, "No se pudo crear el cliente del pedido.");
+    } finally {
+      setCreatingOrderCustomer(false);
+    }
+  }
+
   function complete(allowPaymentMismatch = false) {
     if (checkoutLock.current || submitting) return;
     if (!branch) return toast.error("No hay sucursal seleccionada.");
@@ -566,6 +634,7 @@ export function PosView({
         const res = await postCheckout({
           request_id: requestId,
           branch_id: branch.id,
+          online_order_id: orderMode?.orderId,
           customer_id: selectedCustomer.id,
           seller_id: sellerId,
           payments,
@@ -624,11 +693,15 @@ export function PosView({
           removeDraft(snapshot.draftId);
         }
         checkoutRequestId.current = null;
+        if (orderMode) {
+          setCompletedOrder({ order: orderMode, invoice: res.invoice ?? "—" });
+          setOrderMode(null);
+        }
         clearTicket();
         // El stock de las tarjetas viene del servidor y no se toca en el cliente.
         // Con la Server Action lo repintaba Next al revalidar; desde un Route
         // Handler hay que pedirlo, o el POS seguiría mostrando el stock anterior.
-        router.refresh();
+        if (!orderMode) router.refresh();
         toast.success(`Venta ${res.invoice} registrada`);
       } catch (error) {
         // Sin este `catch` un fallo de transporte (504 del proxy, red caída) dejaba
@@ -643,6 +716,7 @@ export function PosView({
   }
 
   function saveDraftNow() {
+    if (orderMode) return;
     if (lines.length === 0) return toast.error("El ticket está vacío.");
     const id = activeDraftId ?? newDraftId();
     const draft: PosDraft = {
@@ -669,6 +743,7 @@ export function PosView({
   }
 
   function restoreDraft(d: PosDraft) {
+    if (orderMode) return;
     const newCart: Record<string, CartLine> = {};
     const changed: string[] = [];
     for (const l of d.lines) {
@@ -1119,7 +1194,7 @@ export function PosView({
           </Button>
           <button
             onClick={saveDraftNow}
-            disabled={submitting || lines.length === 0}
+            disabled={Boolean(orderMode) || submitting || lines.length === 0}
             className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-[10px] border border-border text-[12.5px] font-medium text-text-2 disabled:opacity-50"
           >
             <Save className="size-3.5" /> Guardar borrador
@@ -1134,6 +1209,14 @@ export function PosView({
       {/* Catálogo */}
       <div className="flex min-h-0 flex-col xl:overflow-hidden">
         <div className="px-4 pt-4 sm:px-5 lg:px-[30px] lg:pt-[22px]">
+          {(orderMode || completedOrder) && <OnlineOrderBanner
+            order={orderMode ?? completedOrder!.order}
+            invoice={completedOrder?.invoice ?? null}
+            needsCustomer={!customer}
+            creatingCustomer={creatingOrderCustomer}
+            onCreateCustomer={() => void createOrderCustomer()}
+            onCancel={leaveOrderMode}
+          />}
           <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
             <div>
               <h1 className="text-[22px] font-bold tracking-tight text-foreground">
@@ -1149,6 +1232,7 @@ export function PosView({
               </Link>
               <button
                 onClick={() => setDraftsOpen(true)}
+                disabled={Boolean(orderMode)}
                 className="iconbtn relative flex h-11 items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-3 text-[13px] font-medium text-foreground sm:h-[38px]"
               >
                 <Layers className="size-4 text-text-3" /> Borradores
@@ -1430,13 +1514,19 @@ export function PosView({
 
       <InvoiceModal
         open={invoiceOpen}
-        onOpenChange={setInvoiceOpen}
+        onOpenChange={(open) => {
+          setInvoiceOpen(open);
+          if (!open) finishCompletedOrder();
+        }}
         data={lastSale}
       />
 
       <SaleCompletedModal
         open={saleCompleteOpen}
-        onOpenChange={setSaleCompleteOpen}
+        onOpenChange={(open) => {
+          setSaleCompleteOpen(open);
+          if (!open) finishCompletedOrder();
+        }}
         data={lastSale}
         onPrintInvoice={() => {
           setSaleCompleteOpen(false);

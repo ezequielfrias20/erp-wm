@@ -13,8 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { reportActionError } from "@/lib/action-error";
+import { setActiveBranch } from "@/lib/branch-actions";
 import { fmtDateTimeCaracas, fmtDual, fmtUSD } from "@/lib/format";
-import { availableActions, groupByBranch, timeLeftLabel } from "@/lib/online-orders/rules";
+import { availableActions, canConvertGroup, groupByBranch, timeLeftLabel } from "@/lib/online-orders/rules";
 import type { OnlineOrderView } from "@/lib/online-orders/types";
 import type { TemplateKey } from "@/lib/online-orders/whatsapp";
 import { AcceptDialog } from "./accept-dialog";
@@ -30,7 +31,7 @@ const GROUP_STATE = {
   liberado: { label: "Liberado", className: "bg-surface-2 text-text-3" },
 } as const;
 
-export function OrderDetail({ order, rate, canManage, branches, firmHoldHours, templates, now }: {
+export function OrderDetail({ order, rate, canManage, branches, firmHoldHours, templates, now, activeBranchId, assignedBranchId }: {
   order: OnlineOrderView;
   rate: number;
   canManage: boolean;
@@ -38,6 +39,8 @@ export function OrderDetail({ order, rate, canManage, branches, firmHoldHours, t
   firmHoldHours: number;
   templates: Record<TemplateKey, string>;
   now: number;
+  activeBranchId: string | null;
+  assignedBranchId: string | null;
 }) {
   const router = useRouter();
   const groups = groupByBranch(order.items);
@@ -47,8 +50,21 @@ export function OrderDetail({ order, rate, canManage, branches, firmHoldHours, t
   const [reason, setReason] = useState("");
   const [hours, setHours] = useState(String(firmHoldHours));
   const [busy, setBusy] = useState<Record<DialogAction, boolean>>({ rechazar: false, extender: false, cancelar: false });
+  const [convertingBranchId, setConvertingBranchId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const locked = useRef(false);
+
+  async function convertGroup(branchId: string) {
+    if (convertingBranchId) return;
+    setConvertingBranchId(branchId);
+    try {
+      if (activeBranchId !== branchId) await setActiveBranch(branchId);
+      router.push(`/ventas?pedido=${order.id}`);
+    } catch (error) {
+      reportActionError(error, "No se pudo abrir el pedido en el punto de venta.");
+      setConvertingBranchId(null);
+    }
+  }
 
   function openDialog(action: DialogAction) {
     setReason("");
@@ -123,7 +139,17 @@ export function OrderDetail({ order, rate, canManage, branches, firmHoldHours, t
       {groups.map((group) => <section key={group.branchId} className="overflow-hidden rounded-2xl border border-border bg-card shadow-card-sm" aria-label={`Sucursal ${group.branchName}`}>
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-4">
           <div className="flex items-center gap-2"><h2 className="text-[15px] font-semibold text-foreground">{group.branchName}</h2><Badge className={GROUP_STATE[group.state].className}>{GROUP_STATE[group.state].label}</Badge></div>
-          <span className="text-sm font-semibold text-foreground">{fmtUSD(group.subtotal)}</span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold text-foreground">{fmtUSD(group.subtotal)}</span>
+            {group.state === "pendiente" && actions.includes("convertir") && (() => {
+              const check = canConvertGroup(group, { assignedBranchId });
+              return <Button type="button" size="sm" disabled={!check.ok || convertingBranchId !== null}
+                title={check.ok ? undefined : check.reason} onClick={() => void convertGroup(group.branchId)}>
+                {convertingBranchId === group.branchId ? <Loader2 className="size-4 animate-spin" /> : null}
+                Convertir en venta
+              </Button>;
+            })()}
+          </div>
         </div>
         <div className="divide-y divide-border">
           {group.items.map((item) => <div key={item.id} className="grid gap-2 px-5 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_70px_110px_110px] sm:items-center">

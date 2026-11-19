@@ -8,10 +8,15 @@ import { fetchAllRows } from "@/lib/supabase/pagination";
 import { PosView, type PosProduct } from "@/components/ventas/pos-view";
 import { getMainPhotoUrls } from "@/lib/queries/catalog";
 import { sellableStock } from "@/lib/sales/stock";
+import { getOnlineOrderForPos } from "@/lib/queries/online-orders";
+import { stockWithOwnHold } from "@/lib/online-orders/pos";
+import { MissingOnlineOrderToast } from "@/components/ventas/online-order-banner";
 
 export const metadata = { title: "Punto de venta · World Medics ERP" };
 
-export default async function VentasPage() {
+export default async function VentasPage({ searchParams }: {
+  searchParams: Promise<{ pedido?: string }>;
+}) {
   const session = await getSession();
   if (!session) redirect("/login");
   if (!canView(session.permissions, "Ventas")) redirect("/dashboard");
@@ -35,6 +40,8 @@ export default async function VentasPage() {
       .maybeSingle();
     branchId = first?.id ?? null;
   }
+  const pedido = (await searchParams).pedido;
+  const onlineOrder = pedido && branchId ? await getOnlineOrderForPos(pedido, branchId) : null;
 
   type PosInventoryRow = {
     product_id: string;
@@ -144,29 +151,34 @@ export default async function VentasPage() {
 
   const s = settingsRes.data;
   return (
-    <PosView
-      products={products}
-      customers={customersRes.data ?? []}
-      paymentMethods={(pmRes.data ?? []).map((p) => ({
-        name: p.name,
-        currency: (p.currency ?? "VES") as "USD" | "VES",
-        requires_reference: !!p.requires_reference,
-        is_financed: !!p.is_financed,
-      }))}
-      branch={branchRes.data ?? null}
-      sellers={(sellers ?? []).map((s) => ({
-        id: s.id,
-        full_name: s.full_name,
-      }))}
-      rate={bcv.rate}
-      company={{
-        name: s?.company_name ?? null,
-        rif: s?.rif ?? null,
-        address: s?.fiscal_address ?? null,
-        phone: s?.phone ?? null,
-        logoUrl: s?.logo_url ?? null,
-      }}
-      cashier={session.profile.full_name ?? null}
-    />
+    <>
+      {pedido && !onlineOrder && <MissingOnlineOrderToast />}
+      <PosView
+        key={onlineOrder ? `${onlineOrder.branchId}:${onlineOrder.orderId}` : "normal"}
+        products={onlineOrder ? stockWithOwnHold(products, onlineOrder) : products}
+        onlineOrder={onlineOrder}
+        customers={customersRes.data ?? []}
+        paymentMethods={(pmRes.data ?? []).map((p) => ({
+          name: p.name,
+          currency: (p.currency ?? "VES") as "USD" | "VES",
+          requires_reference: !!p.requires_reference,
+          is_financed: !!p.is_financed,
+        }))}
+        branch={branchRes.data ?? null}
+        sellers={(sellers ?? []).map((s) => ({
+          id: s.id,
+          full_name: s.full_name,
+        }))}
+        rate={bcv.rate}
+        company={{
+          name: s?.company_name ?? null,
+          rif: s?.rif ?? null,
+          address: s?.fiscal_address ?? null,
+          phone: s?.phone ?? null,
+          logoUrl: s?.logo_url ?? null,
+        }}
+        cashier={session.profile.full_name ?? null}
+      />
+    </>
   );
 }

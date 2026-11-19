@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/queries/session";
 import { canEdit, canView } from "@/lib/permissions";
-import { getProfileBranchScope } from "@/lib/branch";
+import { getActiveBranchId, getProfileBranchScope } from "@/lib/branch";
 import { fetchBcvRate, BCV_FALLBACK } from "@/lib/bcv";
 import { isUuid } from "@/lib/online-orders/rules";
 import { getOnlineBranches, getOnlineOrder, getOnlineSettings } from "@/lib/queries/online-orders";
@@ -28,6 +28,7 @@ export default async function OnlineOrderDetailPage({
   ]);
   if (!order) notFound();
   const branchScope = getProfileBranchScope(session.profile);
+  const activeBranchId = await getActiveBranchId(session.profile.branch_id, session.profile.role);
   // The server snapshot is serialized for the client, so hydration uses the same instant.
   // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
@@ -37,6 +38,8 @@ export default async function OnlineOrderDetailPage({
     rate={bcv.rate}
     canManage={canEdit(session.permissions, "Ventas")}
     branches={branchScope === null ? branches : branches.filter((branch) => branch.id === branchScope)}
+    activeBranchId={activeBranchId}
+    assignedBranchId={branchScope}
     now={now}
     firmHoldHours={settings.firmHoldHours}
     templates={settings.templates}
