@@ -16,7 +16,8 @@
 #
 # Todos los scripts son idempotentes (`add column if not exists`, `create or replace`,
 # `drop … if exists` antes de cada trigger/policy, `create index concurrently if not
-# exists`), así que repetir la ejecución no hace daño. NO se usa --single-transaction:
+# exists`), así que repetir la ejecución no hace daño. Los dos grupos de tienda se
+# aplican cada uno en una transacción; performance_indexes.sql queda fuera porque
 # CONCURRENTLY no admite transacción.
 
 set -euo pipefail
@@ -42,6 +43,13 @@ if [[ "$DB_URL" == *":6543/"* ]]; then
   exit 1
 fi
 
+if ! psql_version="$(psql --version 2>/dev/null)" ||
+   [[ ! "$psql_version" =~ ^psql[[:space:]]+\(PostgreSQL\)[[:space:]]+([0-9]+) ]] ||
+   (( BASH_REMATCH[1] < 15 )); then
+  echo "ERROR: se necesita el cliente psql versión 15 o superior para aplicar las migraciones de tienda en una transacción." >&2
+  exit 1
+fi
+
 echo "Proyecto: $(printf '%s' "$DB_URL" | sed -E 's#//[^:]+:[^@]*@#//***:***@#')"
 
 run() {
@@ -50,14 +58,24 @@ run() {
   psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$1"
 }
 
-# 1. Comisiones: profiles.{commission_pct, employee_code, system_access},
-#    sales.{seller_id, seller_commission_pct}. Sin esto, dar de alta un usuario falla
-#    con «Could not find the 'commission_pct' column of 'profiles'».
-run supabase/sales_commissions.sql
+run_tx() {
+  local file
+  local args=()
+  echo ""
+  echo "=== Transacción: $* ==="
+  for file in "$@"; do
+    args+=(-f "$file")
+  done
+  psql "$DB_URL" -X -v ON_ERROR_STOP=1 -1 "${args[@]}"
+}
 
-# 2. create_sale con IVA incluido + idempotencia por request_id (sales.request_id).
-#    Depende de las columnas del paso 1.
-run supabase/create_sale_tax_included.sql
+# 1–2. Comisiones, create_sale con IVA incluido e idempotencia por request_id,
+# y pedidos online con create_sale enlazada. La sobrecarga antigua se crea y se
+# elimina dentro de la misma transacción: nunca queda visible junto a la nueva.
+run_tx supabase/sales_commissions.sql \
+  supabase/create_sale_tax_included.sql \
+  supabase/online_orders.sql \
+  supabase/online_orders_sale.sql
 
 # 3. Índices compuestos + RPCs inventory_status_counts / report_payments / write_audit.
 #    Sin esto, el shell y Reportes corren por el camino de respaldo (mucho más lento).
@@ -86,15 +104,13 @@ run supabase/catalog_view.sql
 run supabase/catalog_master_guards.sql
 
 # Aplicar ANTES de desplegar la app (el POS lee v_inventory.online_held).
-# Pedidos online y tienda necesitan el catálogo clasificado. create_sale se redefine
-# después de create_sale_tax_included.sql para conservar el enlace con el pedido.
-run supabase/online_orders.sql
-run supabase/online_orders_sale.sql
-run supabase/online_orders_staff.sql
-run supabase/v_inventory_online_held.sql
-run supabase/shop_schema.sql
-run supabase/shop_crear_solicitud.sql
-run supabase/storage_no_public_list.sql
+# Las vistas de tienda necesitan el catálogo clasificado y sus candados. El resto
+# de las migraciones de tienda se aplica en una segunda transacción.
+run_tx supabase/online_orders_staff.sql \
+  supabase/v_inventory_online_held.sql \
+  supabase/shop_schema.sql \
+  supabase/shop_crear_solicitud.sql \
+  supabase/storage_no_public_list.sql
 
 # 9. Estadísticas del planificador al día.
 echo ""
@@ -136,6 +152,23 @@ from (
   end as presente
   from esperado
 ) t order by presente desc, clase, nombre;"
+
+psql "$DB_URL" -At -c "
+select case when presente then '  OK    ' else '  FALTA ' end || nombre
+from (values
+  ('create_sale única', (select count(*) = 1 from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'wm' and p.proname = 'create_sale')),
+  ('esquema shop', exists (select 1 from pg_namespace where nspname = 'shop')),
+  ('rol storefront', exists (select 1 from pg_roles where rolname = 'storefront')),
+  ('storage.objects: wm_authenticated_read', exists (select 1 from pg_policies
+    where schemaname = 'storage' and tablename = 'objects' and policyname = 'wm_authenticated_read')),
+  ('storage.objects: wm_public_read ausente', not exists (select 1 from pg_policies
+    where schemaname = 'storage' and tablename = 'objects' and policyname = 'wm_public_read')),
+  ('v_inventory.online_held', exists (select 1 from pg_attribute
+    where attrelid = to_regclass('wm.v_inventory') and attname = 'online_held' and not attisdropped))
+) as checks(nombre, presente)
+order by presente desc, nombre;"
 
 echo ""
 echo "Listo. Redesplegar la app: los procesos memorizan por 5 min qué objetos existen"

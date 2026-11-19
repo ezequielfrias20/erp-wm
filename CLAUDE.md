@@ -77,7 +77,20 @@ handoff de diseño `World Medics ERP.dc.html` (claude.ai/design) **tal cual**.
     `online_orders_staff.sql`, `v_inventory_online_held.sql`, `shop_schema.sql`,
     `shop_crear_solicitud.sql`, `storage_no_public_list.sql` (todos en `supabase/`, en ese orden).
     Se pliegan en bootstrap y `apply_pending.sh`; **aplicar antes de desplegar la app** porque
-    el POS lee `v_inventory.online_held`. Aplicación en producción pendiente.
+    el POS lee `v_inventory.online_held`. En producción, aplicar los siete archivos en **una
+    sola transacción** durante una ventana de poco tráfico y antes del despliegue, con el cliente
+    `psql` 15+ y el pooler en modo sesión (5432):
+    ```bash
+    psql -h aws-1-us-west-2.pooler.supabase.com -p 5432 \
+      -U postgres.cfggippjujceebovvhsa -d postgres \
+      -X -1 -v ON_ERROR_STOP=1 -c "set lock_timeout = '5s'" \
+      -f supabase/online_orders.sql -f supabase/online_orders_sale.sql \
+      -f supabase/online_orders_staff.sql -f supabase/v_inventory_online_held.sql \
+      -f supabase/shop_schema.sql -f supabase/shop_crear_solicitud.sql \
+      -f supabase/storage_no_public_list.sql
+    ```
+    `apply_pending.sh` agrupa los archivos de tienda de forma atómica en dos transacciones por
+    sus dependencias con las migraciones previas. Aplicación en producción pendiente.
 Bootstrap del admin (login) se hizo con `execute_sql` (crea `auth.users` + `auth.identities`).
 
 ### Modelo RLS

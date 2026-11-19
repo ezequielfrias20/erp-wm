@@ -456,8 +456,12 @@ muestre disponibilidad vieja, el ERP nunca aparta más de lo que hay.
 
 ## 12. Cómo probar contra el ERP
 
-1. Pide al administrador del ERP: contraseña de `storefront`, y que active al menos una sucursal
-   para venta online (ERP → Pedidos online → Configuración, o `branches.online_enabled`).
+1. Pide al administrador del ERP la contraseña de `storefront` y que habilite al menos una
+   sucursal para venta online. Por ahora lo hace con SQL:
+   ```sql
+   update wm.branches set online_enabled = true where id = '<uuid-de-la-sucursal>';
+   ```
+   La pantalla de configuración llegará con el módulo «Pedidos online».
 2. Verifica el acceso:
    ```sql
    select count(*) from shop.products;          -- > 0
