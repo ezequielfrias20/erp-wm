@@ -4,6 +4,9 @@ import { fmtUSD, fmtVES, fmtRelative } from "@/lib/format";
 import type { ShellNotification, ShellSummary } from "@/components/shell/shell-data";
 import type { BcvRate } from "@/lib/bcv";
 import { rpcOrFallback } from "@/lib/db-capabilities";
+import { getSession } from "@/lib/queries/session";
+import { canView } from "@/lib/permissions";
+import { countNewOnlineOrders } from "@/lib/queries/online-orders";
 
 type StatusCounts = { low_stock: number; out_stock: number };
 
@@ -15,6 +18,10 @@ export async function getShellData(
   branchId: string | null,
 ): Promise<ShellData> {
   const supabase = await createClient();
+  const session = await getSession();
+  const onlineNewPromise = session && canView(session.permissions, "Ventas")
+    ? countNewOnlineOrders(branchId).then((result) => result.count)
+    : Promise.resolve(0);
 
   let saleQ = supabase
     .from("sales")
@@ -66,7 +73,7 @@ export async function getShellData(
     },
   );
 
-  const [counts, saleRes, poRes] = await Promise.all([countsPromise, saleQ, poQ]);
+  const [counts, saleRes, poRes, onlineNew] = await Promise.all([countsPromise, saleQ, poQ, onlineNewPromise]);
   const lowStock = counts.low_stock;
   const outStock = counts.out_stock;
   const latestSale = saleRes.data?.[0];
@@ -113,5 +120,5 @@ export async function getShellData(
     tone: "muted",
   });
 
-  return { lowStock, outStock, notifications };
+  return { lowStock, onlineNew, outStock, notifications };
 }

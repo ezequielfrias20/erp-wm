@@ -6,20 +6,20 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { BrandMark } from "@/components/shell/brand-mark";
-import { NAV_SECTIONS } from "@/components/shell/nav-items";
+import { NAV_SECTIONS, type NavItem } from "@/components/shell/nav-items";
 import { useCan } from "@/context/session";
 import { fmtVES } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { BcvRate } from "@/lib/bcv";
 import type { ShellSummary } from "@/components/shell/shell-data";
 
-/** Único punto del sidebar que espera los conteos de inventario. */
-function LowStockBadge({ shell }: { shell: Promise<ShellSummary> }) {
-  const { lowStock } = use(shell);
-  if (!lowStock) return null;
+/** Sólo el badge espera el resumen; la navegación se pinta de inmediato. */
+function SidebarBadge({ shell, badgeKey }: { shell: Promise<ShellSummary>; badgeKey: NonNullable<NavItem["badgeKey"]> }) {
+  const count = use(shell)[badgeKey];
+  if (!count) return null;
   return (
     <span className="flex-none rounded-full bg-warning-soft px-[7px] py-px text-[10.5px] font-bold text-warning">
-      {lowStock}
+      {count}
     </span>
   );
 }
@@ -84,7 +84,6 @@ export function Sidebar({
                 const active =
                   pathname === item.href || pathname.startsWith(item.href + "/");
                 const Icon = item.icon;
-                const showBadge = item.badgeKey === "lowStock";
                 return (
                   <Link
                     key={item.href}
@@ -101,9 +100,9 @@ export function Sidebar({
                   >
                     <Icon className="size-5 flex-none" strokeWidth={1.8} />
                     {expanded && <span className="flex-1">{item.label}</span>}
-                    {expanded && showBadge ? (
+                    {expanded && item.badgeKey ? (
                       <Suspense fallback={null}>
-                        <LowStockBadge shell={shell} />
+                        <SidebarBadge shell={shell} badgeKey={item.badgeKey} />
                       </Suspense>
                     ) : null}
                   </Link>

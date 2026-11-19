@@ -17,12 +17,14 @@ export type ShellNotification = {
 
 export type ShellSummary = {
   lowStock: number;
+  onlineNew: number;
   outStock: number;
   notifications: ShellNotification[];
 };
 
 export const EMPTY_SHELL_SUMMARY: ShellSummary = {
   lowStock: 0,
+  onlineNew: 0,
   outStock: 0,
   notifications: [],
 };

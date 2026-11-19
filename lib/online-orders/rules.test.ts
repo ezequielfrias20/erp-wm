@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STATUS_LABEL, STATUS_TONE, availableActions, branchScopeError, canConvertGroup, groupByBranch, isUuid, timeLeftLabel } from "./rules";
+import { STATUS_LABEL, STATUS_TONE, availableActions, branchScopeError, canConvertGroup, groupByBranch, isUuid, shouldNotify, timeLeftLabel } from "./rules";
 import type { BranchGroup, OnlineOrderItemView } from "./types";
 
 const itemA1: OnlineOrderItemView = {
@@ -12,6 +12,22 @@ const itemB1 = { ...itemA1, id: "b1", branchId: "B", branchName: "Valencia" };
 const pendingGroupA: BranchGroup = {
   branchId: "A", branchName: "Caracas Centro", items: [itemA1], subtotal: 62.5, state: "pendiente",
 };
+
+describe("shouldNotify", () => {
+  const older = "2026-11-19T10:00:00Z";
+  const newer = "2026-11-19T10:01:00Z";
+
+  it("no avisa en la primera lectura ni si no hay solicitud nueva", () => {
+    expect(shouldNotify(null, newer)).toBe(false);
+    expect(shouldNotify(older, null)).toBe(false);
+  });
+
+  it("avisa sólo si la fecha más reciente avanzó", () => {
+    expect(shouldNotify(older, newer)).toBe(true);
+    expect(shouldNotify(older, older)).toBe(false);
+    expect(shouldNotify(newer, older)).toBe(false);
+  });
+});
 
 describe("groupByBranch", () => {
   it("agrupa y ordena por nombre de sucursal", () => {

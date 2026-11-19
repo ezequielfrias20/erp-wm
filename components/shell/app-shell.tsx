@@ -7,6 +7,8 @@ import { Header } from "@/components/shell/header";
 import type { ShellSummary } from "@/components/shell/shell-data";
 import type { BcvRate } from "@/lib/bcv";
 import { ModuleLoading } from "@/components/ui/module-loading";
+import { NewOrdersWatcher } from "@/components/pedidos-online/new-orders-watcher";
+import { useCan } from "@/context/session";
 
 export function AppShell({
   bcv,
@@ -28,6 +30,7 @@ export function AppShell({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
   const pathname = usePathname();
+  const { view } = useCan();
 
   useEffect(() => {
     const timer = window.setTimeout(() => setNavigatingTo(null), 0);
@@ -47,6 +50,7 @@ export function AppShell({
 
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-background text-foreground">
+      {view("Ventas") ? <NewOrdersWatcher /> : null}
       {mobileOpen && (
         <button
           type="button"

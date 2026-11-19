@@ -37,6 +37,12 @@ export function isUuid(value: unknown): value is string {
     && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
+/** Sólo una fecha posterior a la última vista representa una solicitud nueva. */
+export function shouldNotify(prev: string | null, next: string | null): boolean {
+  if (!prev || !next) return false;
+  return new Date(next).getTime() > new Date(prev).getTime();
+}
+
 export function groupByBranch(items: OnlineOrderItemView[]): BranchGroup[] {
   const branches = new Map<string, BranchGroup>();
 
