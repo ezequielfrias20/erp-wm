@@ -1,22 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { PosOnlineOrder } from "@/lib/queries/online-orders";
 
 export type CompletedOnlineOrder = { orderId: string; number: string; invoice: string };
-
-export function MissingOnlineOrderToast() {
-  const shown = useRef(false);
-  useEffect(() => {
-    if (shown.current) return;
-    shown.current = true;
-    toast.warning("Ese pedido no tiene productos pendientes en esta sucursal");
-  }, []);
-  return null;
-}
 
 export function OnlineOrderBanner({ order, invoice, needsCustomer, creatingCustomer, onCreateCustomer, onCancel }: {
   order: PosOnlineOrder;

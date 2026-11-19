@@ -94,7 +94,7 @@ export async function listOnlineOrders(opts: {
   const supabase = await createClient();
   const term = opts.q?.trim().replace(/[^\p{L}\p{N}\s+@_-]/gu, " ").replace(/\s+/g, " ").trim();
   const limit = Math.min(200, Math.max(1, Math.trunc(opts.limit ?? 200) || 200));
-  async function fetchRows(ids?: string[]): Promise<VOnlineOrderRow[]> {
+  async function fetchRows(ids?: string[], rowLimit = limit): Promise<VOnlineOrderRow[]> {
     let query = supabase.from("v_online_orders").select("*").order("created_at", { ascending: false });
     if (ids) query = query.in("id", ids);
     if (opts.status === "activas") {
@@ -106,12 +106,23 @@ export async function listOnlineOrders(opts: {
     if (term) {
       query = query.or(`number.ilike.%${term}%,customer_name.ilike.%${term}%,customer_phone.ilike.%${term}%`);
     }
-    const { data, error } = await query.limit(limit);
+    const { data, error } = await query.limit(rowLimit);
     if (error) throw new Error(error.message);
     return data ?? [];
   }
 
   if (!branchId) return hydrateOrders(await fetchRows());
+  if (["activas", "solicitada", "aceptada", "vencida"].includes(opts.status)) {
+    const candidates = await fetchRows(undefined, 500);
+    const matchingItems = await inChunks(candidates.map((row) => row.id), async (ids) => {
+      const { data, error } = await supabase.from("online_order_items")
+        .select("order_id").in("order_id", ids).eq("branch_id", branchId);
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    }, 40);
+    const matchingIds = new Set(matchingItems.map((item) => item.order_id));
+    return hydrateOrders(candidates.filter((row) => matchingIds.has(row.id)).slice(0, limit));
+  }
   const ids = await branchOrderIds(branchId);
   const rows = await inChunks(ids, fetchRows);
   rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -145,6 +156,7 @@ export async function countNewOnlineOrders(branchId: string | null): Promise<{
     const { data, error, count } = await supabase.from("v_online_orders")
       .select("number, created_at", { count: "exact" })
       .eq("effective_status", "solicitada")
+      .eq("status", "solicitada")
       .order("created_at", { ascending: false }).limit(1);
     if (error) throw new Error(error.message);
     return { count: count ?? 0, latestNumber: data?.[0]?.number ?? null, latestAt: data?.[0]?.created_at ?? null };
@@ -155,6 +167,7 @@ export async function countNewOnlineOrders(branchId: string | null): Promise<{
   for (let start = 0; ; start += 1000) {
     const { data, error } = await supabase.from("v_online_orders")
       .select("id, number, created_at").eq("effective_status", "solicitada")
+      .eq("status", "solicitada")
       .order("created_at", { ascending: false }).order("id").range(start, start + 999);
     if (error) throw new Error(error.message);
     requested.push(...(data ?? []));
@@ -233,8 +246,9 @@ export async function getOnlineOrderForPos(orderId: string, branchId: string): P
   let matchedCustomer: PosOnlineOrder["matchedCustomer"] = null;
   const document = order.customer_document?.trim();
   if (document) {
+    const escapedDocument = document.replace(/[\\%_]/g, "\\$&");
     const { data, error } = await supabase.from("customers").select("id, name, document, segment")
-      .eq("branch_id", branchId).ilike("document", document).limit(1).maybeSingle();
+      .eq("branch_id", branchId).ilike("document", escapedDocument).limit(1).maybeSingle();
     if (error) throw new Error(error.message);
     matchedCustomer = data ?? null;
   }

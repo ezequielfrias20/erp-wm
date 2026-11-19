@@ -302,6 +302,8 @@ export function PosView({
   company,
   cashier,
   onlineOrder,
+  missingOnlineOrder,
+  canConvertOnlineOrder,
   initialCompletedOrder,
 }: {
   products: PosProduct[];
@@ -313,6 +315,8 @@ export function PosView({
   company: InvoiceCompany;
   cashier: string | null;
   onlineOrder?: PosOnlineOrder | null;
+  missingOnlineOrder: boolean;
+  canConvertOnlineOrder: boolean;
   initialCompletedOrder?: CompletedOnlineOrder | null;
 }) {
   const [query, setQuery] = useState("");
@@ -341,8 +345,17 @@ export function PosView({
       ?? null);
   const [orderMode, setOrderMode] = useState(onlineOrder ?? null);
   const [completedOrder, setCompletedOrder] = useState<CompletedOnlineOrder | null>(initialCompletedOrder ?? null);
+  const [missingOrderOnMount] = useState(() => missingOnlineOrder);
   const [creatingOrderCustomer, setCreatingOrderCustomer] = useState(false);
   const createOrderCustomerLock = useRef(false);
+  const missingOrderToastShown = useRef(false);
+  useEffect(() => {
+    if (!missingOrderOnMount || missingOrderToastShown.current) return;
+    missingOrderToastShown.current = true;
+    toast.warning(canConvertOnlineOrder
+      ? "Ese pedido no tiene productos pendientes en esta sucursal"
+      : "No tienes permiso para convertir pedidos online");
+  }, [missingOrderOnMount, canConvertOnlineOrder]);
   const missingWarned = useRef(false);
   useEffect(() => {
     if (missingWarned.current || orderSeed.missing.length === 0) return;

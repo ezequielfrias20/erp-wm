@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSession } from "@/lib/queries/session";
 import { getActiveBranchId, getProfileBranchScope } from "@/lib/branch";
-import { canView } from "@/lib/permissions";
+import { canEdit, canView } from "@/lib/permissions";
 import { fetchBcvRate, BCV_FALLBACK } from "@/lib/bcv";
 import { fetchAllRows } from "@/lib/supabase/pagination";
 import { PosView, type PosProduct } from "@/components/ventas/pos-view";
@@ -11,7 +11,7 @@ import { sellableStock } from "@/lib/sales/stock";
 import { getOnlineOrderForPos } from "@/lib/queries/online-orders";
 import { stockWithOwnHold } from "@/lib/online-orders/pos";
 import { isUuid } from "@/lib/online-orders/rules";
-import { MissingOnlineOrderToast, type CompletedOnlineOrder } from "@/components/ventas/online-order-banner";
+import type { CompletedOnlineOrder } from "@/components/ventas/online-order-banner";
 
 export const metadata = { title: "Punto de venta · World Medics ERP" };
 
@@ -42,10 +42,12 @@ export default async function VentasPage({ searchParams }: {
     branchId = first?.id ?? null;
   }
   const { pedido, convertido, factura, numero } = await searchParams;
-  const onlineOrder = pedido && branchId ? await getOnlineOrderForPos(pedido, branchId) : null;
+  const onlineOrder = pedido && branchId
+    ? await getOnlineOrderForPos(pedido, branchId).catch(() => null)
+    : null;
   const initialCompletedOrder: CompletedOnlineOrder | null =
     !pedido && isUuid(convertido) && typeof factura === "string" && /^FAC-\d+$/.test(factura)
-      && typeof numero === "string" && /^W-\d{6}$/.test(numero)
+      && typeof numero === "string" && /^W-\d{6,}$/.test(numero)
       ? { orderId: convertido, number: numero, invoice: factura }
       : null;
 
@@ -158,11 +160,12 @@ export default async function VentasPage({ searchParams }: {
   const s = settingsRes.data;
   return (
     <>
-      {pedido && !onlineOrder && <MissingOnlineOrderToast />}
       <PosView
-        key={onlineOrder ? `${onlineOrder.branchId}:${onlineOrder.orderId}` : "normal"}
+        key={isUuid(pedido) && branchId ? `${branchId}:${pedido}` : "normal"}
         products={onlineOrder ? stockWithOwnHold(products, onlineOrder) : products}
         onlineOrder={onlineOrder}
+        missingOnlineOrder={Boolean(pedido && !onlineOrder)}
+        canConvertOnlineOrder={canEdit(session.permissions, "Ventas")}
         initialCompletedOrder={initialCompletedOrder}
         customers={customersRes.data ?? []}
         paymentMethods={(pmRes.data ?? []).map((p) => ({
