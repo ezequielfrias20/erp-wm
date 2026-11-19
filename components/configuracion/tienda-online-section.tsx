@@ -181,7 +181,7 @@ export function TiendaOnlineSection() {
               <p className="text-[11px] text-text-3">{branch.city}{!branch.isActive && " · Inactiva"}</p></div>
             <div className="flex shrink-0 items-center gap-2"><Label htmlFor={`online-${branch.id}`} className="text-[12px]">Vende online</Label>
               <Switch id={`online-${branch.id}`} checked={branch.onlineEnabled} onCheckedChange={(enabled) => toggleBranch(branch.id, enabled)}
-                disabled={!data.canEditBranches || !branch.isActive || changingBranch} aria-label={`Vende online: ${branch.name}`} /></div>
+                disabled={!data.canEditBranches || (!branch.isActive && !branch.onlineEnabled) || changingBranch} aria-label={`Vende online: ${branch.name}`} /></div>
           </div>)}
         </CardContent>
       </Card>

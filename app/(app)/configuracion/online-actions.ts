@@ -84,13 +84,19 @@ export async function saveOnlineSettings(input: OnlineSettingsInput): Promise<{ 
   }
   const invalid = validateOnlineSettings(input);
   if (invalid) return { error: invalid };
-  const templates: Partial<Record<TemplateKey, string>> = {};
-  for (const key of Object.keys(DEFAULT_TEMPLATES) as TemplateKey[]) {
-    const value = input.templates[key]?.trim();
-    if (value) templates[key] = value;
-  }
   try {
     const db = await createClient();
+    const { data: current, error: readError } = await db.from("online_settings")
+      .select("whatsapp_templates").eq("id", 1).maybeSingle();
+    if (readError || !current) return { error: "No se pudo guardar la configuración de la tienda online." };
+    const stored = current.whatsapp_templates;
+    const templates = stored && typeof stored === "object" && !Array.isArray(stored)
+      ? { ...stored } : {};
+    for (const key of Object.keys(DEFAULT_TEMPLATES) as TemplateKey[]) {
+      const value = input.templates[key]?.trim();
+      if (value) templates[key] = value;
+      else delete templates[key];
+    }
     const { data, error } = await db.from("online_settings").update({
       soft_hold_minutes: input.softHoldMinutes,
       firm_hold_hours: input.firmHoldHours,
@@ -114,9 +120,12 @@ export async function setBranchOnline(branchId: string, enabled: boolean): Promi
   if (!isUuid(branchId) || typeof enabled !== "boolean") return { error: "Sucursal no válida." };
   try {
     const db = await createClient();
-    const { data, error } = await db.from("branches").update({ online_enabled: enabled })
-      .eq("id", branchId).eq("is_active", true).select("id").maybeSingle();
-    if (error || !data) return { error: "No se pudo actualizar la sucursal. Comprueba que esté activa." };
+    let query = db.from("branches").update({ online_enabled: enabled }).eq("id", branchId);
+    if (enabled) query = query.eq("is_active", true);
+    const { data, error } = await query.select("id").maybeSingle();
+    if (error || !data) return { error: enabled
+      ? "No se pudo actualizar la sucursal. Comprueba que esté activa."
+      : "No se pudo actualizar la sucursal." };
     await audit(`${enabled ? "Activó" : "Desactivó"} la venta online en una sucursal`, "Sucursales");
     revalidateOnlineConfig();
     return {};
