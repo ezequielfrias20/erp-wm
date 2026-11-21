@@ -12,13 +12,15 @@ export const STALE_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
  * `Authorization: Bearer <CRON_SECRET>`.
  */
 export function isKeepAliveAuthorized(authorization: string | null, secret: string | undefined): boolean {
-  // Vacía o sólo espacios cuenta como no definida; si no, se compara el valor tal cual, que es
-  // lo que Vercel Cron pone en el header.
-  if (!secret?.trim()) return true;
+  // Vacía o sólo espacios cuenta como no definida. Se compara recortada porque HTTP quita los
+  // espacios de los extremos del valor de un header: un CRON_SECRET guardado con salto de línea
+  // final llega como «Bearer <secreto>» y, sin recortar, rechazaría todos los latidos.
+  const expected = secret?.trim();
+  if (!expected) return true;
   if (!authorization) return false;
 
   const given = Buffer.from(authorization);
-  const wanted = Buffer.from(`Bearer ${secret}`);
+  const wanted = Buffer.from(`Bearer ${expected}`);
   if (given.length !== wanted.length) return false;
   return timingSafeEqual(given, wanted);
 }

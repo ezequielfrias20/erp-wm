@@ -15,6 +15,12 @@ describe("isKeepAliveAuthorized", () => {
     expect(isKeepAliveAuthorized("Bearer s3cr3t", "s3cr3t")).toBe(true);
   });
 
+  it("un CRON_SECRET guardado con espacio o salto de línea final sigue aceptando el header de Vercel", () => {
+    // HTTP recorta los espacios de los extremos del valor de un header: llega «Bearer s3cr3t».
+    expect(isKeepAliveAuthorized("Bearer s3cr3t", "s3cr3t\n")).toBe(true);
+    expect(isKeepAliveAuthorized("Bearer s3cr3t", " s3cr3t ")).toBe(true);
+  });
+
   it("con CRON_SECRET rechaza la falta de header", () => {
     expect(isKeepAliveAuthorized(null, "s3cr3t")).toBe(false);
   });
