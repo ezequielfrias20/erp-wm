@@ -49,3 +49,15 @@ backups/catalogo/
 
 # Respaldos locales (precios, costos, catálogos): nunca al repo
 /backups/
+
+# Datos del negocio y llaves: nunca al repo (además lo bloquea .githooks/pre-commit)
+*.xlsx
+*.xls
+*.csv
+*.tsv
+*.dump
+*.sql.gz
+*.bak
+*.p12
+*.pfx
+*.key

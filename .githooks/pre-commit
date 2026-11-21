@@ -1,0 +1,4 @@
+#!/bin/sh
+# Bloquea secretos y archivos de datos antes de cada commit. Se activa con `npm install`
+# (script "prepare": git config core.hooksPath .githooks). Guía: docs/SEGURIDAD-REPO.md
+exec node scripts/seguridad/revisar-commit.mjs

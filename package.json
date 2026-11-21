@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "prepare": "git config core.hooksPath .githooks || true",
     "catalogo:excel": "tsx scripts/catalogo/generar-excel.ts",
     "catalogo:limpieza": "tsx scripts/catalogo/limpieza.ts"
   },
