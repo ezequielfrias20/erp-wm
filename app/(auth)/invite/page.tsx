@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { InviteForm } from "./invite-form";
 
-export const metadata = { title: "Activar cuenta · World Medics ERP" };
+export const metadata = { title: "Activar cuenta" };
 
 export default async function InvitePage({
   searchParams,

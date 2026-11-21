@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { LoginForm } from "./login-form";
 
-export const metadata = { title: "Iniciar sesión · World Medics ERP" };
+export const metadata = { title: "Iniciar sesión" };
 
 export default function LoginPage() {
   return (

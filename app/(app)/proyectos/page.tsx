@@ -5,7 +5,7 @@ import { canView, canEdit } from "@/lib/permissions";
 import { fetchBcvRate, BCV_FALLBACK } from "@/lib/bcv";
 import { ProyectosView } from "@/components/proyectos/proyectos-view";
 
-export const metadata = { title: "Proyectos · World Medics ERP" };
+export const metadata = { title: "Proyectos" };
 
 export default async function ProyectosPage() {
   const session = await getSession();

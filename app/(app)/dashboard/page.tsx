@@ -8,7 +8,7 @@ import { DashboardView } from "@/components/dashboard/dashboard-view";
 import { OperationalDashboardView } from "@/components/dashboard/operational-dashboard-view";
 import type { Role } from "@/lib/database.types";
 
-export const metadata = { title: "Dashboard · World Medics ERP" };
+export const metadata = { title: "Dashboard" };
 
 const EXECUTIVE_DASHBOARD_ROLES = new Set<Role>([
   "Super Admin",

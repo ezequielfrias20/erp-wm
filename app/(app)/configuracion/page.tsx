@@ -5,7 +5,7 @@ import { canEdit } from "@/lib/permissions";
 import { fetchBcvRate, BCV_FALLBACK } from "@/lib/bcv";
 import { ConfiguracionView } from "@/components/configuracion/configuracion-view";
 
-export const metadata = { title: "Configuración · World Medics ERP" };
+export const metadata = { title: "Configuración" };
 
 export default async function ConfiguracionPage() {
   const session = await getSession();

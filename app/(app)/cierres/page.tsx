@@ -7,7 +7,7 @@ import { parseReportDate, reportYmdFromDate } from "@/lib/report-dates";
 import type { DailyClosure, DailyClosureSnapshot } from "@/lib/database.types";
 import { DailyClosuresView } from "@/components/cierres/daily-closures-view";
 
-export const metadata = { title: "Cierres diarios · World Medics ERP" };
+export const metadata = { title: "Cierres diarios" };
 
 export default async function DailyClosuresPage({
   searchParams,

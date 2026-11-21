@@ -12,10 +12,13 @@ export const viewport: Viewport = {
 };
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { faviconUrl } = await getBranding();
+  const { companyName, faviconUrl } = await getBranding();
+  // Multi-negocio: el nombre sale de Configuración (settings.company_name), nunca fijo.
+  // Las páginas declaran sólo su parte («Punto de venta») y la plantilla añade el negocio.
+  const name = companyName?.trim() || "ERP";
   return {
-    title: "World Medics ERP",
-    description: "ERP de uniformes médicos · World Medics",
+    title: { default: name, template: `%s · ${name}` },
+    description: `ERP · ${name}`,
     // Un único origen de favicon: el subido si existe, si no el default de /public.
     // (Ya no existe app/favicon.ico, así que nada compite por la ruta /favicon.ico.)
     icons: { icon: [{ url: faviconUrl ?? "/favicon-default.ico" }] },

@@ -7,7 +7,7 @@ import { listOnlineOrders } from "@/lib/queries/online-orders";
 import type { OnlineOrderStatus } from "@/lib/online-orders/types";
 import { OrdersList } from "@/components/pedidos-online/orders-list";
 
-export const metadata = { title: "Pedidos online · World Medics ERP" };
+export const metadata = { title: "Pedidos online" };
 
 type StatusFilter = OnlineOrderStatus | "activas" | "todas";
 const FILTERS: StatusFilter[] = [

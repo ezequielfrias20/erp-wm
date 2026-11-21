@@ -10,7 +10,7 @@ import {
 } from "@/lib/queries/cashea";
 import { CasheaView } from "@/components/cashea/cashea-view";
 
-export const metadata = { title: "Cashea · World Medics ERP" };
+export const metadata = { title: "Cashea" };
 
 function ymd(d: Date): string {
   return d.toISOString().slice(0, 10);

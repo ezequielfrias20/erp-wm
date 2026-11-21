@@ -9,7 +9,7 @@ import { normalizeReportRange } from "@/lib/report-dates";
 import { ReportesView } from "@/components/reportes/reportes-view";
 import { parsePageRequest } from "@/lib/pagination";
 
-export const metadata = { title: "Reportes · World Medics ERP" };
+export const metadata = { title: "Reportes" };
 
 export default async function ReportesPage({
   searchParams,

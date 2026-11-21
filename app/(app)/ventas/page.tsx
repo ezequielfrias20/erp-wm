@@ -13,7 +13,7 @@ import { stockWithOwnHold } from "@/lib/online-orders/pos";
 import { isUuid } from "@/lib/online-orders/rules";
 import type { CompletedOnlineOrder } from "@/components/ventas/online-order-banner";
 
-export const metadata = { title: "Punto de venta · World Medics ERP" };
+export const metadata = { title: "Punto de venta" };
 
 export default async function VentasPage({ searchParams }: {
   searchParams: Promise<{ pedido?: string; convertido?: string; factura?: string; numero?: string }>;

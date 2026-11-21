@@ -8,7 +8,7 @@ import { fetchAllRows } from "@/lib/supabase/pagination";
 import { getMainPhotoUrls } from "@/lib/queries/catalog";
 import type { VInventory } from "@/lib/database.types";
 
-export const metadata = { title: "Inventario · World Medics ERP" };
+export const metadata = { title: "Inventario" };
 
 export default async function InventarioPage() {
   const session = await getSession();

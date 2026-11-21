@@ -7,7 +7,7 @@ import { isUuid } from "@/lib/online-orders/rules";
 import { getOnlineBranches, getOnlineOrder, getOnlineSettings } from "@/lib/queries/online-orders";
 import { OrderDetail } from "@/components/pedidos-online/order-detail";
 
-export const metadata = { title: "Detalle de pedido online · World Medics ERP" };
+export const metadata = { title: "Detalle de pedido online" };
 
 export default async function OnlineOrderDetailPage({
   params,

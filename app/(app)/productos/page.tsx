@@ -6,7 +6,7 @@ import { canView, canEdit } from "@/lib/permissions";
 import { getActiveBranchId } from "@/lib/branch";
 import { ProductsView } from "@/components/productos/products-view";
 
-export const metadata = { title: "Productos · World Medics ERP" };
+export const metadata = { title: "Productos" };
 
 export default async function ProductosPage() {
   const session = await getSession();

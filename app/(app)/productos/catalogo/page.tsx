@@ -4,7 +4,7 @@ import { canView } from "@/lib/permissions";
 import { getCatalogBrowseData } from "@/lib/queries/catalog-browse";
 import { getSession } from "@/lib/queries/session";
 
-export const metadata = { title: "Catálogo · World Medics ERP" };
+export const metadata = { title: "Catálogo" };
 
 export default async function CatalogoPage() {
   const session = await getSession();

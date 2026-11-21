@@ -5,7 +5,7 @@ import { getBranchStats } from "@/lib/queries/branches";
 import { canView, canEdit } from "@/lib/permissions";
 import { SucursalesView } from "@/components/sucursales/sucursales-view";
 
-export const metadata = { title: "Sucursales · World Medics ERP" };
+export const metadata = { title: "Sucursales" };
 
 export default async function SucursalesPage() {
   const session = await getSession();

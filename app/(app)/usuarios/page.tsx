@@ -5,7 +5,7 @@ import { canView, canEdit } from "@/lib/permissions";
 import { MODULES } from "@/lib/database.types";
 import { UsuariosView } from "@/components/usuarios/usuarios-view";
 
-export const metadata = { title: "Usuarios y permisos · World Medics ERP" };
+export const metadata = { title: "Usuarios y permisos" };
 
 export default async function UsuariosPage() {
   const session = await getSession();
