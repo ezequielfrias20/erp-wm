@@ -21,6 +21,7 @@ import {
   Trash2,
   Sun,
   Moon,
+  Activity,
 } from "lucide-react";
 import {
   updateMyProfile,
@@ -41,7 +42,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { AvatarBubble } from "@/components/shell/avatar-bubble";
 import { ImageUpload } from "@/components/configuracion/image-upload";
-import { fmtVES, fmtDateTime } from "@/lib/format";
+import { fmtVES, fmtDateTime, fmtRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { AuditLog, PaymentMethod, Profile, Settings } from "@/lib/database.types";
 import { CatalogoSection } from "@/components/configuracion/catalogo/catalogo-section";
@@ -70,6 +71,8 @@ type Data = {
   audit: (AuditLog & { branch?: string })[];
   rate: number;
   canEdit: boolean;
+  /** Latido del keep-alive; `null` si el negocio no tiene `keep_alive.sql` aplicado. */
+  heartbeat: { lastBeatAt: string | null; status: "ok" | "stale" | "never" } | null;
 };
 
 export function ConfiguracionView(props: Data) {
@@ -199,11 +202,34 @@ function PerfilSection({ profile, canEdit }: Data) {
   );
 }
 
-function EmpresaSection({ settings, canEdit }: Data) {
+/** Última línea de Empresa: si el cron de Vercel mantiene despierto el proyecto Supabase. */
+function HeartbeatLine({ heartbeat }: { heartbeat: NonNullable<Data["heartbeat"]> }) {
+  const when = fmtRelative(heartbeat.lastBeatAt);
+  const { text, className } = {
+    ok: { text: `Base de datos activa · último latido ${when}`, className: "text-success" },
+    stale: {
+      text: `Sin latido desde ${when} · revisa el cron en Vercel (Settings → Cron Jobs)`,
+      className: "bg-warning-soft text-warning",
+    },
+    never: { text: "Aún no hay latido · se registra una vez al día desde Vercel", className: "text-text-3" },
+  }[heartbeat.status];
+  return (
+    <div
+      className={cn("mt-3 flex items-center gap-2 rounded-xl px-4 py-2.5 text-[12.5px] font-medium", className)}
+      suppressHydrationWarning
+    >
+      <Activity className="size-4 shrink-0" aria-hidden />
+      <span suppressHydrationWarning>{text}</span>
+    </div>
+  );
+}
+
+function EmpresaSection({ settings, canEdit, heartbeat }: Data) {
   const [state, action] = useActionState<FormState, FormData>(updateCompany, null);
   const [retention, setRetention] = useState(settings.iva_retention);
   useToastState(state);
   return (
+    <>
     <Card title="Información de la empresa">
       <form action={action} className="flex flex-col gap-4">
         <input type="hidden" name="iva_retention" value={retention ? "true" : "false"} />
@@ -230,6 +256,8 @@ function EmpresaSection({ settings, canEdit }: Data) {
         )}
       </form>
     </Card>
+    {heartbeat && <HeartbeatLine heartbeat={heartbeat} />}
+    </>
   );
 }
 

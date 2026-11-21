@@ -21,6 +21,7 @@ Estado por fase. Actualizar al cerrar cada módulo. Leyenda: ✅ hecho · 🚧 e
 | 14 | Cashea (financiamiento: inicial en caja + cuenta por cobrar, conciliación, comisión) | ✅ | Ver detalle abajo; build de producción OK |
 | 16 | Catálogo clasificado para ecommerce | 🚧 | Planes 1 y 2 ✅ (limpieza aplicada en producción 2026-11-16); plan 3 en curso; ver detalle abajo |
 | 17 | Tienda online / Pedidos online | 🚧 | Base de datos fase 1 aplicada en producción (2026-11-19); fase 2 del ERP terminada en esta rama, pendiente de despliegue; fase 3 (storefront) pendiente |
+| 18 | Keep-alive de Supabase (latido diario por Vercel Cron + indicador en Configuración) | 🚧 | Código listo y probado contra «Tienda de Pruebas» (2026-11-21); pendiente aplicar `keep_alive.sql` en producción y desplegar |
 
 ## Fase 13 — Mejoras operativas
 
@@ -193,7 +194,7 @@ Con Supabase local iniciado: `SUPABASE_LOCAL_DIR=/ruta/al/proyecto scripts/dev-l
 4. La base de datos `wm` ya está creada y sembrada; no hace falta recrearla.
 
 ## Decisiones clave
-- Solo invitación (sin registro público). Primer admin = Pedro Salas (Super Admin).
+- Solo invitación (sin registro público). El primer admin de cada negocio es el owner que crea `03_owner.sql`.
 - Esquema `wm` aislado (originalmente dentro de `crm_cubo_labs`; hoy producción WM vive en `cfggippjujceebovvhsa`).
 - Tasa BCV en vivo desde dolarapi (`/v1/dolares/oficial`, campo `promedio`).
 - Filtro global por sucursal en todo el sistema.

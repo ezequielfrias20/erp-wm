@@ -117,7 +117,7 @@ inventory, profiles, customers, customer_events, sales, sale_items, **sale_payme
 payment_methods, exchange_rates, audit_log, settings, y las del catálogo clasificado: option_types,
 option_values, color_families, product_lines, attributes, attribute_values, category_attributes,
 product_attribute_values, product_media, variant_sku_aliases, catalog_migration_log,
-online_orders, online_order_items, online_settings.
+online_orders, online_order_items, online_settings, **heartbeat** (keep-alive).
 (Detalle de campos en `lib/database.types.ts`.)
 - `payment_methods` lleva `currency` (`USD|VES`), `requires_reference` e `is_financed`. Métodos VES
   (Efectivo VES, Pago Móvil, Transferencia, Tarjeta débito/crédito) se cobran en bolívares;
@@ -204,6 +204,12 @@ Utilidades extra: `bg-brand`, `text-brand`, `bg-brand-soft`, `text-success`,
   tienda. Inicial = total, financiado 0, sin línea `Cashea` en `sale_payments`; `create_sale`
   crea la orden ya `cobrada` (sin comisión, `settled_amount` 0). En Tienda no se admite
   (financiado 0 en tienda es una venta normal; `create_sale` lo rechaza).
+- **Keep-alive** (`supabase/keep_alive.sql`, `app/api/keep-alive/route.ts`, `lib/keep-alive.ts`,
+  `vercel.json`): Vercel Cron (09:00 UTC) llama `/api/keep-alive`, que ejecuta `wm.keep_alive()` con
+  la llave secreta y escribe en `wm.heartbeat` (máx. una vez por hora) para que el proyecto
+  Supabase gratuito no se pause (7 días sin actividad). Ruta pública en el proxy; si existe
+  `CRON_SECRET` exige `Bearer`. Configuración → Empresa muestra el último latido (aviso >3 días).
+  Aplicar `keep_alive.sql` antes de desplegar (sin él la ruta da 500).
 - **Cierre diario** (`supabase/daily_closures.sql`, `components/cierres/*`): cada renglón lleva un
   `source` que dice a qué cuenta va. `sale`/`legacy` = caja de la sucursal (lo único que suma al
   total de caja); `cashea_online` = inicial de una venta Cashea Online con cualquier método
