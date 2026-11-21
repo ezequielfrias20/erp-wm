@@ -46,3 +46,6 @@ next-env.d.ts
 
 # Catálogo: fotos de producción y Excel de revisión (datos del negocio)
 backups/catalogo/
+
+# Respaldos locales (precios, costos, catálogos): nunca al repo
+/backups/

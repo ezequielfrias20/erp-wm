@@ -20,20 +20,15 @@ ERP lo controla la tabla `wm.profiles` (no basta con tener cuenta en Supabase Au
 
 ---
 
-## 2. Iniciar sesión como administrador (cuenta sembrada)
+## 2. Iniciar sesión como administrador
 
-Ya existe un **Super Admin** listo para entrar (creado en la base de datos):
-
-| Campo | Valor |
-|---|---|
-| **URL** | `http://localhost:3000/login` |
-| **Correo** | `pedro.salas@worldmedics.ve` |
-| **Contraseña** | `WorldMedics.2026` |
-| **Rol** | Super Admin (acceso total a los 9 módulos) |
+Entra con la cuenta **Super Admin** del negocio: la del owner que crea `03_owner.sql` al arrancar
+el negocio (ver `docs/NUEVO-NEGOCIO.md`) o la de otro Super Admin ya invitado. Correo y contraseña
+se guardan en el gestor de contraseñas; **nunca** se escriben en el repo.
 
 Pasos:
 1. Abre `http://localhost:3000` → te redirige a `/login`.
-2. Ingresa el correo y la contraseña de arriba → **Entrar**.
+2. Ingresa tu correo y contraseña → **Entrar**.
 3. El sistema valida la sesión, enlaza tu perfil del ERP (`claim_profile`) y te lleva al **Dashboard**.
 
 > Qué pasa por dentro: `middleware.ts` protege todas las rutas de `app/(app)/`. Al iniciar
@@ -41,8 +36,8 @@ Pasos:
 > enlazado aún, lo enlaza por **correo**. Si tu correo no tiene perfil activo, se cierra la
 > sesión y se niega el acceso (así el ERP queda aislado del CRM que comparte `auth.users`).
 
-**Recomendado:** cambia esta contraseña tras el primer ingreso desde
-**Supabase → Authentication → Users** (o configurando SMTP y usando "reset password").
+**Para cambiar o restablecer una contraseña:** **Supabase → Authentication → Users** (o
+configurando SMTP y usando "reset password").
 
 ---
 

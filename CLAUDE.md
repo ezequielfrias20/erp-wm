@@ -102,10 +102,13 @@ Bootstrap del admin (login) se hizo con `execute_sql` (crea `auth.users` + `auth
   que cada quien edite su propia fila.
 - Helpers (SECURITY DEFINER): `wm.is_member()`, `wm.my_role()`, `wm.my_profile_id()`, `wm.has_module(module, min)`.
 
-### Credenciales del admin sembrado (Super Admin)
-- **Email:** `pedro.salas@worldmedics.ve` · **Password:** `WorldMedics.2026`
-- Los otros 6 perfiles del personal existen sin login (invite-only): se enlazan a `auth.users`
-  al aceptar invitación. Registro público deshabilitado.
+### Credenciales
+- **Nunca** se escriben correos de acceso ni contraseñas en el repo (ni en docs ni en CLAUDE.md).
+  Cada administrador entra con su propia cuenta; las credenciales viven en el gestor de
+  contraseñas y los secretos en `.env*` (ignorados por git).
+- El admin sembrado del handoff (`pedro.salas@…`) sólo existió en el proyecto viejo; en
+  producción no hay cuenta con ese correo (comprobado 2026-11-21).
+- El personal se da de alta por invitación (Usuarios → Invitar). Registro público deshabilitado.
 
 ## Tablas (esquema `wm`)
 branches, categories, brands, sizes, colors, suppliers, products, product_variants,
@@ -285,8 +288,8 @@ Auth → Shell → Sucursales → Productos → Inventario → Clientes → Vent
 Dashboard → Usuarios → Reportes → Configuración.
 
 ## Primer ingreso
-Guía completa en **`docs/PRIMER-INGRESO.md`**. Resumen: entrar en `/login` con el Super
-Admin sembrado (`pedro.salas@worldmedics.ve` / `WorldMedics.2026`); el resto del personal
+Guía completa en **`docs/PRIMER-INGRESO.md`**. Resumen: entrar en `/login` con una cuenta
+Super Admin (la del owner creado por `03_owner.sql`, o la tuya); el resto del personal
 se da de alta en **Usuarios → Invitar** y activa su cuenta en `/invite` (mismo correo).
 Acceso gateado por `wm.profiles` (no por estar en `auth.users`).
 

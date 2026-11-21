@@ -186,9 +186,10 @@ planes): `docs/superpowers/plans/2026-11-11-catalogo-00-hoja-de-ruta.md` · Runb
 Con Supabase local iniciado: `SUPABASE_LOCAL_DIR=/ruta/al/proyecto scripts/dev-local.sh 3100` y abrir `http://localhost:3100/login`.
 
 ## Cómo reanudar
-1. Leer `CLAUDE.md` (stack, Supabase, RLS, credenciales, convenciones).
+1. Leer `CLAUDE.md` (stack, Supabase, RLS, convenciones).
 2. Revisar la última fila ✅/🚧 de esta tabla y continuar por la siguiente ⬜.
-3. `npm run dev` y entrar con `pedro.salas@worldmedics.ve` / `WorldMedics.2026`.
+3. `npm run dev` y entrar con tu cuenta Super Admin (credenciales en el gestor de contraseñas,
+   nunca en el repo).
 4. La base de datos `wm` ya está creada y sembrada; no hace falta recrearla.
 
 ## Decisiones clave
