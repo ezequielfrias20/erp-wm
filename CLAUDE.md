@@ -104,6 +104,8 @@ Bootstrap del admin (login) se hizo con `execute_sql` (crea `auth.users` + `auth
 
 ### Credenciales
 - **Nunca** se escriben correos de acceso ni contraseñas en el repo (ni en docs ni en CLAUDE.md).
+  El repo es **público**. Barreras automáticas (hook antes del commit, gitleaks en Actions, push
+  protection): ver `docs/SEGURIDAD-REPO.md`. Nunca saltarlas con `--no-verify`.
   Cada administrador entra con su propia cuenta; las credenciales viven en el gestor de
   contraseñas y los secretos en `.env*` (ignorados por git).
 - El admin sembrado del handoff (`pedro.salas@…`) sólo existió en el proyecto viejo; en

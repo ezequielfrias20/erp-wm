@@ -1,0 +1,12 @@
+# Configuración de gitleaks (GitHub Action .github/workflows/secretos.yml).
+# Reglas por defecto de gitleaks + excepciones mínimas. Guía: docs/SEGURIDAD-REPO.md
+title = "erp-wm"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Tests del revisor de secretos: contienen claves inventadas a propósito"
+paths = [
+  '''^scripts/seguridad/[^/]+\.test\.ts$''',
+]
