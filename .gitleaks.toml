@@ -7,6 +7,8 @@ useDefault = true
 
 [allowlist]
 description = "Tests del revisor de secretos: contienen claves inventadas a propósito"
+# Lista cerrada de archivos exactos: un archivo nuevo se escanea aunque se llame *.test.ts.
 paths = [
-  '''^scripts/seguridad/[^/]+\.test\.ts$''',
+  '''^scripts/seguridad/reglas\.test\.ts$''',
+  '''^scripts/seguridad/revisar-commit\.test\.ts$''',
 ]

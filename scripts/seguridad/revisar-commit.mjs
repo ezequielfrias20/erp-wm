@@ -5,8 +5,13 @@
 import { execFileSync } from "node:child_process";
 import { blockedPathReason, ESCAPE, MAX_BYTES, secretKindInLine } from "./reglas.mjs";
 
-// Los archivos de reglas y sus tests contienen patrones de ejemplo a propósito.
-const SKIP_CONTENT = [/^scripts\/seguridad\/reglas\.mjs$/, /^scripts\/seguridad\/[^/]+\.test\.ts$/];
+// Las reglas y sus dos tests contienen patrones de ejemplo a propósito. Lista cerrada: un archivo
+// nuevo (aunque se llame *.test.ts) se revisa como cualquier otro.
+const SKIP_CONTENT = new Set([
+  "scripts/seguridad/reglas.mjs",
+  "scripts/seguridad/reglas.test.ts",
+  "scripts/seguridad/revisar-commit.test.ts",
+]);
 
 function git(args) {
   return execFileSync("git", ["-c", "core.quotePath=false", ...args], {
@@ -70,7 +75,7 @@ for (const path of stagedPaths()) {
 }
 
 for (const { file, line, text } of addedLines()) {
-  if (SKIP_CONTENT.some((re) => re.test(file))) continue;
+  if (SKIP_CONTENT.has(file)) continue;
   const kind = secretKindInLine(text);
   if (kind) problems.push(`${file}:${line} → ${kind}`);
 }

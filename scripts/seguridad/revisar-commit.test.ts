@@ -81,6 +81,14 @@ describe("revisar-commit", () => {
     expect(revisar().code).toBe(0);
   });
 
+  it("un test nuevo en scripts/seguridad no hereda la excepción", () => {
+    write("scripts/seguridad/otro.test.ts", `const x = "${SECRETO}";\n`);
+    git("add", "-A");
+    const r = revisar();
+    expect(r.code).toBe(1);
+    expect(r.out).toContain("scripts/seguridad/otro.test.ts:1");
+  });
+
   it("los archivos de reglas no se bloquean a sí mismos", () => {
     copyFileSync(REGLAS, path.join(repo, "reglas.mjs"));
     mkdirSync(path.join(repo, "scripts/seguridad"), { recursive: true });
