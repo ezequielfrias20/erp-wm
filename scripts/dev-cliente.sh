@@ -10,6 +10,7 @@
 #   PUBLISHABLE_KEY=sb_publishable_...         (o ANON_KEY=...)
 #   SECRET_KEY=sb_secret_...                   (o SERVICE_ROLE_KEY=...)
 #   RESEND_API_KEY=... / RESEND_FROM=...       (opcionales: sin ellas no salen invitaciones)
+#   CRON_SECRET=...                            (opcional: cierra /api/keep-alive)
 #
 # Las mismas que usa `/nuevo-negocio` (PGHOST, PGPASSWORD, COMPANY_NAME, OWNER_*) pueden vivir
 # en el mismo archivo; este script las ignora. El JWKS se descarga del proyecto (es público).
@@ -105,6 +106,7 @@ export NEXT_PUBLIC_APP_URL="http://localhost:$port"
 # Sólo los del negocio; nunca los del `.env.local`.
 export RESEND_API_KEY="$(value RESEND_API_KEY)"
 export RESEND_FROM="$(value RESEND_FROM)"
+export CRON_SECRET="$(value CRON_SECRET)"
 export CONFERENCES_API_SECRET=""
 export CONFERENCES_PROJECT_ID=""
 export COURSES_API_SECRET=""

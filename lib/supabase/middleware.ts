@@ -10,7 +10,8 @@ import { supabaseFetch, isTransportFailure } from "@/lib/supabase/fetch";
  */
 const AUTH_TIMEOUT_MS = 3_000;
 
-const PUBLIC_PATHS = ["/login", "/invite", "/api/bcv", "/.well-known"];
+// /api/keep-alive: Vercel Cron llama sin sesión (la ruta se autoriza sola, ver lib/keep-alive.ts).
+const PUBLIC_PATHS = ["/login", "/invite", "/api/bcv", "/api/keep-alive", "/.well-known"];
 
 function isSupabaseAuthCookie(name: string) {
   return name.startsWith("sb-") && name.includes("auth-token");

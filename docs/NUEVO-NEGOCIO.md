@@ -163,6 +163,9 @@ RESEND_FROM="Negocio <no-reply@dominio-verificado.com>"
 
 # Recomendada: JSON de https://<ref>.supabase.co/auth/v1/.well-known/jwks.json
 SUPABASE_AUTH_JWKS={"keys":[...]}
+
+# Opcional: cierra /api/keep-alive para que sólo Vercel Cron pueda llamarla
+CRON_SECRET=<cadena larga y aleatoria>
 ```
 
 La llave secreta es obligatoria: la activación de una invitación (`/invite`) crea el usuario de
@@ -170,6 +173,21 @@ Auth con ella, y sin ella no se puede borrar usuarios. `CONFERENCES_*` y `COURSE
 hacen falta si el negocio publica inscripciones de Proyectos o cursos.
 
 Luego despliega y entra en `/login`.
+
+### Keep-alive: que Supabase no pause el proyecto
+
+Supabase pausa un proyecto del plan gratuito tras **7 días sin actividad en la base**, y uno ya
+pausado sólo se restaura a mano desde su panel. El ERP lo evita solo: `vercel.json` programa una
+llamada diaria (09:00 UTC) a `/api/keep-alive`, que escribe un latido en `wm.heartbeat` (como
+máximo uno por hora). No hay que configurar nada más:
+
+- Necesita `supabase/keep_alive.sql` aplicado (va en el bootstrap; en un negocio existente,
+  `apply_pending.sh` o `psql -f supabase/keep_alive.sql`). Sin él la ruta responde 500.
+- Vercel Cron corre sólo en despliegues de **producción**. Se ve en Vercel → proyecto →
+  **Settings → Cron Jobs** (ahí también se puede ejecutar a mano).
+- `CRON_SECRET` es opcional: sin ella la ruta queda abierta, pero sólo escribe una hora y no
+  devuelve datos; con ella sólo Vercel puede llamarla.
+- En el ERP, **Configuración → Empresa** muestra el último latido y avisa si pasan más de 3 días.
 
 ### Probarlo en local sin tocar `.env.local`
 
