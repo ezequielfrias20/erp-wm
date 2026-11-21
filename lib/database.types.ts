@@ -479,6 +479,13 @@ export type SaleItem = {
   line_total: number;
 }
 
+/** Latido del keep-alive (fila única id = 1). Lo escribe wm.keep_alive() vía /api/keep-alive. */
+export type Heartbeat = {
+  id: number;
+  last_beat_at: string | null;
+  beats: number;
+};
+
 export type DailyClosure = {
   id: string;
   branch_id: string;
@@ -840,6 +847,7 @@ export type Database = {
       sales: Tbl<Sale>;
       sale_items: Tbl<SaleItem>;
       daily_closures: Tbl<DailyClosure>;
+      heartbeat: Tbl<Heartbeat>;
       sale_payments: Tbl<SalePayment>;
       cashea_orders: Tbl<CasheaOrder>;
       purchase_orders: Tbl<PurchaseOrder>;
@@ -881,6 +889,7 @@ export type Database = {
       my_profile_id: { Args: Record<string, never>; Returns: string };
       has_module: { Args: { p_module: string; p_min?: number }; Returns: boolean };
       claim_profile: { Args: Record<string, never>; Returns: Profile };
+      keep_alive: { Args: Record<string, never>; Returns: string | null };
       session_bootstrap: {
         Args: Record<string, never>;
         Returns: {

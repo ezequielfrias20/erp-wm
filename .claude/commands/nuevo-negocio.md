@@ -122,7 +122,7 @@ union all select 'owner_superadmin='||count(*) from wm.profiles where role='Supe
 union all select 'session_bootstrap='||count(*) from pg_proc where proname='session_bootstrap'
   and pronamespace='wm'::regnamespace;"
 ```
-Valores esperados: tablas wm=45, vistas wm=11, roles=6, permisos=60 (6 roles × 10 módulos),
+Valores esperados: tablas wm=46, vistas wm=11, roles=6, permisos=60 (6 roles × 10 módulos),
 metodos_pago=10, sucursales=1, owner_superadmin=1, session_bootstrap=1.
 
 ## 5. Reportar al usuario

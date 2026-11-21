@@ -46,7 +46,7 @@ psql -X -v ON_ERROR_STOP=1 -f supabase/session_bootstrap.sql
 psql -X -v ON_ERROR_STOP=1 -f supabase/performance_indexes.sql   # CONCURRENTLY: sin -1
 ```
 
-`ON_ERROR_STOP=1` aborta ante el primer error en cada paso. Esperado al final: 45 tablas y 11
+`ON_ERROR_STOP=1` aborta ante el primer error en cada paso. Esperado al final: 46 tablas y 11
 vistas en `wm`, 6 roles, 60 permisos, 10 métodos de pago, 1 sucursal y el owner enlazado.
 
 ## Después del bootstrap

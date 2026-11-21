@@ -83,7 +83,7 @@ bloquea la IP unos minutos tras varios fallos de contraseña.
 Si `01_schema.sql` falla a medias en un proyecto vacío, limpia con `drop schema wm cascade;` y
 repite desde el 1. Los pasos 2 a 5 son idempotentes.
 
-Verificación rápida (esperado: 45 / 11 / 6 / 60 / 10 / 1 / 1):
+Verificación rápida (esperado: 46 / 11 / 6 / 60 / 10 / 1 / 1):
 
 ```bash
 psql -X -t -c "
@@ -100,7 +100,7 @@ union all select 'owner='||count(*) from wm.profiles where role='Super Admin' an
 
 ## 4. Qué queda creado
 
-**Estructura:** las 45 tablas del esquema `wm` (incluye catálogo clasificado, cierres diarios,
+**Estructura:** las 46 tablas del esquema `wm` (incluye catálogo clasificado, cierres diarios,
 proyectos y pedidos online), sus funciones de autorización, RLS por módulo, 11 vistas, el RPC
 `create_sale`, `session_bootstrap`, el esquema `shop` y el rol `storefront` de la tienda, y el
 bucket de storage `wm-public`. (Igual que la instancia de referencia, pero **sin datos**.)
