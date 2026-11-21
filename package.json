@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:fraric": "scripts/dev-cliente.sh fraric",
+    "dev:pruebas": "scripts/dev-cliente.sh pruebas",
+    "dev:join": "scripts/dev-cliente.sh join",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

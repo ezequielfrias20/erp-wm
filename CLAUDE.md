@@ -273,7 +273,7 @@ Utilidades extra: `bg-brand`, `text-brand`, `bg-brand-soft`, `text-success`,
 ```bash
 npm run dev      # http://localhost:3000  (→ /login)
 SUPABASE_LOCAL_DIR=/ruta/al/proyecto scripts/dev-local.sh 3100 # app contra Supabase local
-scripts/dev-cliente.sh .env.cliente-<nombre> [3200]  # app contra OTRO negocio (multi-negocio), sin tocar .env.local
+npm run dev:<cliente>   # app contra UN cliente (multi-negocio): dev:fraric, dev:pruebas, dev:join
 npm run build    # build de producción
 npm run lint
 ```
@@ -292,9 +292,14 @@ para humanos: **`docs/NUEVO-NEGOCIO.md`**. Facturas/OC arrancan en `FAC-000001`/
 - Las vistas usan `security_invoker` → requieren Postgres 15+ (Supabase ya lo cumple).
 - Nada de la marca va fijo en el código: el título de la pestaña sale de `settings.company_name`
   (plantilla `%s · <negocio>` en `app/layout.tsx`); las páginas declaran sólo su parte.
-- Probar otro negocio en local: `scripts/dev-cliente.sh .env.cliente-<nombre>` (claves
-  `SUPABASE_URL`, `PUBLISHABLE_KEY`, `SECRET_KEY`). Compila en `.next-cliente` (`NEXT_DIST_DIR`)
-  para convivir con `npm run dev`; no hereda Resend/webhooks de `.env.local`.
+- **Un archivo y un comando por cliente**: cada negocio tiene `.env.cliente-<nombre>` (sección
+  «App» = las variables de su despliegue + `DEV_PORT` + sección «Bootstrap») y su script
+  `"dev:<nombre>": "scripts/dev-cliente.sh <nombre>"` en `package.json`. Registrados: `fraric`
+  (World Medics, 3200), `pruebas` (Tienda de Pruebas, 3300), `join` (Join Active, 3400).
+  `scripts/dev-cliente.sh <nombre> --check` valida sin levantar. Compila en `.next-cliente`
+  (`NEXT_DIST_DIR`) para convivir con `npm run dev`, un cliente a la vez, y la borra al cambiar de
+  cliente; nunca hereda Resend/webhooks/BD de `.env.local`. Plantilla y alta de un cliente nuevo:
+  `docs/NUEVO-NEGOCIO.md §6` (lo hace `/nuevo-negocio` en su paso 5).
 
 ## Estado de módulos
 Ver `docs/PROGRESS.md`. Orden por dependencias:

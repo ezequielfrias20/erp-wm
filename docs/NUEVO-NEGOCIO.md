@@ -27,8 +27,8 @@ no incluye.
 3. Define los datos del **owner**: email, nombre y contraseña inicial.
 4. Necesitas `psql` **15+** instalado localmente (`psql --version`).
 5. Guarda los secretos en un archivo `.env.cliente-<nombre>` en la raíz del repo (el `.gitignore`
-   excluye `.env*`), no en el chat ni en el historial del shell. El formato está en
-   `.claude/commands/nuevo-negocio.md`.
+   excluye `.env*`), no en el chat ni en el historial del shell. La plantilla está en el §6
+   («Un archivo y un comando por cliente»).
 
 > Cada negocio es un proyecto Supabase aparte. No se mezclan datos entre negocios.
 
@@ -189,26 +189,87 @@ máximo uno por hora). No hay que configurar nada más:
   devuelve datos; con ella sólo Vercel puede llamarla.
 - En el ERP, **Configuración → Empresa** muestra el último latido y avisa si pasan más de 3 días.
 
-### Probarlo en local sin tocar `.env.local`
+### Un archivo y un comando por cliente
 
-Agrega al archivo `.env.cliente-<nombre>` las llaves del proyecto (Settings → API Keys):
+Cada cliente es un negocio distinto, así que tiene **su archivo** `.env.cliente-<nombre>` en la
+raíz (con secretos: el `.gitignore` excluye `.env*`, nunca se commitea) y **su comando** para
+levantarlo en local. `<nombre>` es corto, en minúsculas y sin espacios.
 
-```
-SUPABASE_URL=https://<ref>.supabase.co
-PUBLISHABLE_KEY=sb_publishable_...
-SECRET_KEY=sb_secret_...
-```
+**Clientes registrados**
 
-y levanta la app con:
+| Cliente | Archivo | Comando | Puerto |
+|---|---|---|---|
+| World Medics (producción) | `.env.cliente-fraric` | `npm run dev:fraric` | 3200 |
+| Tienda de Pruebas | `.env.cliente-pruebas` | `npm run dev:pruebas` | 3300 |
+| Join Active | `.env.cliente-join` | `npm run dev:join` | 3400 |
+
+`npm run dev` sigue usando `.env.local` (World Medics). Los refs y las llaves de cada cliente viven
+sólo en su archivo, nunca en esta tabla: el repo es público.
+
+**Plantilla del archivo.** La sección «App» lleva exactamente las variables del despliegue del
+cliente, así que se copia tal cual a Vercel. La sección «Bootstrap» sólo la usa `/nuevo-negocio`.
 
 ```bash
-scripts/dev-cliente.sh .env.cliente-<nombre>        # http://localhost:3200 (o pasa otro puerto)
+# ═══ Cliente: <Nombre del negocio> ═══
+# Levantar en local:  npm run dev:<nombre>   → http://localhost:<puerto>
+# Secretos: este archivo NO se commitea (.gitignore excluye .env*). Formato: docs/NUEVO-NEGOCIO.md §6
+
+DEV_PORT=<puerto>          # 3200, 3300, 3400… el siguiente libre
+
+# ─── App: las mismas variables del despliegue (Vercel) de este cliente ───
+NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+SUPABASE_SECRET_KEY=sb_secret_...
+# JWKS público del proyecto (ahorra un viaje de red al verificar la sesión)
+SUPABASE_AUTH_JWKS={"keys":[...]}
+NEXT_PUBLIC_BCV_API=https://ve.dolarapi.com/v1/dolares/oficial
+# URL pública del despliegue (base del enlace de invitación). En local se usa localhost.
+NEXT_PUBLIC_APP_URL=
+# Invitaciones por correo (vacías: la app funciona, pero no salen correos)
+RESEND_API_KEY=
+RESEND_FROM=
+# Opcional: cierra /api/keep-alive para que sólo Vercel Cron pueda llamarla
+CRON_SECRET=
+
+# ─── Bootstrap /nuevo-negocio (psql por el session pooler, puerto 5432) ───
+PGHOST=aws-<n>-<región>.pooler.supabase.com
+PGPASSWORD=...
+COMPANY_NAME=<Nombre del negocio>
+OWNER_NAME=Nombre Apellido
+OWNER_EMAIL=dueno@negocio.com
+OWNER_PASSWORD=...
 ```
 
-El script descarga el JWKS, comprueba que la llave abre ese proyecto y deja vacíos Resend, webhooks
-y la conexión a la base salvo que el archivo traiga los suyos: nunca hereda los de `.env.local`.
-Compila en `.next-cliente`, así que convive con el `npm run dev` de siempre (`.next`); sólo admite
-un negocio de prueba a la vez.
+Si el negocio usa inscripciones de Proyectos o cursos, añade también sus `CONFERENCES_*` y
+`COURSES_API_SECRET`.
+
+**Registrar un cliente nuevo** (`/nuevo-negocio` lo hace en su paso 5):
+
+1. Crea su archivo con la plantilla.
+2. Añade en `package.json` → `scripts`: `"dev:<nombre>": "scripts/dev-cliente.sh <nombre>"`.
+3. Verifica: `scripts/dev-cliente.sh <nombre> --check`. Comprueba que la llave abre ese proyecto y
+   que tiene el bootstrap, e imprime el nombre del negocio.
+4. Añádelo a la tabla de arriba.
+
+**Levantar un cliente**
+
+```bash
+npm run dev:join              # http://localhost:3400 (el puerto de DEV_PORT)
+npm run dev:join -- 3500      # en otro puerto
+scripts/dev-cliente.sh join --check   # sólo valida; no levanta nada
+```
+
+El script lee **todas** las variables de la app del archivo del cliente. Las que el archivo no
+trae (Resend, webhooks, conexión a la base) quedan vacías a propósito: nunca se heredan del
+`.env.local` de otro negocio. `NEXT_PUBLIC_APP_URL` siempre es la URL local, así que las
+invitaciones de prueba apuntan a tu máquina. Si falta el JWKS, lo descarga.
+
+Compila en `.next-cliente`, así que convive con el `npm run dev` de siempre (`.next`), pero
+**sólo un cliente a la vez**. Al cambiar de cliente borra esa carpeta y recompila: el código del
+navegador lleva incrustadas la URL y la llave de Supabase, y una caché de otro cliente podría
+apuntar a su base. Cada cliente usa su propio puerto, así que los borradores del POS
+(localStorage, separado por puerto) no se mezclan entre clientes; las sesiones tampoco, porque la
+cookie de Supabase lleva el ref del proyecto en el nombre.
 
 ### Ajustes en el panel de Supabase (una vez por proyecto)
 

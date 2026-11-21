@@ -25,24 +25,30 @@ y no inventes SQL: usa los archivos de `supabase/bootstrap/` y `supabase/`.
 5. **Owner**: email, nombre completo y contraseña inicial.
 
 Los secretos (contraseña de la base y del owner) **no se piden por el chat**: el usuario los deja
-en un archivo `.env.cliente-<nombre>` en la raíz (el `.gitignore` excluye `.env*`), por ejemplo:
+en un archivo `.env.cliente-<nombre>` en la raíz (el `.gitignore` excluye `.env*`). `<nombre>` es
+corto, en minúsculas y sin espacios (p. ej. `join`): da nombre al comando `npm run dev:<nombre>`.
+Para el arranque bastan estas claves (el paso 5 completa el resto del archivo):
 
 ```
-SUPABASE_URL=https://abcd1234.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=https://abcd1234.supabase.co
 PGHOST=aws-0-us-west-2.pooler.supabase.com
 PGPASSWORD=...
 COMPANY_NAME=Nombre del Negocio
 OWNER_NAME=Nombre Apellido
 OWNER_EMAIL=dueno@negocio.com
 OWNER_PASSWORD=...
-# Para levantar la app en local con scripts/dev-cliente.sh (Settings → API Keys):
-PUBLISHABLE_KEY=sb_publishable_...
-SECRET_KEY=sb_secret_...
+# Settings → API Keys (para levantar la app y desplegarla):
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+SUPABASE_SECRET_KEY=sb_secret_...
 ```
+
+Archivos viejos pueden traer los nombres cortos `SUPABASE_URL`, `PUBLISHABLE_KEY` y `SECRET_KEY`:
+acéptalos y en el paso 5 pásalos a los nombres estándar.
 
 Léelos a variables de shell con `grep` (nunca con `source`: el archivo puede traer líneas que no
 son de shell) y **no los imprimas** en mensajes ni en comandos visibles. Para ver qué trae, lista
-sólo nombres y largos.
+sólo nombres y largos (`awk -F= '{print $1, length($0)-length($1)-1}'`); nunca imprimas las líneas
+comentadas, que suelen guardar secretos viejos.
 Si `$ARGUMENTS` trae pistas (p. ej. el nombre del archivo), úsalas, pero confirma lo que falte.
 
 **Conexión.** No uses el host directo `db.<ref>.supabase.co`: sólo tiene IPv6 y desde muchas
@@ -125,7 +131,27 @@ union all select 'session_bootstrap='||count(*) from pg_proc where proname='sess
 Valores esperados: tablas wm=46, vistas wm=11, roles=6, permisos=60 (6 roles × 10 módulos),
 metodos_pago=10, sucursales=1, owner_superadmin=1, session_bootstrap=1.
 
-## 5. Reportar al usuario
+## 5. Registrar el cliente (archivo completo + comando para levantarlo)
+
+Cada cliente tiene **su archivo** con todas sus variables y **su comando** para levantarlo en local.
+
+1. **Completa `.env.cliente-<nombre>`** con la plantilla de `docs/NUEVO-NEGOCIO.md §6`: cabecera,
+   `DEV_PORT`, la sección «App» (las mismas variables que su despliegue) y la sección «Bootstrap».
+   Reescríbelo con un script que copie **tal cual** las líneas con secretos del archivo original
+   (respaldo previo en el scratchpad, `chmod 600`) y compara después cada secreto viejo con el
+   nuevo sin imprimirlos. El `SUPABASE_AUTH_JWKS` es público: descárgalo de
+   `https://<ref>.supabase.co/auth/v1/.well-known/jwks.json`. Lo que el usuario aún no tenga
+   (`RESEND_*`, `NEXT_PUBLIC_APP_URL` del despliegue, `CRON_SECRET`) queda con la línea vacía.
+2. **Puerto**: el siguiente libre de 100 en 100 tras los que ya usan los `.env.cliente-*`
+   (`grep -h '^DEV_PORT=' .env.cliente-*`); el primero es 3200.
+3. **Comando**: añade en `package.json` → `scripts`, junto a los otros `dev:*`:
+   `"dev:<nombre>": "scripts/dev-cliente.sh <nombre>"`.
+4. **Verifica** sin levantar el servidor: `scripts/dev-cliente.sh <nombre> --check` debe imprimir
+   el nombre del negocio y `OK`.
+5. Añade el cliente a la tabla «Clientes registrados» de `docs/NUEVO-NEGOCIO.md §6` (nombre del
+   negocio, comando y puerto; **sin** refs ni secretos: el repo es público).
+
+## 6. Reportar al usuario
 
 Entrega un resumen claro:
 - ✅/❌ de cada paso (estructura, seed, owner, session_bootstrap, índices) y la verificación.
@@ -137,9 +163,8 @@ Entrega un resumen claro:
   y `SUPABASE_AUTH_JWKS` (recomendada). Nunca sobrescribas el `.env.local` existente: apunta a otro
   negocio.
 - Ajustes de panel pendientes (Auth → Email, Site URL, Leaked password protection).
-- Para probar en local: con `PUBLISHABLE_KEY` y `SECRET_KEY` en el archivo,
-  `scripts/dev-cliente.sh .env.cliente-<nombre>` levanta la app en http://localhost:3200 sin tocar
-  `.env.local` (convive con `npm run dev`).
+- Para probar en local: `npm run dev:<nombre>` levanta la app en `http://localhost:<DEV_PORT>`
+  sin tocar `.env.local` (convive con `npm run dev`; un cliente a la vez).
 - Siguiente paso: desplegar la app con esas variables → entrar en `/login` con el owner; desde ahí
   crea sucursales, usuarios, catálogo e inventario.
 
