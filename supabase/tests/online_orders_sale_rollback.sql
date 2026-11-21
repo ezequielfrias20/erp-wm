@@ -19,6 +19,8 @@ alter table wm.online_orders alter column number
 \i supabase/online_orders.sql
 \i supabase/online_orders_sale.sql
 \i supabase/online_orders_sale.sql
+\i supabase/online_orders_staff.sql
+\i supabase/online_orders_staff.sql
 
 create temporary table sale_test_ids (name text primary key, id uuid not null);
 grant select on pg_temp.sale_test_ids to authenticated;
@@ -446,5 +448,89 @@ begin
   raise notice 'OK: stock libre, suma por variante, conversión parcial/total, liberación, estados e idempotencia';
 end $$;
 
+reset role;
+
+-- La conversión vinculada a un pedido respeta la sucursal del usuario.
+do $$
+declare
+  v_a uuid := (select id from pg_temp.sale_test_ids where name = 'a');
+  v_b uuid := (select id from pg_temp.sale_test_ids where name = 'b');
+  v_w uuid := (select id from pg_temp.sale_test_ids where name = 'w');
+  v_user uuid;
+  v_order uuid;
+begin
+  if not exists (select 1 from wm.role_permissions
+                  where role = 'Cajero' and module = 'Ventas' and level = 2) then
+    raise exception 'prueba sin datos: Cajero debe tener Ventas 2';
+  end if;
+  insert into auth.users (id, instance_id, aud, role, email, encrypted_password)
+    values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
+      'authenticated', 'authenticated',
+      'sale-scope-' || gen_random_uuid()::text || '@example.invalid', '')
+    returning id into v_user;
+  insert into wm.profiles (user_id, full_name, email, role, status, system_access, branch_id)
+    values (v_user, 'Cajero venta online',
+      'sale-profile-' || gen_random_uuid()::text || '@example.invalid',
+      'Cajero', 'Activo', true, v_a);
+  insert into pg_temp.sale_test_ids values ('scope_user', v_user);
+  insert into wm.inventory (variant_id, branch_id, quantity)
+    values (v_w, v_b, 3)
+    on conflict (variant_id, branch_id) do update set quantity = excluded.quantity;
+  insert into wm.online_orders (request_id, status, customer_name, customer_phone,
+    soft_expires_at, firm_expires_at)
+    values (gen_random_uuid(), 'aceptada', 'Prueba sucursal venta', '+584141234567',
+      now() + interval '30 minutes', now() + interval '24 hours')
+    returning id into v_order;
+  insert into pg_temp.sale_test_ids values ('scope_order', v_order);
+  insert into wm.online_order_items
+    (order_id, variant_id, branch_id, quantity, unit_price, product_name, variant_label, sku)
+    values (v_order, v_w, v_b, 1, 10, 'W', 'W', 'TEST-W');
+end $$;
+
+select set_config('request.jwt.claims',
+  json_build_object('sub', (select id from pg_temp.sale_test_ids where name = 'scope_user'),
+    'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$
+declare
+  v_b uuid := (select id from pg_temp.sale_test_ids where name = 'b');
+  v_order uuid := (select id from pg_temp.sale_test_ids where name = 'scope_order');
+  v_seller uuid := (select id from pg_temp.sale_test_ids where name = 'seller');
+  v_ticket jsonb := pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+    'variant_id', (select id from pg_temp.sale_test_ids where name = 'w'),
+    'description', 'W', 'quantity', 1, 'unit_price', 10, 'cost', 0));
+  v_rejected boolean := false;
+begin
+  begin
+    perform wm.create_sale(v_b, null, '[]'::jsonb, 0, 1, v_ticket,
+      p_seller_id => v_seller, p_online_order_id => v_order);
+  exception when others then
+    if sqlerrm <> 'Sólo puedes convertir pedidos de tu sucursal' then raise; end if;
+    v_rejected := true;
+  end;
+  if not v_rejected then raise exception 'Cajero A pudo convertir pedido en B'; end if;
+end $$;
+reset role;
+
+update wm.profiles set branch_id = (select id from pg_temp.sale_test_ids where name = 'b')
+ where user_id = (select id from pg_temp.sale_test_ids where name = 'scope_user');
+set local role authenticated;
+do $$
+declare
+  v_b uuid := (select id from pg_temp.sale_test_ids where name = 'b');
+  v_w uuid := (select id from pg_temp.sale_test_ids where name = 'w');
+  v_order uuid := (select id from pg_temp.sale_test_ids where name = 'scope_order');
+  v_seller uuid := (select id from pg_temp.sale_test_ids where name = 'seller');
+  v_sale wm.sales;
+begin
+  v_sale := wm.create_sale(v_b, null, '[]'::jsonb, 0, 1,
+    pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+      'variant_id', v_w, 'description', 'W', 'quantity', 1,
+      'unit_price', 10, 'cost', 0)),
+    p_seller_id => v_seller, p_online_order_id => v_order);
+  if v_sale.online_order_id is distinct from v_order or v_sale.branch_id is distinct from v_b then
+    raise exception 'Cajero B no pudo convertir su pedido';
+  end if;
+end $$;
 reset role;
 rollback;

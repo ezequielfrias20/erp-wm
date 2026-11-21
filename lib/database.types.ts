@@ -771,6 +771,7 @@ export type VProductSummary = {
 export type ProductListItem = VProductSummary & {
   product_image_url: string | null;
   ready: boolean;
+  missing_photos: boolean;
   missingCount: number;
   departmentId: string | null;
   categoryId: string | null;

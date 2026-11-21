@@ -2,6 +2,15 @@
 -- El pedido se bloquea antes del inventario; las parejas variante/sucursal
 -- se bloquean en orden estable para concordar con create_sale.
 
+create or replace function wm.my_branch_scope()
+returns uuid
+language sql stable security definer set search_path = '' as $$
+  select p.branch_id from wm.profiles p
+   where p.id = wm.my_profile_id() and wm.my_role() <> 'Super Admin';
+$$;
+revoke all on function wm.my_branch_scope() from public;
+grant execute on function wm.my_branch_scope() to authenticated, service_role;
+
 create or replace function wm.online_order_accept(
   p_order_id uuid, p_lines jsonb default '[]'::jsonb
 )
@@ -11,6 +20,7 @@ set search_path = ''
 as $function$
 declare
   v_profile uuid := wm.my_profile_id();
+  v_branch_scope uuid := wm.my_branch_scope();
   v_order wm.online_orders;
   v_line jsonb;
   v_updates jsonb := '{}'::jsonb;
@@ -30,6 +40,12 @@ begin
   select * into v_order from wm.online_orders where id = p_order_id for update;
   if not found or v_order.status <> 'solicitada' then
     raise exception 'Solo se puede aceptar un pedido solicitado';
+  end if;
+  if v_branch_scope is not null and not exists (
+    select 1 from wm.online_order_items i
+     where i.order_id = p_order_id and i.branch_id = v_branch_scope
+  ) then
+    raise exception 'Este pedido no tiene productos de tu sucursal';
   end if;
   if p_lines is null or pg_catalog.jsonb_typeof(p_lines) <> 'array' then
     raise exception 'Las líneas del pedido deben ser una lista';
@@ -55,6 +71,10 @@ begin
     end if;
     -- Valida los tipos/rangos antes de usarlos en las consultas de inventario.
     perform (v_line->>'branch_id')::uuid, (v_line->>'quantity')::int;
+    if v_branch_scope is not null
+       and (v_line->>'branch_id')::uuid is distinct from v_branch_scope then
+      raise exception 'Sólo puedes asignar productos a tu sucursal';
+    end if;
     v_updates := v_updates || pg_catalog.jsonb_build_object(v_item_id::text, v_line);
   end loop;
 
@@ -160,6 +180,7 @@ set search_path = ''
 as $function$
 declare
   v_profile uuid := wm.my_profile_id();
+  v_branch_scope uuid := wm.my_branch_scope();
   v_order wm.online_orders;
 begin
   if v_profile is null or not wm.has_module('Ventas', 2) then
@@ -168,6 +189,12 @@ begin
   select * into v_order from wm.online_orders where id = p_order_id for update;
   if not found or v_order.status <> 'solicitada' then
     raise exception 'Solo se puede rechazar un pedido solicitado';
+  end if;
+  if v_branch_scope is not null and not exists (
+    select 1 from wm.online_order_items i
+     where i.order_id = p_order_id and i.branch_id = v_branch_scope
+  ) then
+    raise exception 'Este pedido no tiene productos de tu sucursal';
   end if;
   update wm.online_orders
      set status = 'rechazada', closed_by = v_profile,
@@ -191,6 +218,7 @@ set search_path = ''
 as $function$
 declare
   v_profile uuid := wm.my_profile_id();
+  v_branch_scope uuid := wm.my_branch_scope();
   v_order wm.online_orders;
   v_has_sales boolean;
 begin
@@ -200,6 +228,12 @@ begin
   select * into v_order from wm.online_orders where id = p_order_id for update;
   if not found or v_order.status <> 'aceptada' then
     raise exception 'Solo se puede cancelar un pedido aceptado';
+  end if;
+  if v_branch_scope is not null and not exists (
+    select 1 from wm.online_order_items i
+     where i.order_id = p_order_id and i.branch_id = v_branch_scope
+  ) then
+    raise exception 'Este pedido no tiene productos de tu sucursal';
   end if;
   update wm.online_order_items
      set released_at = pg_catalog.now()
@@ -229,6 +263,7 @@ set search_path = ''
 as $function$
 declare
   v_profile uuid := wm.my_profile_id();
+  v_branch_scope uuid := wm.my_branch_scope();
   v_order wm.online_orders;
   v_hours int;
   v_candidate record;
@@ -243,6 +278,12 @@ begin
   select * into v_order from wm.online_orders where id = p_order_id for update;
   if not found or v_order.status <> 'aceptada' then
     raise exception 'Solo se puede extender un pedido aceptado';
+  end if;
+  if v_branch_scope is not null and not exists (
+    select 1 from wm.online_order_items i
+     where i.order_id = p_order_id and i.branch_id = v_branch_scope
+  ) then
+    raise exception 'Este pedido no tiene productos de tu sucursal';
   end if;
   if p_hours is null then
     select firm_hold_hours into v_hours from wm.online_settings where id = 1;
@@ -290,5 +331,22 @@ end$function$;
 revoke all on function wm.online_order_extend(uuid, int)
   from public, anon, authenticated, service_role;
 grant execute on function wm.online_order_extend(uuid, int) to authenticated;
+
+create or replace function wm.sales_online_branch_scope()
+returns trigger
+language plpgsql security definer set search_path = '' as $function$
+declare
+  v_branch_scope uuid := wm.my_branch_scope();
+begin
+  if new.online_order_id is not null and v_branch_scope is not null
+     and new.branch_id is distinct from v_branch_scope then
+    raise exception 'Sólo puedes convertir pedidos de tu sucursal';
+  end if;
+  return new;
+end$function$;
+revoke all on function wm.sales_online_branch_scope() from public;
+drop trigger if exists sales_online_branch_scope on wm.sales;
+create trigger sales_online_branch_scope before insert on wm.sales
+  for each row execute function wm.sales_online_branch_scope();
 
 notify pgrst, 'reload schema';

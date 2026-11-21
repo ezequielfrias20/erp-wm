@@ -1,7 +1,7 @@
 import "server-only";
 
 import { orderProductColors, pickMainPhoto } from "@/lib/catalog/media";
-import { productReadiness, type Missing, type ReadinessInput } from "@/lib/catalog/readiness";
+import { productReadiness, type Readiness, type ReadinessInput } from "@/lib/catalog/readiness";
 import type {
   AttributeRow,
   AttributeValue,
@@ -144,7 +144,7 @@ export type ProductEditorData = {
   variants: EditorVariant[];
   media: ProductMediaItem[];
   colorNames: Record<string, { name: string; hex: string | null; isActive: boolean }>;
-  readiness: { ready: boolean; missing: Missing[] };
+  readiness: Readiness;
   branches: { id: string; city: string }[];
 };
 
@@ -317,7 +317,7 @@ export async function getMainPhotoUrls(productIds?: string[]): Promise<Map<strin
   return result;
 }
 
-export async function getReadinessByProduct(): Promise<Map<string, { ready: boolean; missing: Missing[] }>> {
+export async function getReadinessByProduct(): Promise<Map<string, Readiness>> {
   const supabase = await createClient();
   const [products, categories, categoryAttributes, productAttributes, attributeValues, variants, optionValues, media] = await Promise.all([
     fetchAllRows<Pick<Product, "id" | "is_active" | "description" | "brand_id" | "category_id">>((from, to) =>
@@ -345,7 +345,7 @@ export async function getReadinessByProduct(): Promise<Map<string, { ready: bool
   const variantsByProduct = groupBy(variants, (row) => row.product_id);
   const mediaByProduct = groupBy(media, (row) => row.product_id);
   const optionTypeByValue = new Map(optionValues.map((row) => [row.id, row.option_type_id]));
-  const result = new Map<string, { ready: boolean; missing: Missing[] }>();
+  const result = new Map<string, Readiness>();
 
   for (const product of products) {
     const attributeIds = [...new Set((valuesByProduct.get(product.id) ?? [])
@@ -372,7 +372,7 @@ function readinessFor(
   variants: Pick<ProductVariant, "id" | "sku" | "is_active" | "price" | "color_id" | "option_value_id">[],
   media: Pick<ProductMedia, "color_id">[],
   optionTypeByValue: Map<string, string>,
-): { ready: boolean; missing: Missing[] } {
+): Readiness {
   const input: ReadinessInput = {
     isActive: product.is_active,
     description: product.description,

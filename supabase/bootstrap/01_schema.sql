@@ -1163,6 +1163,7 @@ create policy "wm_authenticated_delete" on storage.objects
 \ir ../shop_schema.sql
 \ir ../shop_crear_solicitud.sql
 \ir ../storage_no_public_list.sql
+\ir ../storage_wm_public_write.sql
 
 -- Keep-alive: latido diario (Vercel Cron) para que Supabase no pause el proyecto gratuito.
 \ir ../keep_alive.sql

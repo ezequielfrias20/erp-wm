@@ -75,9 +75,11 @@ handoff de diseño `World Medics ERP.dc.html` (claude.ai/design) **tal cual**.
 20. Tienda online fase 1 — pedidos, apartados, venta vinculada, vistas `shop`, rol `storefront`
     y cierre del listado público de storage: `online_orders.sql`, `online_orders_sale.sql`,
     `online_orders_staff.sql`, `v_inventory_online_held.sql`, `shop_schema.sql`,
-    `shop_crear_solicitud.sql`, `storage_no_public_list.sql` (todos en `supabase/`, en ese orden).
+    `shop_crear_solicitud.sql`, `storage_no_public_list.sql`, `storage_wm_public_write.sql`
+    (todos en `supabase/`, en ese orden). Los ajustes de publicación sin fotos y alcance por
+    sucursal están en `shop_schema.sql` y `online_orders_staff.sql`.
     Se pliegan en bootstrap y `apply_pending.sh`; **aplicar antes de desplegar la app** porque
-    el POS lee `v_inventory.online_held`. En producción, aplicar los siete archivos en **una
+    el POS lee `v_inventory.online_held`. En producción, aplicar los ocho archivos en **una
     sola transacción** durante una ventana de poco tráfico y antes del despliegue, con el cliente
     `psql` 15+ y el pooler en modo sesión (5432):
     ```bash
@@ -87,11 +89,12 @@ handoff de diseño `World Medics ERP.dc.html` (claude.ai/design) **tal cual**.
       -f supabase/online_orders.sql -f supabase/online_orders_sale.sql \
       -f supabase/online_orders_staff.sql -f supabase/v_inventory_online_held.sql \
       -f supabase/shop_schema.sql -f supabase/shop_crear_solicitud.sql \
-      -f supabase/storage_no_public_list.sql
+      -f supabase/storage_no_public_list.sql \
+      -f supabase/storage_wm_public_write.sql
     ```
     `apply_pending.sh` agrupa los archivos de tienda de forma atómica en dos transacciones por
-    sus dependencias con las migraciones previas. Aplicada en producción el 2026-11-19 (ver
-    `docs/PROGRESS.md`).
+    sus dependencias con las migraciones previas. Los siete scripts originales se aplicaron en
+    producción el 2026-11-19; estos ajustes siguen pendientes (ver `docs/PROGRESS.md`).
 Bootstrap del admin (login) se hizo con `execute_sql` (crea `auth.users` + `auth.identities`).
 
 ### Modelo RLS
@@ -152,7 +155,9 @@ Utilidades extra: `bg-brand`, `text-brand`, `bg-brand-soft`, `text-success`,
   muestra grupos por sucursal y permite aceptar, rechazar, extender o cancelar; ver exige
   permiso **Ventas** de lectura y gestionar exige **Ventas** de edición. Los usuarios ligados
   a una sucursal solo ven pedidos con líneas de esa sucursal y no pueden asignar líneas ni
-  convertir ventas de otra. «Convertir en venta» abre `/ventas?pedido=<id>` por grupo:
+  convertir ventas de otra. La base aplica también ese alcance (`wm.my_branch_scope()` en los
+  pedidos y un trigger en `wm.sales` para ventas vinculadas). «Convertir en venta» abre
+  `/ventas?pedido=<id>` por grupo:
   una venta por sucursal, con precios congelados del pedido, stock propio apartado sumado al
   disponible y cliente buscado por cédula/teléfono o creado desde el POS. Tras cobrar, el
   aviso de venta registrada enlaza al pedido (`?convertido=…` conserva el aviso al recargar).
@@ -226,7 +231,8 @@ Utilidades extra: `bg-brand`, `text-brand`, `bg-brand-soft`, `text-success`,
   en `app/(app)/productos/actions.ts` y `media-actions.ts`, reglas puras en `lib/catalog/*`):
   clasificación con categorías de **segundo nivel** + marca + línea + características
   (`category_attributes`), ficha técnica (`specs`), indicador «listo para tienda»
-  (`productReadiness`) y filtro «Incompletos» en la lista. Variantes desde maestros (`color_id`,
+  (`productReadiness`) y filtros «Incompletos» y «Faltan fotos» en la lista. Las fotos son
+  recomendadas: «Listo · faltan fotos» no bloquea la publicación. Variantes desde maestros (`color_id`,
   `option_value_id`) con generador de combinaciones (máx. 300); al guardar se reescribe el texto
   legado `color`/`color_hex`/`size` con `legacyText` (editar sólo precio/costo/estado no revalida
   ni reescribe color/opción: `variantMastersChanged`). SKU en mayúsculas (`normalizeSku`); un SKU
@@ -282,7 +288,7 @@ para humanos: **`docs/NUEVO-NEGOCIO.md`**. Facturas/OC arrancan en `FAC-000001`/
 - La parte base de `01_schema.sql` es un **snapshot escrito a mano**: al cambiar el esquema,
   volver a sincronizarlo (ver `supabase/bootstrap/README.md`). Al final incluye mediante `\ir`
   `projects_courses.sql`, `daily_closures.sql`, `catalog_view.sql`,
-  `catalog_master_guards.sql` y los siete scripts de tienda. Excluye los seeds demo.
+  `catalog_master_guards.sql` y los ocho scripts de tienda. Excluye los seeds demo.
 - Las vistas usan `security_invoker` → requieren Postgres 15+ (Supabase ya lo cumple).
 - Nada de la marca va fijo en el código: el título de la pestaña sale de `settings.company_name`
   (plantilla `%s · <negocio>` en `app/layout.tsx`); las páginas declaran sólo su parte.
@@ -304,8 +310,8 @@ Acceso gateado por `wm.profiles` (no por estar en `auth.users`).
 ## Storage
 Bucket público **`wm-public`** (avatares en `avatars/`, marca en `brand/`). Los archivos se
 leen por URL pública conocida; el listado vía `storage.objects` solo está disponible para
-miembros del ERP (`wm_authenticated_read` exige `wm.is_member()`). Escritura y eliminación
-solo para autenticados. Subidas desde
+  miembros del ERP (`wm_authenticated_read` exige `wm.is_member()`). Escritura y eliminación
+  exigen ser miembro activo del ERP (`storage_wm_public_write.sql`). Subidas desde
 Configuración (perfil/marca) vía `components/configuracion/image-upload.tsx`; URLs en
 `profiles.avatar_url` / `settings.logo_url` / `settings.logo_dark_url` / `settings.favicon_url`.
 Cada asset de marca (logo, logo oscuro, favicon) se puede eliminar desde Configuración.

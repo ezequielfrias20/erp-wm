@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { Missing } from "@/lib/catalog/readiness";
+import type { Missing, Readiness } from "@/lib/catalog/readiness";
 import type { CatalogMasters } from "@/lib/queries/catalog";
 
 export function missingLabel(
@@ -21,8 +21,8 @@ export function missingLabel(
       return `Falta ${name}`;
     }
     case "photo": return missing.colorId === null
-      ? "Falta al menos una foto"
-      : `Falta foto de ${colorsById.get(missing.colorId) ?? "un color"}`;
+      ? "Añadir al menos una foto"
+      : `Añadir foto de ${colorsById.get(missing.colorId) ?? "un color"}`;
     case "price": return `Variante ${missing.sku} con precio 0`;
     case "variantColor": return `Variante ${missing.sku} sin color`;
     case "variantOption": {
@@ -47,23 +47,29 @@ function missingSection(missing: Missing): string {
 }
 
 export function ReadinessBadge({ readiness, masters, colorsById, categoryId }: {
-  readiness: { ready: boolean; missing: Missing[] };
+  readiness: Readiness;
   masters: CatalogMasters;
   colorsById: Map<string, string>;
   categoryId?: string | null;
 }) {
+  const hasWarnings = readiness.warnings.length > 0;
+  const readyWithWarnings = readiness.ready && hasWarnings;
   return (
     <Popover>
       <PopoverTrigger asChild>
         <button
           type="button"
           className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
-          style={readiness.ready
-            ? { background: "var(--success-soft)", color: "var(--success)" }
-            : { background: "var(--warning-soft)", color: "var(--warning)" }}
-          aria-label={readiness.ready ? "Listo para tienda. Ver estado" : `Incompleto. ${readiness.missing.length} pendientes. Ver detalle`}
+          style={readyWithWarnings
+            ? { background: "var(--surface-2)", color: "var(--text-2)" }
+            : readiness.ready
+              ? { background: "var(--success-soft)", color: "var(--success)" }
+              : { background: "var(--warning-soft)", color: "var(--warning)" }}
+          aria-label={readyWithWarnings
+            ? `Listo para tienda; faltan fotos. ${readiness.warnings.length} fotos recomendadas. Ver detalle`
+            : readiness.ready ? "Listo para tienda. Ver estado" : `Incompleto. ${readiness.missing.length} pendientes${hasWarnings ? ` y ${readiness.warnings.length} fotos recomendadas` : ""}. Ver detalle`}
         >
-          {readiness.ready ? "Listo para tienda" : `Incompleto (${readiness.missing.length})`}
+          {readyWithWarnings ? "Listo · faltan fotos" : readiness.ready ? "Listo para tienda" : `Incompleto (${readiness.missing.length})`}
           <ChevronDown className="size-3" />
         </button>
       </PopoverTrigger>
@@ -81,6 +87,20 @@ export function ReadinessBadge({ readiness, masters, colorsById, categoryId }: {
               </li>
             ))}
           </ul>
+        )}
+        {hasWarnings && (
+          <section className={readiness.missing.length > 0 ? "mt-3 border-t border-border pt-2" : ""}>
+            <div className="mb-1 text-[12px] font-semibold text-text-2">Recomendado</div>
+            <ul className="flex flex-col gap-1.5 text-[12px]">
+              {readiness.warnings.map((warning, index) => (
+                <li key={`${warning.kind}-${index}`}>
+                  <Link href={missingSection(warning)} className="text-text-2 underline-offset-2 hover:text-foreground hover:underline">
+                    {missingLabel(warning, masters, colorsById, categoryId)}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
       </PopoverContent>
     </Popover>

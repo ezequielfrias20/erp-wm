@@ -15,7 +15,7 @@ const complete = (): ReadinessInput => ({
 describe("productReadiness", () => {
   it("producto inactivo queda listo sin faltantes", () => {
     const input: ReadinessInput = { ...complete(), isActive: false, description: null, category: null, media: [] };
-    expect(productReadiness(input)).toEqual({ ready: true, missing: [] });
+    expect(productReadiness(input)).toEqual({ ready: true, missing: [], warnings: [] });
   });
 
   it("sin categoría pide categoría", () => {
@@ -43,21 +43,25 @@ describe("productReadiness", () => {
       .toContainEqual({ kind: "attribute", attributeId: "corte" });
   });
 
-  it("dos colores activos con foto de uno piden foto del otro", () => {
+  it("dos colores activos con foto de uno recomiendan foto del otro", () => {
     const input = complete();
     input.variants.push({ id: "v2", sku: "SKU-2", isActive: true, price: 10, colorId: "azul", optionValueId: null, optionTypeId: null });
-    expect(productReadiness(input)).toEqual({ ready: false, missing: [{ kind: "photo", colorId: "azul" }] });
+    expect(productReadiness(input)).toEqual({ ready: true, missing: [], warnings: [{ kind: "photo", colorId: "azul" }] });
   });
 
   it("un solo color acepta una foto General", () => {
-    expect(productReadiness({ ...complete(), media: [{ colorId: null }] })).toEqual({ ready: true, missing: [] });
+    expect(productReadiness({ ...complete(), media: [{ colorId: null }] })).toEqual({ ready: true, missing: [], warnings: [] });
   });
 
-  it("variantes sin color y sin fotos piden foto con colorId null", () => {
+  it("producto completo sin fotos queda listo con recomendación de foto", () => {
+    expect(productReadiness({ ...complete(), media: [] })).toEqual({ ready: true, missing: [], warnings: [{ kind: "photo", colorId: "rojo" }] });
+  });
+
+  it("variantes sin color y sin fotos recomiendan foto con colorId null", () => {
     const input = complete();
     input.variants[0].colorId = null;
     input.media = [];
-    expect(productReadiness(input).missing).toContainEqual({ kind: "photo", colorId: null });
+    expect(productReadiness(input)).toEqual({ ready: true, missing: [], warnings: [{ kind: "photo", colorId: null }] });
   });
 
   it("variante activa con precio cero pide precio", () => {
@@ -88,12 +92,12 @@ describe("productReadiness", () => {
   });
 
   it("línea ausente no afecta la completitud", () => {
-    expect(productReadiness(complete())).toEqual({ ready: true, missing: [] });
+    expect(productReadiness(complete())).toEqual({ ready: true, missing: [], warnings: [] });
   });
 
   it("variante inactiva no cuenta para fotos ni precio", () => {
     const input = complete();
     input.variants.push({ id: "v2", sku: "SKU-2", isActive: false, price: 0, colorId: "azul", optionValueId: null, optionTypeId: null });
-    expect(productReadiness(input)).toEqual({ ready: true, missing: [] });
+    expect(productReadiness(input)).toEqual({ ready: true, missing: [], warnings: [] });
   });
 });

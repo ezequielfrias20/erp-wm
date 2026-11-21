@@ -126,7 +126,8 @@ begin
       insert into pg_temp.shop_test_ids values ('cap_variant', v_variant);
     end if;
     insert into pg_temp.shop_test_ids values (v_case, v_product);
-    v_expected := v_case in ('complete', 'hidden', 'generalOneColor', 'inactive', 'noSlug');
+    v_expected := v_case in ('complete', 'hidden', 'photoTwoColors', 'generalOneColor',
+                             'noColorNoPhoto', 'inactive', 'noSlug');
     if wm.product_is_shop_ready(v_product) is distinct from v_expected then
       raise exception 'readiness parity failed for % (expected %)', v_case, v_expected;
     end if;
@@ -278,6 +279,14 @@ begin
      or (select count(*) from shop.branches where branch_id = v_off) <> 0
      or (select count(*) from shop.availability where branch_id = v_off) <> 0 then
     raise exception 'filtros de publicación incorrectos';
+  end if;
+  if (select count(*) from shop.products
+      where product_id = (select id from pg_temp.shop_test_ids where name = 'noColorNoPhoto')
+        and main_photo is null and general_photos = '[]'::jsonb) <> 1
+     or (select count(*) from shop.variants
+         where product_id = (select id from pg_temp.shop_test_ids where name = 'noColorNoPhoto')
+           and color_photos = '[]'::jsonb) <> 1 then
+    raise exception 'producto sin fotos no se publicó con arreglos vacíos';
   end if;
   -- Entre colores con variantes activas, nombre antes que sort_order.
   insert into wm.product_media (product_id, color_id, path)

@@ -13,8 +13,8 @@ alter schema shop owner to postgres;
 revoke all on schema shop from public, anon, authenticated;
 grant usage on schema shop to storefront;
 
--- The readiness view mirrors lib/catalog/readiness.ts. It is deliberately an
--- owner-owned view: shop views can read it without granting wm to storefront.
+-- The required readiness checks mirror lib/catalog/readiness.ts; photos are
+-- recommended only. This owner-owned view needs no wm grant to storefront.
 create or replace view wm.v_product_shop_ready as
 select p.id as product_id,
   case when not p.is_active then true else
@@ -29,25 +29,6 @@ select p.id as product_id,
           join wm.attribute_values av on av.id = pav.attribute_value_id
           where pav.product_id = p.id and av.attribute_id = ca.attribute_id
         )
-    )
-    and not exists (
-      select 1 from (select distinct v.color_id from wm.product_variants v
-                     where v.product_id = p.id and v.is_active and v.color_id is not null) vc
-      where not exists (select 1 from wm.product_media m
-                        where m.product_id = p.id and m.color_id = vc.color_id)
-        and not (
-          (select count(distinct v2.color_id) from wm.product_variants v2
-           where v2.product_id = p.id and v2.is_active) = 1
-          and exists (select 1 from wm.product_media m
-                      where m.product_id = p.id and m.color_id is null)
-        )
-    )
-    and not (
-      exists (select 1 from wm.product_variants v
-              where v.product_id = p.id and v.is_active)
-      and not exists (select 1 from wm.product_variants v
-                      where v.product_id = p.id and v.is_active and v.color_id is not null)
-      and not exists (select 1 from wm.product_media m where m.product_id = p.id)
     )
     and not exists (
       select 1 from wm.product_variants v

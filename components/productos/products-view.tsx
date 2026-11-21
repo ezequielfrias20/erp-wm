@@ -38,6 +38,7 @@ export function ProductsView({
   const [size, setSize] = useState("");
   const [color, setColor] = useState("");
   const [incompleteOnly, setIncompleteOnly] = useState(false);
+  const [missingPhotosOnly, setMissingPhotosOnly] = useState(false);
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -51,7 +52,8 @@ export function ProductsView({
     [products],
   );
   const incompleteCount = products.filter((p) => p.is_active && !p.ready).length;
-  const hasFilters = Boolean(query.trim() || department || cat || brand || line || size || color || incompleteOnly);
+  const missingPhotosCount = products.filter((p) => p.is_active && p.missing_photos).length;
+  const hasFilters = Boolean(query.trim() || department || cat || brand || line || size || color || incompleteOnly || missingPhotosOnly);
 
   const filtered = useMemo(() => {
     let list = products;
@@ -60,6 +62,7 @@ export function ProductsView({
     if (brand) list = list.filter((p) => p.brand_id === brand);
     if (line) list = list.filter((p) => p.lineId === line);
     if (incompleteOnly) list = list.filter((p) => p.is_active && !p.ready);
+    if (missingPhotosOnly) list = list.filter((p) => p.is_active && p.missing_photos);
     if (size) list = list.filter((p) => p.sizes.includes(size));
     if (color) list = list.filter((p) => p.colors.some((c) => c.name === color));
     if (query.trim()) {
@@ -75,7 +78,7 @@ export function ProductsView({
       );
     }
     return list;
-  }, [products, department, cat, brand, line, size, color, incompleteOnly, query]);
+  }, [products, department, cat, brand, line, size, color, incompleteOnly, missingPhotosOnly, query]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -201,6 +204,14 @@ export function ProductsView({
           >
             Incompletos ({fmtNum(incompleteCount)})
           </button>
+          <button
+            type="button"
+            aria-pressed={missingPhotosOnly}
+            onClick={() => { setMissingPhotosOnly((current) => !current); setPage(1); }}
+            className={`h-11 rounded-[10px] border px-3 text-[12.5px] font-medium sm:h-[38px] ${missingPhotosOnly ? "border-warning bg-warning-soft text-warning" : "border-border bg-card text-text-2"}`}
+          >
+            Faltan fotos ({fmtNum(missingPhotosCount)})
+          </button>
           {hasFilters && (
             <button
               type="button"
@@ -213,6 +224,7 @@ export function ProductsView({
                 setSize("");
                 setColor("");
                 setIncompleteOnly(false);
+                setMissingPhotosOnly(false);
                 setPage(1);
               }}
               className="iconbtn flex h-11 w-full items-center justify-center gap-2 rounded-[10px] border border-border bg-card px-3 text-[13px] font-medium text-text-2 sm:h-[38px] sm:w-auto"

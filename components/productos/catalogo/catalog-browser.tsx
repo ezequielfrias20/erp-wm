@@ -29,8 +29,9 @@ function Photo({ url, name, className }: { url: string | null; name: string; cla
 }
 
 function Readiness({ product }: { product: CatalogBrowseProduct }) {
-  return <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${product.ready ? "bg-success-soft text-success" : "bg-warning-soft text-warning"}`}>
-    {product.ready ? "Listo" : `Incompleto (${product.missing.length})`}
+  const readyWithWarnings = product.ready && product.warnings.length > 0;
+  return <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${readyWithWarnings ? "bg-surface-2 text-text-2" : product.ready ? "bg-success-soft text-success" : "bg-warning-soft text-warning"}`}>
+    {readyWithWarnings ? "Listo · faltan fotos" : product.ready ? "Listo" : `Incompleto (${product.missing.length})`}
   </span>;
 }
 
@@ -86,6 +87,7 @@ function ProductDetail({ product, data, onClose }: { product: CatalogBrowseProdu
           {product.specs.length > 0 && <section><h3 className="mb-2 text-sm font-semibold">Ficha técnica</h3><dl className="divide-y divide-border rounded-lg border border-border text-sm">{product.specs.map((spec, index) => <div key={`${spec.label}-${index}`} className="grid gap-1 p-2.5 sm:grid-cols-2"><dt className="font-medium break-words">{spec.label}</dt><dd className="break-words text-text-2">{spec.value}</dd></div>)}</dl></section>}
           {product.attributes.length > 0 && <section><h3 className="mb-2 text-sm font-semibold">Características</h3><dl className="space-y-1 text-sm">{product.attributes.map((attribute) => <div key={attribute.name} className="grid gap-1 sm:grid-cols-2"><dt className="font-medium">{attribute.name}</dt><dd className="text-text-2">{attribute.values.join(" · ")}</dd></div>)}</dl></section>}
           {product.missing.length > 0 && <section className="rounded-lg bg-warning-soft p-3"><h3 className="mb-2 text-sm font-semibold text-warning">Qué le falta para la tienda</h3><ul className="list-inside list-disc space-y-1 text-sm text-warning">{product.missing.map((item, index) => <li key={`${item.kind}-${index}`}>{missingLabel(item, data.masters, colorNames, product.categoryId)}</li>)}</ul></section>}
+          {product.warnings.length > 0 && <section className="rounded-lg bg-surface-2 p-3"><h3 className="mb-2 text-sm font-semibold text-text-2">Recomendado</h3><ul className="list-inside list-disc space-y-1 text-sm text-text-2">{product.warnings.map((item, index) => <li key={`${item.kind}-${index}`}>{missingLabel(item, data.masters, colorNames, product.categoryId)}</li>)}</ul></section>}
           <Button variant="outline" asChild><Link href={`/productos/${product.id}`}>Editar producto</Link></Button>
         </div>
       </div>

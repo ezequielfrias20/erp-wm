@@ -110,7 +110,8 @@ run_tx supabase/online_orders_staff.sql \
   supabase/v_inventory_online_held.sql \
   supabase/shop_schema.sql \
   supabase/shop_crear_solicitud.sql \
-  supabase/storage_no_public_list.sql
+  supabase/storage_no_public_list.sql \
+  supabase/storage_wm_public_write.sql
 
 # 8c. Keep-alive: tabla wm.heartbeat + RPC wm.keep_alive() (Vercel Cron diario).
 #     Aplicar ANTES de desplegar la app: si no, /api/keep-alive responde 500.

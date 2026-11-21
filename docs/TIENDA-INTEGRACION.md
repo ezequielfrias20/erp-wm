@@ -35,9 +35,9 @@ solicitud · 13. Caché · 14. Seguridad web · 15. Pruebas · 16. Errores comun
 4. **Configuración → Tienda online → Sucursales:** activar **«Vende online»** en cada sucursal que
    venderá por la web (permiso de edición de Sucursales; la sucursal debe estar activa). Una
    sucursal sin este interruptor no aparece en la tienda y su stock no se muestra.
-5. **Completar los productos** que se quieren publicar (ver §4.1: incluye **fotos**). En
-   **Productos**, el filtro «Incompletos» y el indicador «listo para tienda» del editor dicen qué
-   falta a cada uno.
+5. **Completar los productos** que se quieren publicar (ver §4.1). Las fotos son recomendadas,
+   pero no bloquean la publicación. En **Productos**, los filtros «Incompletos» y «Faltan fotos» y
+   el indicador «listo para tienda» del editor muestran lo pendiente y las recomendaciones.
 6. Dar permiso de **Ventas** (edición) a quien atenderá los pedidos online.
 
 ### 0.2 Lado tienda
@@ -172,18 +172,17 @@ El ERP solo publica un producto cuando cumple **todo** esto (la tienda no tiene 
 3. Tiene **marca** activa.
 4. Tiene **descripción** (no vacía).
 5. Tiene todas las **características obligatorias** de su categoría (p. ej. género, tela).
-6. Tiene **fotos**:
-   - cada color activo del producto necesita al menos una foto de ese color;
-   - excepción: si el producto tiene **un solo** color, basta una foto General;
-   - si sus variantes no usan color, basta cualquier foto.
-   **Un producto sin fotos no aparece.**
-7. Cada variante activa tiene precio > 0, color si la categoría exige color, y opción (talla) si la
+6. Cada variante activa tiene precio > 0, color si la categoría exige color, y opción (talla) si la
    categoría usa opción.
-8. Tiene al menos una variante activa con precio > 0.
+7. Tiene al menos una variante activa con precio > 0.
 
 Además:
 
 - Solo salen variantes **activas con precio > 0**.
+- Las fotos son **recomendadas**: una por color activo, o una General si hay un solo color; si
+  las variantes no tienen color, basta cualquier foto. Un producto sin fotos también se publica:
+  `main_photo` es `null` y `general_photos` y `color_photos` son `[]`. La tienda debe mostrar una
+  **imagen genérica**, por ejemplo el logo de `store_settings` sobre fondo neutro.
 - Solo salen sucursales **activas con «Vende online»**.
 - La disponibilidad ya descuenta los apartados vigentes de todas las solicitudes y viene **con
   tope** (`store_settings.display_stock_cap`, 10 por defecto): `available = 10` significa
@@ -512,8 +511,10 @@ Escapa `%` y `_` en `q` si no quieres que actúen como comodines.
   (p. ej. `product-images/7f3c…/a12b….webp`; algunas antiguas son `product-images/<id>.png`).
 - URL pública: `${ERP_MEDIA_BASE_URL}/${ruta}`.
 - **Ficha:** al elegir un color, muestra `variants.color_photos` de ese color; si está vacío, usa
-  `products.general_photos`. Lo ideal: fotos del color elegido primero y luego las generales.
-- **Listados:** `products.main_photo`. Ten un marcador de posición por si viniera `null`.
+  `products.general_photos`. Si ambos arreglos están vacíos, muestra la imagen genérica. Lo ideal:
+  fotos del color elegido primero y luego las generales.
+- **Listados:** `products.main_photo`. Si es `null`, muestra la imagen genérica (p. ej. el logo de
+  `store_settings` sobre fondo neutro).
 - Con `next/image`, agrega `<ref>.supabase.co` a `images.remotePatterns`. Opcional: las
   transformaciones de Supabase (`/storage/v1/render/image/public/wm-public/<ruta>?width=600`)
   si el plan del proyecto las incluye.
@@ -852,7 +853,7 @@ Contra producción, cada solicitud de prueba **aparta stock real** durante el ap
 | `prepared statement "…" already exists` / `does not exist` | Sentencias preparadas con el pooler en modo transacción. | `prepare: false`. |
 | `permission denied for schema wm` / `for table …` | Consulta fuera de `shop`. | Solo vistas `shop.*`. Es lo esperado. |
 | `canceling statement due to statement timeout` | Consulta de más de 5 s. | Filtrar y paginar; no traer todo el catálogo de una vez. |
-| `shop.products` vacío | Ningún producto completo (§4.1), p. ej. sin fotos. | Completar productos en el ERP. |
+| `shop.products` vacío | Ningún producto cumple los requisitos de §4.1 (categoría, marca, descripción, atributos, variantes, estado y visibilidad). Las fotos no bloquean. | Completar los requisitos en el ERP; usar «Incompletos» para ver pendientes. |
 | Productos visibles pero todos agotados | Ninguna sucursal con «Vende online», o sin stock. | Activar sucursales en el ERP (§0.1). |
 | Precios como texto (`"31.25"`) | `numeric` llega como string. | `Number(...)` al mostrar. |
 | `remaining connection slots are reserved` / demasiadas conexiones | `max` alto en muchas instancias. | Bajar `max`; el rol admite 20 conexiones. |

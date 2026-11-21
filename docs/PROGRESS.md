@@ -158,6 +158,10 @@ planes): `docs/superpowers/plans/2026-11-11-catalogo-00-hoja-de-ruta.md` · Runb
 
 ## Fase 17 — Tienda online / Pedidos online
 
+- **Ajustes previos a abrir la tienda (pendientes de aplicar en producción):** productos completos
+  se publican sin fotos, con recomendación e imagen genérica en la tienda; escritura de `wm-public`
+  limitada a miembros del ERP; las funciones de pedidos y la conversión a venta aplican el alcance
+  por sucursal en la base. SQL, bootstrap, pruebas con rollback y documentación actualizados.
 - **Plan 1, base ERP:** SQL de pedidos, apartados, venta vinculada, vistas `shop`, rol `storefront`
   y política de listado de storage terminados en el repositorio. Bootstrap y `apply_pending.sh`
   integrados. Las seis pruebas SQL con rollback pasaron en una copia local; el bootstrap en otra

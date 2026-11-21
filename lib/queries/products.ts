@@ -101,6 +101,7 @@ export async function listProducts(
     ...product,
     product_image_url: mainPhotoUrls.get(product.id) ?? null,
     ready: readinessByProduct.get(product.id)?.ready ?? false,
+    missing_photos: (readinessByProduct.get(product.id)?.warnings.length ?? 0) > 0,
     missingCount: readinessByProduct.get(product.id)?.missing.length ?? 0,
     departmentId: product.category_id
       ? departmentByCategory.get(product.category_id) ?? null

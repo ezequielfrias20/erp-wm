@@ -27,10 +27,13 @@ export type Missing =
   | { kind: "variantColor"; sku: string }
   | { kind: "variantOption"; sku: string };
 
-export function productReadiness(i: ReadinessInput): { ready: boolean; missing: Missing[] } {
-  if (!i.isActive) return { ready: true, missing: [] };
+export type Readiness = { ready: boolean; missing: Missing[]; warnings: Missing[] };
+
+export function productReadiness(i: ReadinessInput): Readiness {
+  if (!i.isActive) return { ready: true, missing: [], warnings: [] };
 
   const missing: Missing[] = [];
+  const warnings: Missing[] = [];
   const category = i.category?.parentId != null ? i.category : null;
 
   if (!category) missing.push({ kind: "category" });
@@ -50,12 +53,12 @@ export function productReadiness(i: ReadinessInput): { ready: boolean; missing: 
 
   for (const colorId of colorIds) {
     if (!photographedColors.has(colorId) && !(colorIds.length === 1 && photographedColors.has(null))) {
-      missing.push({ kind: "photo", colorId });
+      warnings.push({ kind: "photo", colorId });
     }
   }
 
   if (colorIds.length === 0 && activeVariants.length > 0 && i.media.length === 0) {
-    missing.push({ kind: "photo", colorId: null });
+    warnings.push({ kind: "photo", colorId: null });
   }
 
   for (const variant of activeVariants) {
@@ -68,5 +71,5 @@ export function productReadiness(i: ReadinessInput): { ready: boolean; missing: 
     }
   }
 
-  return { ready: missing.length === 0, missing };
+  return { ready: missing.length === 0, missing, warnings };
 }

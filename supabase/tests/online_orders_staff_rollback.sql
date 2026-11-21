@@ -434,4 +434,153 @@ begin
 end $$;
 reset role;
 
+-- Alcance de sucursal: Cajero con Ventas 2 limitado a A, Cajero sin límite y admin con A.
+do $$
+declare
+  v_a uuid := (select id from pg_temp.staff_test_ids where name = 'a');
+  v_b uuid := (select id from pg_temp.staff_test_ids where name = 'b');
+  v_variant uuid := (select id from pg_temp.staff_test_ids where name = 'variant');
+  v_user uuid;
+  v_order uuid;
+  v_item uuid;
+  v_name text;
+begin
+  if not exists (select 1 from wm.role_permissions
+                  where role = 'Cajero' and module = 'Ventas' and level = 2) then
+    raise exception 'prueba sin datos: Cajero debe tener Ventas 2';
+  end if;
+  foreach v_name in array array['scoped', 'unscoped'] loop
+    insert into auth.users (id, instance_id, aud, role, email, encrypted_password)
+      values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
+        'authenticated', 'authenticated',
+        'staff-' || gen_random_uuid()::text || '@example.invalid', '')
+      returning id into v_user;
+    insert into wm.profiles (user_id, full_name, email, role, status, system_access, branch_id)
+      values (v_user, 'Cajero ' || v_name,
+        'staff-profile-' || gen_random_uuid()::text || '@example.invalid',
+        'Cajero', 'Activo', true, case when v_name = 'scoped' then v_a else null end);
+    insert into pg_temp.staff_test_ids values (v_name || '_user', v_user);
+  end loop;
+  foreach v_name in array array['scope_b_reject', 'scope_b_admin', 'scope_b_unscoped'] loop
+    insert into wm.online_orders (request_id, customer_name, customer_phone, soft_expires_at)
+      values (gen_random_uuid(), 'T3 ' || v_name, '+584141234567', now() + interval '30 minutes')
+      returning id into v_order;
+    insert into pg_temp.staff_test_ids values (v_name, v_order);
+    insert into wm.online_order_items
+      (order_id, variant_id, branch_id, quantity, unit_price, product_name, variant_label, sku)
+      values (v_order, v_variant, v_b, 1, 10, 'Producto T3', 'Variante T3', 'T3-SKU');
+  end loop;
+  insert into wm.online_orders (request_id, customer_name, customer_phone, soft_expires_at)
+    values (gen_random_uuid(), 'T3 asignar B', '+584141234567', now() + interval '30 minutes')
+    returning id into v_order;
+  insert into pg_temp.staff_test_ids values ('scope_a_assign', v_order);
+  insert into wm.online_order_items
+    (order_id, variant_id, branch_id, quantity, unit_price, product_name, variant_label, sku)
+    values (v_order, v_variant, v_a, 1, 10, 'Producto T3', 'Variante T3', 'T3-SKU')
+    returning id into v_item;
+  insert into pg_temp.staff_test_ids values ('scope_a_assign_item', v_item);
+end $$;
+
+select set_config('request.jwt.claims',
+  json_build_object('sub', (select id from pg_temp.staff_test_ids where name = 'scoped_user'),
+    'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$
+declare
+  v_a uuid := (select id from pg_temp.staff_test_ids where name = 'a');
+  v_b uuid := (select id from pg_temp.staff_test_ids where name = 'b');
+  v_b_order uuid := (select id from pg_temp.staff_test_ids where name = 'scope_b_reject');
+  v_a_order uuid := (select id from pg_temp.staff_test_ids where name = 'scope_a_assign');
+  v_a_item uuid := (select id from pg_temp.staff_test_ids where name = 'scope_a_assign_item');
+  v_rejected boolean;
+begin
+  if wm.my_branch_scope() is distinct from v_a then
+    raise exception 'my_branch_scope no devolvió sucursal A';
+  end if;
+  v_rejected := false;
+  begin
+    perform wm.online_order_reject(v_b_order);
+  exception when others then
+    if sqlerrm <> 'Este pedido no tiene productos de tu sucursal' then raise; end if;
+    v_rejected := true;
+  end;
+  if not v_rejected then raise exception 'Cajero A pudo rechazar pedido B'; end if;
+
+  v_rejected := false;
+  begin
+    perform wm.online_order_accept(v_b_order);
+  exception when others then
+    if sqlerrm <> 'Este pedido no tiene productos de tu sucursal' then raise; end if;
+    v_rejected := true;
+  end;
+  if not v_rejected then raise exception 'Cajero A pudo aceptar pedido B'; end if;
+
+  v_rejected := false;
+  begin
+    perform wm.online_order_cancel((select id from pg_temp.staff_test_ids where name = 'extend'));
+  exception when others then
+    if sqlerrm <> 'Este pedido no tiene productos de tu sucursal' then raise; end if;
+    v_rejected := true;
+  end;
+  if not v_rejected then raise exception 'Cajero A pudo cancelar pedido B'; end if;
+
+  v_rejected := false;
+  begin
+    perform wm.online_order_extend((select id from pg_temp.staff_test_ids where name = 'extend'));
+  exception when others then
+    if sqlerrm <> 'Este pedido no tiene productos de tu sucursal' then raise; end if;
+    v_rejected := true;
+  end;
+  if not v_rejected then raise exception 'Cajero A pudo extender pedido B'; end if;
+
+  v_rejected := false;
+  begin
+    perform wm.online_order_accept(v_a_order,
+      pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+        'item_id', v_a_item, 'branch_id', v_b, 'quantity', 1)));
+  exception when others then
+    if sqlerrm <> 'Sólo puedes asignar productos a tu sucursal' then raise; end if;
+    v_rejected := true;
+  end;
+  if not v_rejected then raise exception 'Cajero A pudo asignar línea a B'; end if;
+
+  if (wm.online_order_reject(v_a_order)).status <> 'rechazada' then
+    raise exception 'Cajero A no pudo rechazar pedido A';
+  end if;
+end $$;
+reset role;
+
+update wm.profiles set branch_id = (select id from pg_temp.staff_test_ids where name = 'a')
+ where user_id = :'admin_user_id';
+select set_config('request.jwt.claims',
+  json_build_object('sub', :'admin_user_id', 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$
+begin
+  if wm.my_branch_scope() is not null then
+    raise exception 'Super Admin quedó limitado por branch_id';
+  end if;
+  if (wm.online_order_reject((select id from pg_temp.staff_test_ids
+                              where name = 'scope_b_admin'))).status <> 'rechazada' then
+    raise exception 'Super Admin con sucursal A no pudo rechazar pedido B';
+  end if;
+end $$;
+reset role;
+
+select set_config('request.jwt.claims',
+  json_build_object('sub', (select id from pg_temp.staff_test_ids where name = 'unscoped_user'),
+    'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$
+begin
+  if wm.my_branch_scope() is not null then
+    raise exception 'perfil sin branch_id quedó limitado';
+  end if;
+  if (wm.online_order_reject((select id from pg_temp.staff_test_ids
+                              where name = 'scope_b_unscoped'))).status <> 'rechazada' then
+    raise exception 'Cajero sin sucursal no pudo rechazar pedido B';
+  end if;
+end $$;
+reset role;
+
 rollback;

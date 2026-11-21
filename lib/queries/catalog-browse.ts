@@ -27,6 +27,7 @@ export type CatalogBrowseProduct = {
   mainPhotoUrl: string | null;
   ready: boolean;
   missing: Missing[];
+  warnings: Missing[];
   attributes: { name: string; values: string[] }[];
   colors: { id: string; name: string; hex: string | null; photos: string[]; options: string[] }[];
   generalPhotos: string[];
@@ -166,6 +167,7 @@ export async function getCatalogBrowseData(): Promise<CatalogBrowseData> {
       mainPhotoUrl: mainPhoto ? mediaPublicUrl(mainPhoto.path) : null,
       ready: state?.ready ?? false,
       missing: state?.missing ?? [],
+      warnings: state?.warnings ?? [],
       attributes: attributesForProduct,
       colors: orderedColorIds.map((id) => ({
         id, name: colorById.get(id)?.name ?? "Color", hex: colorById.get(id)?.hex ?? null,
