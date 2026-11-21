@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { heartbeatStatus, isKeepAliveAuthorized, STALE_AFTER_MS } from "./keep-alive";
+import { heartbeatStatus, isKeepAliveAuthorized, keepAliveErrorSummary, STALE_AFTER_MS } from "./keep-alive";
 
 describe("isKeepAliveAuthorized", () => {
   it("sin CRON_SECRET la ruta queda abierta", () => {
@@ -35,6 +35,29 @@ describe("isKeepAliveAuthorized", () => {
 
   it("con CRON_SECRET rechaza el secreto con texto de más", () => {
     expect(isKeepAliveAuthorized("Bearer s3cr3t-extra", "s3cr3t")).toBe(false);
+  });
+});
+
+describe("keepAliveErrorSummary", () => {
+  it("usa el código de un error de PostgREST", () => {
+    expect(keepAliveErrorSummary({ code: "PGRST202", message: "Could not find the function" })).toBe(
+      "PGRST202: Could not find the function",
+    );
+  });
+
+  it("usa el mensaje de un Error común", () => {
+    expect(keepAliveErrorSummary(new Error("La conexión privada del servidor no está configurada."))).toBe(
+      "La conexión privada del servidor no está configurada.",
+    );
+  });
+
+  it("recorta mensajes largos a 200 caracteres", () => {
+    expect(keepAliveErrorSummary(new Error("x".repeat(500)))).toHaveLength(200);
+  });
+
+  it("cualquier otra cosa es «error desconocido»", () => {
+    expect(keepAliveErrorSummary(null)).toBe("error desconocido");
+    expect(keepAliveErrorSummary(42)).toBe("error desconocido");
   });
 });
 

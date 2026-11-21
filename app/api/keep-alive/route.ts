@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { isKeepAliveAuthorized } from "@/lib/keep-alive";
+import { isKeepAliveAuthorized, keepAliveErrorSummary } from "@/lib/keep-alive";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -30,8 +30,8 @@ export async function GET(request: NextRequest) {
     const { data, error } = await createAdminClient().rpc("keep_alive");
     if (error) throw error;
     return json(200, { ok: true, lastBeatAt: data ?? null });
-  } catch {
-    console.error("[keep-alive] no se pudo registrar el latido (¿falta supabase/keep_alive.sql o la llave secreta?)");
+  } catch (e) {
+    console.error(`[keep-alive] no se pudo registrar el latido: ${keepAliveErrorSummary(e)}`);
     return json(500, { ok: false, lastBeatAt: null });
   }
 }

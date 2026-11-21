@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { loadJwks, withTimeout } from "@/lib/supabase/jwks";
 import { supabaseFetch, isTransportFailure } from "@/lib/supabase/fetch";
+import { isPublicPath } from "@/lib/supabase/public-paths";
 
 /**
  * Techo de la verificación de sesión dentro del proxy. El límite de invocación de
@@ -9,9 +10,6 @@ import { supabaseFetch, isTransportFailure } from "@/lib/supabase/fetch";
  * ahí ya es un 504 para el usuario: preferimos responder degradado en 3 s.
  */
 const AUTH_TIMEOUT_MS = 3_000;
-
-// /api/keep-alive: Vercel Cron llama sin sesión (la ruta se autoriza sola, ver lib/keep-alive.ts).
-const PUBLIC_PATHS = ["/login", "/invite", "/api/bcv", "/api/keep-alive", "/.well-known"];
 
 function isSupabaseAuthCookie(name: string) {
   return name.startsWith("sb-") && name.includes("auth-token");
@@ -122,7 +120,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   const { pathname } = request.nextUrl;
-  const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+  const isPublic = isPublicPath(pathname);
   const isReadNavigation = request.method === "GET" || request.method === "HEAD";
 
   // Con la verificación degradada, la presencia de la cookie basta para no cortar

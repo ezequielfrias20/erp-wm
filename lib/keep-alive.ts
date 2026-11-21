@@ -25,6 +25,18 @@ export function isKeepAliveAuthorized(authorization: string | null, secret: stri
   return timingSafeEqual(given, wanted);
 }
 
+/**
+ * Causa de un fallo del latido para el log del servidor (Vercel → Logs): el código de PostgREST o
+ * el mensaje del error. La respuesta HTTP sigue siendo genérica; esto nunca sale al cliente.
+ */
+export function keepAliveErrorSummary(error: unknown): string {
+  if (!error || typeof error !== "object") return "error desconocido";
+  const { code, message } = error as { code?: unknown; message?: unknown };
+  const text = typeof message === "string" ? message : "";
+  const summary = typeof code === "string" && code ? `${code}: ${text}` : text;
+  return summary ? summary.slice(0, 200) : "error desconocido";
+}
+
 /** Estado del último latido para el indicador de Configuración. */
 export function heartbeatStatus(lastBeatAt: string | null, now: number = Date.now()): "ok" | "stale" | "never" {
   if (!lastBeatAt) return "never";

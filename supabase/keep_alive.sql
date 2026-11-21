@@ -34,7 +34,17 @@ language plpgsql
 security definer
 set search_path = wm, public
 as $$
+declare
+  v_last timestamptz;
 begin
+  -- Dentro de la hora: sólo lectura. Sin esta salida, el upsert de abajo bloquea la fila aunque
+  -- su WHERE dé falso (graba xmax y escribe WAL) y la ruta abierta generaría escrituras.
+  select last_beat_at into v_last from wm.heartbeat where id = 1;
+  if v_last is not null and v_last >= now() - interval '1 hour' then
+    return v_last;
+  end if;
+
+  -- Dos llamadas simultáneas pueden pasar el chequeo a la vez: las ordena el WHERE del upsert.
   insert into wm.heartbeat as h (id, last_beat_at, beats) values (1, now(), 1)
   on conflict (id) do update set last_beat_at = now(), beats = h.beats + 1
    where h.last_beat_at is null or h.last_beat_at < now() - interval '1 hour';
