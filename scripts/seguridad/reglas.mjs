@@ -8,39 +8,36 @@ export const MAX_BYTES = 5 * 1024 * 1024;
 /** Marca para dejar pasar a propósito una línea concreta (ejemplos inevitables en docs). */
 export const ESCAPE = "secreto-permitido";
 
-const DATA_EXT = /\.(xlsx|xls|csv|tsv|dump|bak|p12|pfx|key|pem)$|\.sql\.gz$/i;
+const DATA_EXT =
+  /\.(xlsx|xlsm|xls|csv|tsv|dump|bak|p12|pfx|p8|key|pem|jks|keystore|ppk|ovpn)$|\.sql\.(gz|bz2|xz|zip)$/;
 
 /** ¿Por qué no puede entrar este archivo, sólo por su nombre? `null` si puede. */
 export function blockedPathReason(path) {
-  const name = path.split("/").pop() ?? path;
-  if (/(^|\/)backups\//.test(path)) return "respaldo local (carpeta backups/)";
+  // En macOS «.ENV» y «.env» son el mismo archivo: se compara todo en minúsculas.
+  const lower = path.toLowerCase();
+  const name = lower.split("/").pop() ?? lower;
+  if (/(^|\/)backups\//.test(lower)) return "respaldo local (carpeta backups/)";
   if (/^\.env(\..+)?$/.test(name) && name !== ".env.example") return "archivo de variables de entorno (.env)";
   if (DATA_EXT.test(name)) return "archivo de datos o de llaves (Excel, CSV, volcado, certificado)";
   return null;
 }
 
-// Valores que son marcadores de ejemplo, no secretos reales.
-const PLACEHOLDER_CHARS = /[<>$*…]|\.\.\./;
-const PLACEHOLDER_WORDS = [
-  "TU_",
-  "TU-",
-  "YOUR_",
-  "PASSWORD",
-  "CONTRASEÑA",
-  "CONTRASENA",
-  "SEGURA",
-  "EXAMPLE",
-  "EJEMPLO",
-  "CHANGEME",
-  "REPLACE",
-  "XXXX",
-];
-
+/**
+ * ¿Es un marcador de ejemplo y no un secreto? Se decide por la FORMA del valor completo, nunca
+ * por caracteres sueltos: una contraseña real puede llevar `$`, `*` o `<`. Ante la duda, secreto.
+ */
 function isPlaceholder(value) {
-  const v = value.replace(/^["'`]|["'`]$/g, "");
-  if (!v || PLACEHOLDER_CHARS.test(v)) return true;
-  const upper = v.toUpperCase();
-  return PLACEHOLDER_WORDS.some((w) => upper.includes(w));
+  const v = value.replace(/^["'`]+/, "").replace(/["'`;,)]+$/, "");
+  if (!v) return true;
+  return (
+    /^</.test(v) || // <password>, <desde el archivo>
+    /^\[.*\]$/.test(v) ||
+    /^\*{3,}$/.test(v) || // ***
+    /^(\.{3}|…)$/.test(v) || // ...
+    /^\$(\{?[A-Za-z_][A-Za-z0-9_]*\}?|\()/.test(v) || // $VAR, ${VAR}, $(comando)
+    /^(tu|your)[_-]/i.test(v) || // TU_PASSWORD
+    /^(password|contraseña|contrasena|changeme|example|ejemplo)/i.test(v) // ContraseñaSegura.2026 (docs)
+  );
 }
 
 const RULES = [
@@ -63,19 +60,23 @@ const RULES = [
   {
     kind: "PGPASSWORD con valor",
     test: (l) => {
-      const m = l.match(/PGPASSWORD\s*=\s*(\S+)/);
-      return Boolean(m && !isPlaceholder(m[1]));
+      for (const m of l.matchAll(/PGPASSWORD\s*=\s*(\S+)/g)) {
+        if (!isPlaceholder(m[1])) return true;
+      }
+      return false;
     },
   },
   {
     // Contraseñas escritas en docs o código: «**Password:** `valor`», «password: "valor"».
-    // Sólo valores con letras y dígitos, para no confundir textos de formularios.
+    // Cuenta si el valor lleva dígito o símbolo, o es largo (frase de paso); así no se confunden
+    // los textos de formularios («Contraseña actual»).
     kind: "contraseña escrita",
     test: (l) => {
       const re = /(?:password|passwd|contraseña|contrasena|clave)[^\n]{0,30}?[:=|][^\n]{0,8}?[`'"]([^`'"\s]{6,})[`'"]/gi;
       for (const m of l.matchAll(re)) {
         const v = m[1];
-        if (/\d/.test(v) && /[A-Za-z]/.test(v) && !isPlaceholder(v)) return true;
+        const strong = /\d/.test(v) || /[^A-Za-z]/.test(v) || v.length >= 16;
+        if (strong && !isPlaceholder(v)) return true;
       }
       return false;
     },

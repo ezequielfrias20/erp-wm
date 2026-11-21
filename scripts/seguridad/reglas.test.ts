@@ -25,6 +25,19 @@ describe("blockedPathReason", () => {
     "app/.env.production",
     "backups/precios.json",
     "backups/catalogo/foto.png",
+    // Mayúsculas: en macOS son el mismo archivo.
+    ".ENV",
+    ".Env.Local",
+    "Backups/precios.json",
+    "Reporte.XLSX",
+    // Más formatos de datos y llaves.
+    "libro.xlsm",
+    "base.sql.bz2",
+    "base.sql.zip",
+    "llaves.jks",
+    "putty.ppk",
+    "AuthKey.p8",
+    "vpn.ovpn",
   ])("bloquea %s", (path) => {
     expect(blockedPathReason(path)).toEqual(expect.any(String));
   });
@@ -76,6 +89,21 @@ describe("secretKindInLine", () => {
     "const response = await fetch(url);",
   ])("deja pasar: %s", (line) => {
     expect(secretKindInLine(line)).toBeNull();
+  });
+
+  it.each([
+    // Contraseñas reales con símbolos que antes se confundían con marcadores de ejemplo.
+    [join("postgresql://postgres:", "Ab$9xQ%k&2", "@db.ref.supabase.co:5432/postgres")],
+    [join("postgresql://postgres:", "Kq*7mZ!x", "@host:5432/postgres")],
+    [join("export PGPASSWORD=", "MiClaveSegura2026")],
+    [join("export PGPASSWORD=", "Zx$9kq2LmN")],
+    // Segunda aparición en la misma línea.
+    [join("PGPASSWORD='<valor>' && PGPASSWORD=", "Abc123xyz")],
+    // Contraseña sin dígitos pero con símbolo, o larga.
+    [join("**Password:** `", "Mi.Clave!Fuerte", "`")],
+    [join("password: \"", "correcthorsebatterystaple", "\"")],
+  ])("detecta aunque parezca un ejemplo: %s", (line) => {
+    expect(secretKindInLine(line)).toEqual(expect.any(String));
   });
 
   it("una línea marcada con secreto-permitido pasa aunque parezca un secreto", () => {

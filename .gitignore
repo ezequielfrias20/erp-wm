@@ -52,12 +52,21 @@ backups/catalogo/
 
 # Datos del negocio y llaves: nunca al repo (además lo bloquea .githooks/pre-commit)
 *.xlsx
+*.xlsm
 *.xls
 *.csv
 *.tsv
 *.dump
 *.sql.gz
+*.sql.bz2
+*.sql.xz
+*.sql.zip
 *.bak
 *.p12
 *.pfx
 *.key
+*.p8
+*.jks
+*.keystore
+*.ppk
+*.ovpn
