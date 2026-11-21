@@ -43,9 +43,11 @@
 create extension if not exists pgcrypto with schema extensions;
 
 -- ----- 1. Usuario de Auth (solo si no existe ese email) ----------------------
+-- `confirmed_at` no va: GoTrue la calcula (LEAST(email_confirmed_at, phone_confirmed_at)) y
+-- Postgres rechaza escribir en una columna generada.
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password,
-  email_confirmed_at, confirmed_at,
+  email_confirmed_at,
   confirmation_token, recovery_token,
   email_change_token_new, email_change_token_current,
   email_change, email_change_confirm_status,
@@ -61,7 +63,6 @@ select
   'authenticated',
   lower(:'owner_email'),
   extensions.crypt(:'owner_password', extensions.gen_salt('bf')),
-  now(),
   now(),
   '',
   '',

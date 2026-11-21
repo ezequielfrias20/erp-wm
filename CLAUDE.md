@@ -256,6 +256,7 @@ Utilidades extra: `bg-brand`, `text-brand`, `bg-brand-soft`, `text-success`,
 ```bash
 npm run dev      # http://localhost:3000  (→ /login)
 SUPABASE_LOCAL_DIR=/ruta/al/proyecto scripts/dev-local.sh 3100 # app contra Supabase local
+scripts/dev-cliente.sh .env.cliente-<nombre> [3200]  # app contra OTRO negocio (multi-negocio), sin tocar .env.local
 npm run build    # build de producción
 npm run lint
 ```
@@ -263,7 +264,7 @@ npm run lint
 ## Multi-negocio (arrancar otro negocio desde cero)
 El mismo esquema se reutiliza para varios negocios; **cada negocio = un proyecto Supabase aparte**.
 El arranque vive en **`supabase/bootstrap/`** (3 scripts `psql`, estado final, sin data demo):
-`01_schema.sql` (estructura completa), `02_seed.sql` (seed mínimo: 6 roles + matriz de 54 permisos +
+`01_schema.sql` (estructura completa), `02_seed.sql` (seed mínimo: 6 roles + matriz de 60 permisos +
 10 métodos de pago + 1 sucursal + `settings` + `online_settings`) y `03_owner.sql` (primer usuario, Super Admin,
 parametrizado). Comando guiado: **`/nuevo-negocio`** (`.claude/commands/nuevo-negocio.md`). Runbook
 para humanos: **`docs/NUEVO-NEGOCIO.md`**. Facturas/OC arrancan en `FAC-000001`/`OC-1`.
@@ -272,6 +273,11 @@ para humanos: **`docs/NUEVO-NEGOCIO.md`**. Facturas/OC arrancan en `FAC-000001`/
   `projects_courses.sql`, `daily_closures.sql`, `catalog_view.sql`,
   `catalog_master_guards.sql` y los siete scripts de tienda. Excluye los seeds demo.
 - Las vistas usan `security_invoker` → requieren Postgres 15+ (Supabase ya lo cumple).
+- Nada de la marca va fijo en el código: el título de la pestaña sale de `settings.company_name`
+  (plantilla `%s · <negocio>` en `app/layout.tsx`); las páginas declaran sólo su parte.
+- Probar otro negocio en local: `scripts/dev-cliente.sh .env.cliente-<nombre>` (claves
+  `SUPABASE_URL`, `PUBLISHABLE_KEY`, `SECRET_KEY`). Compila en `.next-cliente` (`NEXT_DIST_DIR`)
+  para convivir con `npm run dev`; no hereda Resend/webhooks de `.env.local`.
 
 ## Estado de módulos
 Ver `docs/PROGRESS.md`. Orden por dependencias:

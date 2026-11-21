@@ -6,7 +6,7 @@ crean toda la estructura, cargan la data mínima para operar y dan de alta al ow
 | Archivo | Qué hace | Idempotente |
 |---|---|---|
 | `01_schema.sql` | Estructura completa (estado final): esquema `wm`, tablas, funciones, RLS, vistas, RPC, storage y ampliación de cursos. **Sin datos.** | Asume BD vacía (usa `create table`; re-correr falla si ya existe) |
-| `02_seed.sql` | Seed mínimo: 6 roles, matriz de 54 permisos, 10 métodos de pago, 1 sucursal "Principal", filas `settings` y `online_settings`. | Sí (`on conflict`) |
+| `02_seed.sql` | Seed mínimo: 6 roles, matriz de 60 permisos, 10 métodos de pago, 1 sucursal "Principal", filas `settings` y `online_settings`. | Sí (`on conflict`) |
 | `03_owner.sql` | Primer usuario: crea el usuario de Auth + perfil **Super Admin**. | Sí (no duplica ni cambia contraseña existente) |
 
 > La forma recomendada de correr todo esto es el comando de Claude **`/nuevo-negocio`**
@@ -14,32 +14,40 @@ crean toda la estructura, cargan la data mínima para operar y dan de alta al ow
 
 ## Requisitos
 
-- `psql` instalado (PostgreSQL client 14+).
-- Un proyecto Supabase **nuevo** y su **connection string** (Dashboard → Project Settings →
-  Database → Connection string → URI). Forma:
-  `postgresql://postgres:<DB_PASSWORD>@db.<ref>.supabase.co:5432/postgres`
+- `psql` instalado (PostgreSQL client **15+**).
+- Un proyecto Supabase **nuevo** y los datos de su **session pooler** (Dashboard → **Connect** →
+  Session pooler, puerto 5432): host `aws-<n>-<región>.pooler.supabase.com` (copia el `<n>` tal
+  cual), usuario `postgres.<ref>` y contraseña. El host directo `db.<ref>.supabase.co` sólo tiene
+  IPv6 y desde muchas redes no resuelve.
 - El proyecto corre Postgres 15+ (las vistas usan `security_invoker`, que requiere PG15).
 
 ## Uso manual (sin Claude)
 
 ```bash
-CONN='postgresql://postgres:TU_PASSWORD@db.TUREF.supabase.co:5432/postgres'
+export PGHOST=aws-0-us-west-2.pooler.supabase.com PGPORT=5432
+export PGUSER=postgres.TUREF PGDATABASE=postgres
+export PGPASSWORD='TU_PASSWORD'   # por variable: los símbolos rompen una URL
 
 # 1) Estructura
-psql "$CONN" -v ON_ERROR_STOP=1 -f supabase/bootstrap/01_schema.sql
+psql -X -v ON_ERROR_STOP=1 -f supabase/bootstrap/01_schema.sql
 
 # 2) Seed mínimo (pasa el nombre del negocio)
-psql "$CONN" -v ON_ERROR_STOP=1 -v company_name='ACME Uniformes' -f supabase/bootstrap/02_seed.sql
+psql -X -v ON_ERROR_STOP=1 -v company_name='ACME Uniformes' -f supabase/bootstrap/02_seed.sql
 
 # 3) Owner (Super Admin)
-psql "$CONN" -v ON_ERROR_STOP=1 \
+psql -X -v ON_ERROR_STOP=1 \
   -v owner_email='dueno@acme.com' \
   -v owner_name='Ana Pérez' \
   -v owner_password='ContraseñaSegura.2026' \
   -f supabase/bootstrap/03_owner.sql
+
+# 4) y 5) Lo que el snapshot no incluye: perfil+permisos en una llamada e índices
+psql -X -v ON_ERROR_STOP=1 -f supabase/session_bootstrap.sql
+psql -X -v ON_ERROR_STOP=1 -f supabase/performance_indexes.sql   # CONCURRENTLY: sin -1
 ```
 
-`ON_ERROR_STOP=1` aborta ante el primer error en cada paso.
+`ON_ERROR_STOP=1` aborta ante el primer error en cada paso. Esperado al final: 45 tablas y 11
+vistas en `wm`, 6 roles, 60 permisos, 10 métodos de pago, 1 sucursal y el owner enlazado.
 
 ## Después del bootstrap
 
