@@ -158,6 +158,13 @@ planes): `docs/superpowers/plans/2026-11-11-catalogo-00-hoja-de-ruta.md` · Runb
 
 ## Fase 17 — Tienda online / Pedidos online
 
+- **Slug obligatorio en productos (aplicado en producción el 2026-11-21):** el ERP no generaba slug
+  al crear productos (editor ni Excel) y la tienda sólo publica con slug: todo producto creado
+  después de la limpieza del catálogo quedaba fuera (p. ej. los 17 FIGS del 2026-11-20).
+  `supabase/products_slug.sql` lo genera en la base al insertar (o si se vacía), con el formato de
+  `slugify` y sufijo `-2`, `-3`… para repetidos; no cambia al renombrar; rellenó 58 productos y
+  fijó `NOT NULL`. Publicados: 258 → 273 (15 FIGS). Prueba: `supabase/tests/products_slug_rollback.sql`.
+
 - **Ajustes previos a abrir la tienda (aplicados en producción el 2026-11-21, ERP desplegado en `0dea376`):** productos completos
   se publican sin fotos, con recomendación e imagen genérica en la tienda; escritura de `wm-public`
   limitada a miembros del ERP; las funciones de pedidos y la conversión a venta aplican el alcance

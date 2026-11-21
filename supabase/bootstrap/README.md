@@ -107,7 +107,7 @@ drop schema wm cascade;
 
 La parte base de `01_schema.sql` es un **snapshot escrito a mano** del estado final: al cambiar el
 esquema, se debe volver a sincronizar. Su tramo final incluye mediante `\ir` las migraciones
-`projects_courses.sql`, `daily_closures.sql`, `catalog_view.sql`, `catalog_master_guards.sql` y,
+`projects_courses.sql`, `daily_closures.sql`, `catalog_view.sql`, `catalog_master_guards.sql`, `products_slug.sql` y,
 en orden, los ocho scripts de tienda (desde `online_orders.sql` hasta
 `storage_wm_public_write.sql`). Los últimos redefinen `create_sale` y las políticas de lectura y
 escritura de storage. `lib/database.types.ts` se mantiene a mano en paralelo.

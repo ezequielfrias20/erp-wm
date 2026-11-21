@@ -95,6 +95,10 @@ handoff de diseño `World Medics ERP.dc.html` (claude.ai/design) **tal cual**.
     `apply_pending.sh` agrupa los archivos de tienda de forma atómica en dos transacciones por
     sus dependencias con las migraciones previas. Los siete scripts originales se aplicaron en
     producción el 2026-11-19; estos ajustes siguen pendientes (ver `docs/PROGRESS.md`).
+21. `products_slug.sql` (aplicada con psql el 2026-11-21) — `wm.products.slug` **NOT NULL**: un
+    disparador lo genera desde el nombre al insertar (o si se vacía) con el formato de `slugify`
+    (`figs-dama`, `figs-dama-2`…); no cambia al renombrar (URL de la tienda). Sin esto, los
+    productos creados en el ERP no se publicaban. Plegada en bootstrap y `apply_pending.sh`.
 Bootstrap del admin (login) se hizo con `execute_sql` (crea `auth.users` + `auth.identities`).
 
 ### Modelo RLS
@@ -288,7 +292,7 @@ para humanos: **`docs/NUEVO-NEGOCIO.md`**. Facturas/OC arrancan en `FAC-000001`/
 - La parte base de `01_schema.sql` es un **snapshot escrito a mano**: al cambiar el esquema,
   volver a sincronizarlo (ver `supabase/bootstrap/README.md`). Al final incluye mediante `\ir`
   `projects_courses.sql`, `daily_closures.sql`, `catalog_view.sql`,
-  `catalog_master_guards.sql` y los ocho scripts de tienda. Excluye los seeds demo.
+  `catalog_master_guards.sql`, `products_slug.sql` y los ocho scripts de tienda. Excluye los seeds demo.
 - Las vistas usan `security_invoker` → requieren Postgres 15+ (Supabase ya lo cumple).
 - Nada de la marca va fijo en el código: el título de la pestaña sale de `settings.company_name`
   (plantilla `%s · <negocio>` en `app/layout.tsx`); las páginas declaran sólo su parte.

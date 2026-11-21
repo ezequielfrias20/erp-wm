@@ -1154,6 +1154,8 @@ create policy "wm_authenticated_delete" on storage.objects
 \ir ../catalog_view.sql
 -- Catálogo 3b: la base rechaza borrar maestros en uso y nombres repetidos sin mayúsculas.
 \ir ../catalog_master_guards.sql
+-- Slug obligatorio en productos: lo genera la base al crear (la tienda sólo publica con slug).
+\ir ../products_slug.sql
 
 -- Tienda fase 1: pedidos, apartados, catálogo aislado y listado privado de storage.
 \ir ../online_orders.sql

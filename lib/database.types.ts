@@ -235,7 +235,8 @@ export type Product = {
   is_active: boolean;
   visible_in_catalog: boolean;
   tags: string[];
-  slug: string | null;
+  /** NOT NULL: si no se envía, la base lo genera desde el nombre (`products_slug.sql`). */
+  slug: string;
   line_id: string | null;
   /** Ficha técnica: pares etiqueta → valor, en orden. */
   specs: ProductSpec[];

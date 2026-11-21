@@ -167,7 +167,7 @@ export const erp = postgres(process.env.ERP_DATABASE_URL!, {
 
 El ERP solo publica un producto cuando cumple **todo** esto (la tienda no tiene que repetirlo):
 
-1. Está **activo** y marcado **«Visible en catálogo»**, y tiene slug.
+1. Está **activo** y marcado **«Visible en catálogo»**. (El slug ya no es requisito aparte: la base lo genera al crear el producto.)
 2. Su categoría es de **segundo nivel** (tiene departamento) y ambas están activas.
 3. Tiene **marca** activa.
 4. Tiene **descripción** (no vacía).

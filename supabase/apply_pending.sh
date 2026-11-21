@@ -103,6 +103,10 @@ run supabase/catalog_view.sql
 # 8b. Candados de maestros: borrar en uso → RESTRICT; nombres únicos sin mayúsculas.
 run supabase/catalog_master_guards.sql
 
+# 8c. Slug obligatorio en productos: la base lo genera al crear y rellena los que faltan
+#     (sin slug la tienda no publica el producto). Necesita catalog_taxonomy.sql.
+run supabase/products_slug.sql
+
 # Aplicar ANTES de desplegar la app (el POS lee v_inventory.online_held).
 # Las vistas de tienda necesitan el catálogo clasificado y sus candados. El resto
 # de las migraciones de tienda se aplica en una segunda transacción.

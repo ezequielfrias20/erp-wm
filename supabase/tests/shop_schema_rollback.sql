@@ -81,13 +81,12 @@ begin
   foreach v_case in array array[
     'complete', 'hidden', 'category', 'firstLevel', 'brand', 'description',
     'attribute', 'photoTwoColors', 'generalOneColor', 'noColorNoPhoto',
-    'price', 'variantColor', 'optionMissing', 'optionWrong', 'inactive', 'noSlug'
+    'price', 'variantColor', 'optionMissing', 'optionWrong', 'inactive'
   ] loop
     insert into wm.products (name, slug, description, category_id, brand_id,
                              is_active, visible_in_catalog)
     values ('T4 ' || v_case || ' ' || v_tag,
-            case when v_case = 'noSlug' then null
-                 else 't4-' || pg_catalog.lower(v_case) || '-' || v_tag end,
+            't4-' || pg_catalog.lower(v_case) || '-' || v_tag,
             case when v_case = 'description' then E'  \t ' else 'T4 description' end,
             case when v_case = 'category' then null
                  when v_case = 'firstLevel' then v_parent
@@ -127,7 +126,7 @@ begin
     end if;
     insert into pg_temp.shop_test_ids values (v_case, v_product);
     v_expected := v_case in ('complete', 'hidden', 'photoTwoColors', 'generalOneColor',
-                             'noColorNoPhoto', 'inactive', 'noSlug');
+                             'noColorNoPhoto', 'inactive');
     if wm.product_is_shop_ready(v_product) is distinct from v_expected then
       raise exception 'readiness parity failed for % (expected %)', v_case, v_expected;
     end if;
@@ -273,7 +272,6 @@ begin
      or (select main_photo from shop.products where product_id =
            (select id from pg_temp.shop_test_ids where name = 'generalOneColor')) is null
      or (select count(*) from shop.products where product_id = (select id from pg_temp.shop_test_ids where name = 'hidden')) <> 0
-     or (select count(*) from shop.products where product_id = (select id from pg_temp.shop_test_ids where name = 'noSlug')) <> 0
      or (select count(*) from shop.products where product_id = (select id from pg_temp.shop_test_ids where name = 'description')) <> 0
      or (select count(*) from shop.variants where product_id = (select id from pg_temp.shop_test_ids where name = 'price')) <> 0
      or (select count(*) from shop.branches where branch_id = v_off) <> 0
