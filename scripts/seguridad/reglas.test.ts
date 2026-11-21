@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-// @ts-expect-error — módulo JS puro (lo usa el hook de git sin compilar)
 import { blockedPathReason, MAX_BYTES, secretKindInLine } from "./reglas.mjs";
 
 // Los valores de ejemplo se arman por partes para que este archivo no parezca un secreto real
