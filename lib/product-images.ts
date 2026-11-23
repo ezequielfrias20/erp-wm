@@ -1,3 +1,5 @@
+import type { ProductMedia, ProductVariant } from "@/lib/database.types";
+
 const PRODUCT_IMAGE_BUCKET = "wm-public";
 const PRODUCT_IMAGE_PREFIX = "product-images";
 
@@ -24,4 +26,29 @@ export function mediaPublicUrl(
 
   const url = `${supabaseUrl}/storage/v1/object/public/${PRODUCT_IMAGE_BUCKET}/${path}`;
   return version ? `${url}?v=${encodeURIComponent(String(version))}` : url;
+}
+
+/** Fotos por variante: sólo del mismo producto y color, sin heredar otros colores. */
+export function buildVariantPhotoUrls(
+  variants: Pick<ProductVariant, "id" | "product_id" | "color_id">[],
+  media: Pick<ProductMedia, "id" | "product_id" | "color_id" | "path" | "sort_order">[],
+): Map<string, string> {
+  const photosByProduct = new Map<string, Map<string | null, (typeof media)[number]>>();
+  for (const photo of media) {
+    const byColor = photosByProduct.get(photo.product_id) ?? new Map();
+    const first = byColor.get(photo.color_id);
+    if (!first || photo.sort_order < first.sort_order
+      || (photo.sort_order === first.sort_order && photo.id < first.id)) {
+      byColor.set(photo.color_id, photo);
+    }
+    photosByProduct.set(photo.product_id, byColor);
+  }
+
+  const urls = new Map<string, string>();
+  for (const variant of variants) {
+    const photo = photosByProduct.get(variant.product_id)?.get(variant.color_id);
+    const url = photo ? mediaPublicUrl(photo.path) : null;
+    if (url) urls.set(variant.id, url);
+  }
+  return urls;
 }

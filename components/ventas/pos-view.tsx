@@ -862,11 +862,11 @@ export function PosView({
               >
                 <ProductThumb
                   imageUrl={l.product_image_url}
-                  imageFailed={Boolean(failedProductImages[l.product_id])}
+                  imageFailed={Boolean(failedProductImages[l.variant_id])}
                   onImageError={() =>
                     setFailedProductImages((current) => ({
                       ...current,
-                      [l.product_id]: true,
+                      [l.variant_id]: true,
                     }))
                   }
                   name={l.product_name}
@@ -1353,11 +1353,11 @@ export function PosView({
                 >
                   <ProductHero
                     product={p}
-                    imageFailed={Boolean(failedProductImages[p.product_id])}
+                    imageFailed={Boolean(failedProductImages[p.variant_id])}
                     onImageError={() =>
                       setFailedProductImages((current) => ({
                         ...current,
-                        [p.product_id]: true,
+                        [p.variant_id]: true,
                       }))
                     }
                   />

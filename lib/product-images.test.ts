@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { isProductImagePath, mediaPublicUrl } from "./product-images";
+import { buildVariantPhotoUrls, isProductImagePath, mediaPublicUrl } from "./product-images";
 
 describe("isProductImagePath", () => {
   it("acepta rutas nuevas y fotos antiguas bajo product-images", () => {
@@ -50,5 +50,54 @@ describe("mediaPublicUrl", () => {
     ]) {
       expect(mediaPublicUrl(bad), bad).toBeNull();
     }
+  });
+});
+
+describe("buildVariantPhotoUrls", () => {
+  const variants = [
+    { id: "red-s", product_id: "p1", color_id: "red" },
+    { id: "red-m", product_id: "p1", color_id: "red" },
+    { id: "blue", product_id: "p1", color_id: "blue" },
+    { id: "green", product_id: "p1", color_id: "green" },
+    { id: "general", product_id: "p1", color_id: null },
+    { id: "other-product", product_id: "p2", color_id: "red" },
+  ];
+  const media = [
+    { id: "r2", product_id: "p1", color_id: "red", sort_order: 2, path: "product-images/p1/red-2.jpg" },
+    { id: "r1", product_id: "p1", color_id: "red", sort_order: 0, path: "product-images/p1/red.jpg" },
+    { id: "b1", product_id: "p1", color_id: "blue", sort_order: 0, path: "product-images/p1/blue.jpg" },
+    { id: "g1", product_id: "p1", color_id: null, sort_order: 0, path: "product-images/p1/general.jpg" },
+  ];
+
+  it("asigna la primera foto del color a sus tallas y una foto distinta a cada color", () => {
+    const urls = buildVariantPhotoUrls(variants, media);
+    expect(urls.get("red-s")).toBe(`${BASE}/storage/v1/object/public/wm-public/product-images/p1/red.jpg`);
+    expect(urls.get("red-m")).toBe(urls.get("red-s"));
+    expect(urls.get("blue")).toBe(`${BASE}/storage/v1/object/public/wm-public/product-images/p1/blue.jpg`);
+  });
+
+  it("no presta fotos generales ni de otros colores o productos al color sin foto", () => {
+    const urls = buildVariantPhotoUrls(variants, media);
+    expect(urls.has("green")).toBe(false);
+    expect(urls.has("other-product")).toBe(false);
+  });
+
+  it("usa las fotos generales sólo para variantes sin color", () => {
+    expect(buildVariantPhotoUrls(variants, media).get("general")).toBe(
+      `${BASE}/storage/v1/object/public/wm-public/product-images/p1/general.jpg`,
+    );
+    expect(buildVariantPhotoUrls(variants, media.filter((photo) => photo.color_id !== null)).has("general")).toBe(false);
+  });
+
+  it("sin fotos o con una ruta inválida deja la variante sin imagen", () => {
+    expect(buildVariantPhotoUrls(variants, []).size).toBe(0);
+    expect(buildVariantPhotoUrls(variants, [{ ...media[1], path: "brand/logo.png" }]).size).toBe(0);
+  });
+
+  it("desempata fotos con el mismo orden por id", () => {
+    const tied = [{ ...media[1], id: "z", path: "product-images/p1/last.jpg" }, media[1]];
+    expect(buildVariantPhotoUrls(variants, tied).get("red-s")).toBe(
+      `${BASE}/storage/v1/object/public/wm-public/product-images/p1/red.jpg`,
+    );
   });
 });

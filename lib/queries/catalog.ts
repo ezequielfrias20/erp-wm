@@ -23,7 +23,7 @@ import type {
   SaleItem,
   VariantSkuAlias,
 } from "@/lib/database.types";
-import { mediaPublicUrl } from "@/lib/product-images";
+import { buildVariantPhotoUrls, mediaPublicUrl } from "@/lib/product-images";
 import { cachedFor, invalidateCache, CACHE_TTL } from "@/lib/server-cache";
 import { chunk, inChunks } from "@/lib/chunk";
 import { fetchAllRows } from "@/lib/supabase/pagination";
@@ -265,6 +265,19 @@ export async function getProductEditorData(id: string, branchScope: string | nul
     ),
     branches,
   };
+}
+
+export async function getVariantPhotoUrls(): Promise<Map<string, string>> {
+  const supabase = await createClient();
+  const [variants, media] = await Promise.all([
+    fetchAllRows<Pick<ProductVariant, "id" | "product_id" | "color_id">>((from, to) =>
+      supabase.from("product_variants").select("id, product_id, color_id")
+        .order("id").range(from, to)),
+    fetchAllRows<Pick<ProductMedia, "id" | "product_id" | "color_id" | "path" | "sort_order">>((from, to) =>
+      supabase.from("product_media").select("id, product_id, color_id, path, sort_order")
+        .order("product_id").order("sort_order").order("id").range(from, to)),
+  ]);
+  return buildVariantPhotoUrls(variants, media);
 }
 
 export async function getMainPhotoUrls(productIds?: string[]): Promise<Map<string, string>> {

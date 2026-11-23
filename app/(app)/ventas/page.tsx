@@ -6,7 +6,7 @@ import { canEdit, canView } from "@/lib/permissions";
 import { fetchBcvRate, BCV_FALLBACK } from "@/lib/bcv";
 import { fetchAllRows } from "@/lib/supabase/pagination";
 import { PosView, type PosProduct } from "@/components/ventas/pos-view";
-import { getMainPhotoUrls } from "@/lib/queries/catalog";
+import { getVariantPhotoUrls } from "@/lib/queries/catalog";
 import { sellableStock } from "@/lib/sales/stock";
 import { getOnlineOrderForPos } from "@/lib/queries/online-orders";
 import { stockWithOwnHold } from "@/lib/online-orders/pos";
@@ -82,7 +82,7 @@ export default async function VentasPage({ searchParams }: {
     settingsRes,
     bcv,
     sellersRes,
-    mainPhotoUrls,
+    variantPhotoUrls,
     aliases,
   ] = await Promise.all([
     branchId
@@ -123,7 +123,7 @@ export default async function VentasPage({ searchParams }: {
       .eq("role", "Vendedor")
       .eq("status", "Activo")
       .order("full_name"),
-    getMainPhotoUrls(),
+    getVariantPhotoUrls(),
     fetchAllRows<{ variant_id: string; sku: string }>((from, to) =>
       supabase.from("variant_sku_aliases").select("variant_id, sku").order("sku").range(from, to),
     ),
@@ -142,7 +142,7 @@ export default async function VentasPage({ searchParams }: {
   const products: PosProduct[] = invRows.map((r) => ({
     product_id: r.product_id,
     variant_id: r.variant_id,
-    product_image_url: mainPhotoUrls.get(r.product_id) ?? null,
+    product_image_url: variantPhotoUrls.get(r.variant_id) ?? null,
     sku: r.sku,
     aliases: aliasesByVariant.get(r.variant_id) ?? [],
     product_name: r.product_name,
