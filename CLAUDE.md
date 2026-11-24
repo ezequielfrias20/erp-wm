@@ -99,6 +99,15 @@ handoff de diseño `World Medics ERP.dc.html` (claude.ai/design) **tal cual**.
     disparador lo genera desde el nombre al insertar (o si se vacía) con el formato de `slugify`
     (`figs-dama`, `figs-dama-2`…); no cambia al renombrar (URL de la tienda). Sin esto, los
     productos creados en el ERP no se publicaban. Plegada en bootstrap y `apply_pending.sh`.
+22. `shop_performance.sql` (aplicada con psql el 2026-11-24; reversión `shop_performance_revert.sql`) —
+    `shop.products.in_stock` y `shop.variants.available_total` agregan `shop.availability` **una sola
+    vez** (join agrupado, no subconsulta por fila) y `availability` une `online_settings` por `id = 1`.
+    Mismo contrato. Definiciones iguales en `shop_schema.sql` (estado final, ya en bootstrap y
+    `apply_pending.sh`). No volver a subconsultas correlacionadas sobre `shop.availability`.
+    Prueba: `supabase/tests/shop_performance_rollback.sql`.
+23. `shop_top_products.sql` (aplicada con psql el 2026-11-24; reversión `shop_top_products_revert.sql`) —
+    vista `shop.top_products` (más vendidos, 30 días; contrato §4.10). También en `shop_schema.sql`.
+    Prueba: `supabase/tests/shop_top_products_rollback.sql`.
 Bootstrap del admin (login) se hizo con `execute_sql` (crea `auth.users` + `auth.identities`).
 
 ### Modelo RLS

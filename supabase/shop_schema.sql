@@ -81,7 +81,7 @@ from wm.inventory i
 join wm.branches b on b.id = i.branch_id and b.is_active and b.online_enabled
 join wm.product_variants v on v.id = i.variant_id and v.is_active and v.price > 0
 join wm.v_published_shop_products pub on pub.product_id = v.product_id
-cross join wm.online_settings os
+join wm.online_settings os on os.id = 1
 left join lateral (
   select sum(oi.quantity)::int as held
   from wm.online_order_items oi
@@ -153,9 +153,7 @@ select p.id as product_id, p.slug, p.name, p.description, p.specs,
        coalesce(general.photos, '[]'::jsonb) as general_photos,
        coalesce(general.first_path, color_main.path) as main_photo,
        prices.price_min, prices.price_max,
-       exists (select 1 from shop.availability a
-               join wm.product_variants v on v.id = a.variant_id
-               where v.product_id = p.id) as in_stock,
+       (stock.product_id is not null) as in_stock,
        p.updated_at
 from wm.products p
 join wm.v_published_shop_products pub on pub.product_id = p.id
@@ -192,7 +190,13 @@ left join lateral (
                 where v.product_id = p.id and v.is_active and v.color_id = col.id)
   order by pg_catalog.lower(col.name), col.id,
            m.sort_order, m.id limit 1
-) color_main on true;
+) color_main on true
+left join (
+  select v.product_id
+  from shop.availability a
+  join wm.product_variants v on v.id = a.variant_id
+  group by v.product_id
+) stock on stock.product_id = p.id;
 
 create or replace view shop.variants as
 select v.id as variant_id, v.product_id, v.sku, v.price,
@@ -202,8 +206,7 @@ select v.id as variant_id, v.product_id, v.sku, v.price,
        ov.id as option_value_id, ov.label as option_label, ov.slug as option_slug,
        ov.sort_order as option_sort,
        coalesce(photos.paths, '[]'::jsonb) as color_photos,
-       coalesce((select sum(a.available)::int from shop.availability a
-                 where a.variant_id = v.id), 0) as available_total
+       coalesce(stock.available_total, 0) as available_total
 from wm.product_variants v
 join wm.v_published_shop_products pub on pub.product_id = v.product_id
 left join wm.colors c on c.id = v.color_id
@@ -214,7 +217,28 @@ left join lateral (
   from wm.product_media m where m.product_id = v.product_id and m.color_id = v.color_id
     and v.color_id is not null
 ) photos on true
+left join (
+  select a.variant_id, sum(a.available)::int as available_total
+  from shop.availability a
+  group by a.variant_id
+) stock on stock.variant_id = v.id
 where v.is_active and v.price > 0;
+
+create or replace view shop.top_products as
+select t.product_id, t.units_sold,
+       (row_number() over (order by t.units_sold desc, t.sales_count desc,
+                           t.last_sale desc, t.product_id))::int as rank
+from (
+  select v.product_id, sum(si.quantity)::int as units_sold,
+         count(distinct s.id) as sales_count, max(s.created_at) as last_sale
+  from wm.sales s
+  join wm.sale_items si on si.sale_id = s.id
+  join wm.product_variants v on v.id = si.variant_id
+  where s.created_at >= now() - interval '30 days'
+    and s.status not in ('Reembolso', 'Anulada')
+  group by v.product_id
+) t
+join wm.v_published_shop_products pub on pub.product_id = t.product_id;
 
 revoke all on all tables in schema shop from public, anon, authenticated;
 grant select on all tables in schema shop to storefront;

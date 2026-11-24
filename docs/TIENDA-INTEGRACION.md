@@ -318,6 +318,19 @@ Una variante es una combinación concreta (color × talla) con su SKU y precio.
 Es la vista que más cambia (cada venta en tienda física y cada solicitud la mueve). Léela fresca.
 Si una combinación variante × sucursal no está, su disponible es 0.
 
+### 4.10 `shop.top_products` (más vendidos, últimos 30 días)
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `product_id` | uuid | Siempre un producto de `shop.products`. Único. |
+| `units_sold` | int | Unidades vendidas en 30 días móviles (> 0). Úsalo solo en el servidor; no lo muestres al comprador. |
+| `rank` | int | 1 = más vendido. Único, sin empates ni huecos. |
+
+Cuenta ventas de tienda física y pedidos online ya convertidos en venta; excluye anuladas y
+reembolsadas. Las solicitudes sin convertir no cuentan. Sin datos de clientes ni facturas. Un
+producto sin ventas en la ventana no aparece. No filtra por stock: une con `shop.products` y usa
+`in_stock`.
+
 ---
 
 ## 5. Tipos TypeScript (tal como llegan con el cliente `postgres`)
@@ -391,6 +404,8 @@ export type Variant = {
 };
 
 export type Availability = { variant_id: string; branch_id: string; available: number };
+
+export type TopProduct = { product_id: string; units_sold: number; rank: number };
 
 // ---- crear_solicitud ----
 export type SolicitudRequest = {
@@ -787,6 +802,7 @@ El comprador se entera de todo por WhatsApp; la tienda web no muestra estos camb
 |---|---|
 | `store_settings`, `categories`, `brands`, `color_families`, `option_values`, `branches` | Caché 10–15 min (`unstable_cache`/`revalidate`). |
 | `products`, `variants` (listados y fichas) | ISR 5 min. |
+| `top_products` | Caché 10–15 min. |
 | `availability` | 30–60 s, o sin caché en la ficha y en el carrito. |
 | Tasa BCV | 1 h. |
 | Checkout | Nunca en caché. |

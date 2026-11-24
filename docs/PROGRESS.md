@@ -158,6 +158,16 @@ planes): `docs/superpowers/plans/2026-11-11-catalogo-00-hoja-de-ruta.md` · Runb
 
 ## Fase 17 — Tienda online / Pedidos online
 
+- **Vistas de la tienda rápidas (aplicado en producción el 2026-11-24):** `shop.variants` pasó de
+  8,8 s a 29 ms y `shop.products` de 5,8 s a 41 ms (como `storefront`; 5,0 M → 12 mil bloques).
+  Causa: subconsulta por fila sobre `shop.availability`, que reevaluaba todo el catálogo publicado.
+  `supabase/shop_performance.sql` (reversión `shop_performance_revert.sql`), sin cambio de contrato;
+  0 diferencias contra las definiciones anteriores y contra la suma de `shop.availability`.
+  Prueba: `supabase/tests/shop_performance_rollback.sql`.
+- **Más vendidos (aplicado en producción el 2026-11-24):** vista `shop.top_products`
+  (`supabase/shop_top_products.sql`, contrato `docs/TIENDA-INTEGRACION.md` §4.10, prueba
+  `supabase/tests/shop_top_products_rollback.sql`).
+
 - **Slug obligatorio en productos (aplicado en producción el 2026-11-21):** el ERP no generaba slug
   al crear productos (editor ni Excel) y la tienda sólo publica con slug: todo producto creado
   después de la limpieza del catálogo quedaba fuera (p. ej. los 17 FIGS del 2026-11-20).
