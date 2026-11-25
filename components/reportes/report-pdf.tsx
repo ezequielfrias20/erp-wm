@@ -17,6 +17,7 @@ import {
 import { fmtUSD, fmtVES, fmtDate } from "@/lib/format";
 import type { ReportData } from "@/lib/queries/reports";
 import type { InvoiceCompany } from "@/components/factura/invoice-template";
+import { DEFAULT_COMPANY_NAME } from "@/lib/brand-defaults";
 
 const s = StyleSheet.create({
   page: { padding: 32, fontSize: 9, color: "#0B0F19", fontFamily: "Helvetica" },
@@ -81,7 +82,7 @@ function ReportPDFDoc({
             {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image no admite alt */}
             {company.logoUrl ? <Image src={company.logoUrl} style={s.logo} /> : null}
             <View>
-              <Text style={s.company}>{company.name ?? "World Medics"}</Text>
+              <Text style={s.company}>{company.name?.trim() || DEFAULT_COMPANY_NAME}</Text>
               {company.rif ? <Text style={s.muted}>RIF: {company.rif}</Text> : null}
               {company.address ? <Text style={s.muted}>{company.address}</Text> : null}
               {company.phone ? <Text style={s.muted}>Tel: {company.phone}</Text> : null}

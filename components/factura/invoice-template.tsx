@@ -10,6 +10,7 @@
 import { forwardRef } from "react";
 import { fmtUSD, fmtVES, fmtDate, fmtByCurrency } from "@/lib/format";
 import { usdToVesAmount } from "@/lib/sales/totals";
+import { DEFAULT_COMPANY_NAME } from "@/lib/brand-defaults";
 
 export type InvoiceCompany = {
   name: string | null;
@@ -126,7 +127,7 @@ export const InvoiceDocument = forwardRef<HTMLDivElement, { data: InvoiceData }>
             ) : null}
             <div>
               <div style={{ fontSize: 18, fontWeight: 700 }}>
-                {c.name ?? "World Medics"}
+                {c.name?.trim() || DEFAULT_COMPANY_NAME}
               </div>
               {c.rif ? <div style={{ fontSize: 12, color: muted }}>RIF: {c.rif}</div> : null}
               {c.address ? (
@@ -302,8 +303,8 @@ export const InvoiceDocument = forwardRef<HTMLDivElement, { data: InvoiceData }>
             textAlign: "center",
           }}
         >
-          Gracias por su compra · {c.name ?? "World Medics"} · Documento generado por World
-          Medics ERP
+          Gracias por su compra · {c.name?.trim() || DEFAULT_COMPANY_NAME} · Documento
+          generado electrónicamente
         </div>
       </div>
     );
@@ -369,11 +370,11 @@ export const ThermalInvoiceDocument = forwardRef<HTMLDivElement, { data: Invoice
                 textTransform: "uppercase",
               }}
             >
-              {c.name ?? "World Medics"}
+              {c.name?.trim() || DEFAULT_COMPANY_NAME}
             </div>
           )}
           {c.rif ? <ReceiptCenter>RIF {c.rif}</ReceiptCenter> : null}
-          <ReceiptCenter>{(c.name ?? "World Medics").toUpperCase()}</ReceiptCenter>
+          <ReceiptCenter>{(c.name?.trim() || DEFAULT_COMPANY_NAME).toUpperCase()}</ReceiptCenter>
           {c.address ? <ReceiptCenter>{c.address.toUpperCase()}</ReceiptCenter> : null}
           {c.phone ? <ReceiptCenter>TEL {c.phone}</ReceiptCenter> : null}
           {data.branchName ? (
@@ -485,7 +486,7 @@ export const ThermalInvoiceDocument = forwardRef<HTMLDivElement, { data: Invoice
         <div style={{ textAlign: "center", color: receiptMuted }}>
           GRACIAS POR SU COMPRA
           <br />
-          DOCUMENTO GENERADO POR WORLD MEDICS ERP
+          DOCUMENTO GENERADO ELECTRÓNICAMENTE
         </div>
       </div>
     );

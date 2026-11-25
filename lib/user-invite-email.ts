@@ -1,4 +1,5 @@
 import type { Role } from "@/lib/database.types";
+import { DEFAULT_SYSTEM_NAME } from "@/lib/brand-defaults";
 
 type UserInviteEmailInput = {
   companyName: string;
@@ -26,7 +27,7 @@ function safeColor(value: string | null | undefined): string {
 }
 
 export function buildUserInviteEmailHtml(input: UserInviteEmailInput): string {
-  const companyName = escapeHtml(input.companyName || "World Medics");
+  const companyName = escapeHtml(input.companyName || DEFAULT_SYSTEM_NAME);
   const fullName = escapeHtml(input.fullName);
   const email = escapeHtml(input.email);
   const role = escapeHtml(input.role);
@@ -112,7 +113,7 @@ export function buildUserInviteEmailHtml(input: UserInviteEmailInput): string {
 
 export function buildUserInviteEmailText(input: UserInviteEmailInput): string {
   return [
-    `${input.fullName}, tu usuario fue creado en ${input.companyName || "World Medics"}.`,
+    `${input.fullName}, tu usuario fue creado en ${input.companyName || DEFAULT_SYSTEM_NAME}.`,
     `Correo: ${input.email}`,
     `Rol: ${input.role}`,
     `Sucursal: ${input.branchName ?? "Todas las sucursales"}`,

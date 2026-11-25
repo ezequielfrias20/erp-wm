@@ -635,6 +635,7 @@ export type Settings = {
   logo_url: string | null;
   logo_dark_url: string | null;
   favicon_url: string | null;
+  login_image_url: string | null;
   primary_color: string | null;
   accent_color: string | null;
   notifications: Record<string, boolean>;
@@ -908,6 +909,7 @@ export type Database = {
           favicon_url: string | null;
           primary_color: string | null;
           accent_color: string | null;
+          login_image_url: string | null;
         }[];
       };
       inventory_status_counts: {

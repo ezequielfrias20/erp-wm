@@ -46,7 +46,7 @@ function colLetter(index: number): string {
 
 export async function buildWorkbookBlob(sheets: SheetSpec[]): Promise<Blob> {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "World Medics ERP";
+  wb.creator = "ERP";
   wb.created = new Date();
 
   // Hoja oculta con las listas de validación.

@@ -50,29 +50,65 @@ export async function updateAvatar(url: string): Promise<FormState> {
   return { ok: true };
 }
 
-export type BrandKind = "logo" | "logo_dark" | "favicon";
+export type BrandKind = "logo" | "logo_dark" | "favicon" | "login_image";
 
-const BRAND_COLUMN: Record<BrandKind, "logo_url" | "logo_dark_url" | "favicon_url"> = {
+const BRAND_COLUMN: Record<
+  BrandKind,
+  "logo_url" | "logo_dark_url" | "favicon_url" | "login_image_url"
+> = {
   logo: "logo_url",
   logo_dark: "logo_dark_url",
   favicon: "favicon_url",
+  login_image: "login_image_url",
 };
 
 function brandLabel(kind: BrandKind): string {
-  return kind === "logo"
-    ? "el logotipo"
-    : kind === "logo_dark"
-      ? "el logotipo oscuro"
-      : "el favicon";
+  const labels: Record<BrandKind, string> = {
+    logo: "el logotipo",
+    logo_dark: "el logotipo oscuro",
+    favicon: "el favicon",
+    login_image: "la imagen del login",
+  };
+  return labels[kind];
+}
+
+/** Borra el archivo del bucket. Best-effort: si la URL es rara o RLS lo rechaza, no importa. */
+async function removeBrandFile(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  url: string | null | undefined,
+) {
+  if (!url) return;
+  try {
+    const path = storagePathFromPublicUrl(url, "wm-public");
+    if (path) await supabase.storage.from("wm-public").remove([path]);
+  } catch {
+    // ignore
+  }
 }
 
 export async function updateBrandAsset(kind: BrandKind, url: string): Promise<FormState> {
   const supabase = await createClient();
-  const { error } = await supabase
+
+  // La imagen del login sólo la usa el login: al reemplazarla se borra la anterior (pesa hasta
+  // 5 MB). Los logos no: correos ya enviados y la tienda pueden seguir apuntando al archivo.
+  let previous: string | null = null;
+  if (kind === "login_image") {
+    const { data } = await supabase
+      .from("settings")
+      .select("login_image_url")
+      .eq("id", 1)
+      .maybeSingle();
+    previous = data?.login_image_url ?? null;
+  }
+
+  const { data: updated, error } = await supabase
     .from("settings")
     .update({ [BRAND_COLUMN[kind]]: url } as never)
-    .eq("id", 1);
+    .eq("id", 1)
+    .select("id");
   if (error) return { error: error.message };
+  if (!updated?.length) return { error: "No tienes permiso para cambiar la marca." };
+  if (previous !== url) await removeBrandFile(supabase, previous);
   await audit(`Actualizó ${brandLabel(kind)}`, "Configuración");
   invalidateBrandingCache();
   revalidatePath("/configuracion");
@@ -87,26 +123,19 @@ export async function removeBrandAsset(kind: BrandKind): Promise<FormState> {
   // URL actual, para borrar el archivo del bucket (best-effort).
   const { data: current } = await supabase
     .from("settings")
-    .select("logo_url, logo_dark_url, favicon_url")
+    .select("*")
     .eq("id", 1)
     .maybeSingle();
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("settings")
     .update({ [column]: null } as never)
-    .eq("id", 1);
+    .eq("id", 1)
+    .select("id");
   if (error) return { error: error.message };
+  if (!updated?.length) return { error: "No tienes permiso para cambiar la marca." };
 
-  const url = current?.[column] ?? null;
-  if (url) {
-    // Best-effort: si la URL es rara o RLS rechaza el borrado, la columna ya quedó limpia.
-    try {
-      const path = storagePathFromPublicUrl(url, "wm-public");
-      if (path) await supabase.storage.from("wm-public").remove([path]);
-    } catch {
-      // ignore
-    }
-  }
+  await removeBrandFile(supabase, current?.[column]);
 
   await audit(`Eliminó ${brandLabel(kind)}`, "Configuración");
   invalidateBrandingCache();
@@ -133,7 +162,10 @@ export async function updateCompany(
     .eq("id", 1);
   if (error) return { error: error.message };
   await audit("Actualizó datos de la empresa", "Configuración");
+  // El nombre sale en el login, el menú y el título de la pestaña.
+  invalidateBrandingCache();
   revalidatePath("/configuracion");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 

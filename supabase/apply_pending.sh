@@ -121,6 +121,10 @@ run_tx supabase/online_orders_staff.sql \
 #     Aplicar ANTES de desplegar la app: si no, /api/keep-alive responde 500.
 run supabase/keep_alive.sql
 
+# 8d. Imagen del login: settings.login_image_url y wm.branding() que la devuelve.
+#     En una transacción: la función se borra y se recrea.
+run_tx supabase/login_image.sql
+
 # 9. Estadísticas del planificador al día.
 echo ""
 echo "=== ANALYZE ==="
@@ -146,7 +150,8 @@ with esperado(clase, nombre) as (values
   ('tab','variant_sku_aliases'), ('col','product_variants.color_id'),
   ('tab','v_catalog'), ('rpc','sync_variant_color_text'), ('rpc','sync_variant_option_text'),
   ('tab','colors_name_lower_key'),
-  ('tab','heartbeat'), ('rpc','keep_alive')
+  ('tab','heartbeat'), ('rpc','keep_alive'),
+  ('col','settings.login_image_url')
 )
 select case when presente then '  OK    ' else '  FALTA ' end || clase || ' ' || nombre
 from (

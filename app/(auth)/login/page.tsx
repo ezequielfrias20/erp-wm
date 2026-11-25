@@ -1,26 +1,26 @@
 import Link from "next/link";
+import { AuthHeading } from "@/components/auth/auth-heading";
 import { LoginForm } from "./login-form";
 
 export const metadata = { title: "Iniciar sesión" };
 
 export default function LoginPage() {
   return (
-    <div className="rounded-2xl border border-border bg-card p-6 shadow-card-md">
-      <div className="mb-5">
-        <h2 className="text-[16px] font-bold tracking-tight text-foreground">
-          Iniciar sesión
-        </h2>
-        <p className="mt-1 text-[12.5px] text-text-3">
-          Accede con tu cuenta corporativa.
-        </p>
-      </div>
+    <>
+      <AuthHeading
+        title="¡Te damos la bienvenida!"
+        subtitle="Inicia sesión para continuar donde lo dejaste."
+      />
       <LoginForm />
-      <p className="mt-5 text-center text-[12.5px] text-text-3">
+      <p className="mt-8 text-center text-[13px] text-text-2">
         ¿Recibiste una invitación?{" "}
-        <Link href="/invite" className="font-medium text-brand hover:underline">
+        <Link
+          href="/invite"
+          className="font-semibold text-foreground underline decoration-brand decoration-2 underline-offset-4"
+        >
           Activa tu cuenta
         </Link>
       </p>
-    </div>
+    </>
   );
 }

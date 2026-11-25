@@ -12,7 +12,7 @@ export function ModulePlaceholder({ title }: { title: string }) {
         {title}
       </h2>
       <p className="mt-2 max-w-md text-[13.5px] text-text-2">
-        Este módulo forma parte del sistema World Medics y se construirá en la
+        Este módulo forma parte del sistema y se construirá en la
         siguiente iteración.
       </p>
       <Link

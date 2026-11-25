@@ -559,6 +559,7 @@ create table wm.settings (
   logo_url text,
   logo_dark_url text,
   favicon_url text,
+  login_image_url text,
   primary_color text default '#0EA5E9',
   accent_color text default '#0EA5E9',
   notifications jsonb not null default '{"low_stock":true,"daily_sales_email":true,"realtime_sales":true,"security_events":true}'::jsonb,
@@ -811,14 +812,16 @@ returns table (
   logo_dark_url text,
   favicon_url text,
   primary_color text,
-  accent_color text
+  accent_color text,
+  login_image_url text
 )
 language sql
 security definer
 set search_path = wm, public
 stable
 as $$
-  select s.company_name, s.logo_url, s.logo_dark_url, s.favicon_url, s.primary_color, s.accent_color
+  select s.company_name, s.logo_url, s.logo_dark_url, s.favicon_url, s.primary_color,
+         s.accent_color, s.login_image_url
   from wm.settings s
   where s.id = 1;
 $$;

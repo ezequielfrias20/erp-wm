@@ -5,6 +5,7 @@ import type { DailyClosure } from "@/lib/database.types";
 import type { InvoiceCompany } from "@/components/factura/invoice-template";
 import { groupClosureRows } from "@/lib/closure-groups";
 import { fmtUSD, fmtVES } from "@/lib/format";
+import { DEFAULT_COMPANY_NAME } from "@/lib/brand-defaults";
 
 const localDate = new Intl.DateTimeFormat("es-VE", {
   timeZone: "America/Caracas", day: "2-digit", month: "2-digit", year: "numeric",
@@ -47,7 +48,7 @@ export const DailyClosureReceipt = forwardRef<HTMLDivElement, {
           // eslint-disable-next-line @next/next/no-img-element
           <img src={receiptCompany.logoUrl} alt="Logo" style={{ maxWidth: "38mm", maxHeight: "15mm", objectFit: "contain" }} />
         ) : null}
-        <div style={{ fontSize: 14, fontWeight: 800 }}>{receiptCompany.name ?? "World Medics"}</div>
+        <div style={{ fontSize: 14, fontWeight: 800 }}>{receiptCompany.name?.trim() || DEFAULT_COMPANY_NAME}</div>
         {receiptCompany.rif ? <div>RIF: {receiptCompany.rif}</div> : null}
         {receiptCompany.address ? <div>{receiptCompany.address}</div> : null}
         {receiptCompany.phone ? <div>Tel: {receiptCompany.phone}</div> : null}

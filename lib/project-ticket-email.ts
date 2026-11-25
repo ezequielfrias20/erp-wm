@@ -162,7 +162,7 @@ export function buildProjectTicketEmailHtml({
             ${courseGroup ? detailRow("Grupo / horario", escapeHtml(courseGroup.name)) : ""}
             ${detailRow("Fecha", escapeHtml(fmtDate(project.event_date)))}
             ${detailRow("Lugar", escapeHtml(project.location || "Por confirmar"))}
-            ${detailRow("Organizador", escapeHtml(project.organizer_name || "World Medics"))}
+            ${detailRow("Organizador", escapeHtml(project.organizer_name || "Por confirmar"))}
             ${detailRow("Pago", escapeHtml(`${registration.payment_method} · ${amount}${amountUsd}`))}
             ${detailRow("Referencia", escapeHtml(registration.payment_reference || "No aplica"))}
             ${detailRow("Fecha de pago", escapeHtml(fmtDate(registration.paid_at)))}

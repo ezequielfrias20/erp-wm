@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useActionState, useEffect, useTransition } from "react";
+import { useState, useActionState, useEffect, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import { useFormStatus } from "react-dom";
@@ -41,6 +41,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { AvatarBubble } from "@/components/shell/avatar-bubble";
+import { AuthArt } from "@/components/auth/auth-art";
 import { ImageUpload } from "@/components/configuracion/image-upload";
 import { fmtVES, fmtDateTime, fmtRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -268,14 +269,20 @@ function BrandAssetSlot({
   placeholder,
   previewClass,
   boxClass,
+  hint,
+  maxMb,
+  accept,
   canEdit,
 }: {
   label: string;
   kind: BrandKind;
   initial: string | null;
-  placeholder: string;
+  placeholder: ReactNode;
   previewClass: string;
   boxClass?: string;
+  hint?: string;
+  maxMb?: number;
+  accept?: string;
   canEdit: boolean;
 }) {
   const [url, setUrl] = useState(initial);
@@ -296,15 +303,19 @@ function BrandAssetSlot({
           placeholder
         )}
       </div>
+      {hint && <p className="max-w-prose text-[12px] text-text-3">{hint}</p>}
       {canEdit && (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <ImageUpload
             folder="brand"
             label={url ? "Reemplazar" : "Subir"}
+            maxMb={maxMb}
+            accept={accept}
             onUploaded={async (u) => {
-              setUrl(u);
               const r = await updateBrandAsset(kind, u);
-              if (r?.error) toast.error(r.error);
+              // Lanzar: ImageUpload muestra el error en vez de «Imagen actualizada».
+              if (r?.error) throw new Error(r.error);
+              setUrl(u);
             }}
           />
           {url && (
@@ -350,7 +361,7 @@ function ColorsSection({ settings, canEdit }: Data & { which: "primary" }) {
   }
   return (
     <Card title="Logotipo y marca">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid gap-3 sm:grid-cols-3">
         <BrandAssetSlot
           label="Logotipo (claro)"
           kind="logo"
@@ -374,6 +385,21 @@ function ColorsSection({ settings, canEdit }: Data & { which: "primary" }) {
           initial={settings.favicon_url}
           placeholder="PNG 64×64 px"
           previewClass="size-12 object-contain"
+          accept="image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon,image/vnd.microsoft.icon"
+          canEdit={canEdit}
+        />
+      </div>
+      <div className="mt-5">
+        <BrandAssetSlot
+          label="Imagen del inicio de sesión"
+          kind="login_image"
+          initial={settings.login_image_url ?? null}
+          placeholder={<AuthArt />}
+          previewClass="size-full object-cover"
+          boxClass="relative aspect-[4/5] h-auto w-44 border-solid p-0"
+          hint="Se muestra al lado del formulario de acceso. Vertical, mínimo 1200 × 1500 px. JPG, PNG o WebP, hasta 5 MB. Si no subes ninguna, se usa un fondo generado con tu color de marca."
+          maxMb={5}
+          accept="image/png,image/jpeg,image/webp"
           canEdit={canEdit}
         />
       </div>

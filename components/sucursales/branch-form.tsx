@@ -78,7 +78,7 @@ export function BranchForm({
             <Field label="Código" name="code" defaultValue={branch?.code} placeholder="CCS" required />
             <Field label="Ciudad" name="city" defaultValue={branch?.city} placeholder="Caracas" required />
           </div>
-          <Field label="Nombre" name="name" defaultValue={branch?.name} placeholder="World Medics Sabana Grande" required />
+          <Field label="Nombre" name="name" defaultValue={branch?.name} placeholder="Sucursal Centro" required />
           <Field label="Dirección" name="address" defaultValue={branch?.address ?? ""} placeholder="Av. …" />
           <div className="grid grid-cols-2 gap-3">
             <Field label="Teléfono" name="phone" defaultValue={branch?.phone ?? ""} placeholder="+58 …" />

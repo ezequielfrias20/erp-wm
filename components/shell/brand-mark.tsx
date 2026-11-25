@@ -16,7 +16,7 @@ export function BrandMark({
   variant: "login" | "sidebar";
   collapsed?: boolean;
 }) {
-  const name = companyName?.trim() || "World Medics";
+  const name = companyName?.trim() || "ERP";
 
   const lightSrc = logoUrl ?? logoDarkUrl;
   const darkSrc = logoDarkUrl ?? logoUrl;
@@ -24,7 +24,7 @@ export function BrandMark({
   if (lightSrc && darkSrc) {
     const frameClass =
       variant === "login"
-        ? "mx-auto flex h-24 w-full max-w-[280px] items-center justify-center"
+        ? "mx-auto flex h-20 w-full max-w-[240px] items-center justify-center"
         : collapsed
           ? "flex size-11 items-center justify-center"
           : "flex h-12 w-full max-w-[190px] items-center justify-start";
@@ -56,25 +56,23 @@ export function BrandMark({
   if (variant === "login") {
     return (
       <div className="flex flex-col items-center text-center">
-        <Logo size={48} />
-        <h1 className="mt-4 text-[19px] font-bold tracking-tight text-foreground">
-          {name}
-        </h1>
-        <p className="text-[12.5px] text-text-3">ERP · uniformes médicos</p>
+        <Logo size={44} name={companyName} />
+        <p className="mt-3 text-[17px] font-bold tracking-tight text-foreground">{name}</p>
+        <p className="text-[12.5px] text-text-2">Sistema de gestión</p>
       </div>
     );
   }
 
   return (
     <div className="flex items-center gap-[11px]">
-      <Logo size={36} />
+      <Logo size={36} name={companyName} />
       {!collapsed && (
         <div className="flex flex-col overflow-hidden whitespace-nowrap leading-[1.15]">
           <span className="text-[15px] font-bold tracking-tight text-foreground">
             {name}
           </span>
           <span className="text-[11px] font-medium text-text-3">
-            ERP · uniformes médicos
+            Sistema de gestión
           </span>
         </div>
       )}

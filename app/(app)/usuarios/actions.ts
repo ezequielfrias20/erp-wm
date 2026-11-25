@@ -14,6 +14,7 @@ import {
   buildUserInviteEmailText,
 } from "@/lib/user-invite-email";
 import type { Profile, Role, UserStatus } from "@/lib/database.types";
+import { DEFAULT_SYSTEM_NAME } from "@/lib/brand-defaults";
 
 export type FormState =
   | {
@@ -68,7 +69,7 @@ async function getEmailBranding() {
   const supabase = await createClient();
   const { data } = await supabase.rpc("branding").maybeSingle();
   return {
-    companyName: data?.company_name ?? "World Medics",
+    companyName: data?.company_name?.trim() || DEFAULT_SYSTEM_NAME,
     logoUrl: data?.logo_url ?? data?.logo_dark_url ?? null,
     primaryColor: data?.primary_color ?? "#0EA5E9",
   };

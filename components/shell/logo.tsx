@@ -1,33 +1,35 @@
+import { Building2 } from "lucide-react";
+import { initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-/** World Medics brand mark (cross glyph on a brand-gradient tile), ported from the handoff. */
+/** Marca genérica cuando el negocio no ha subido logo: sus iniciales sobre el color de marca
+ *  (o un icono neutro si tampoco hay nombre). */
 export function Logo({
   size = 36,
+  name,
   className,
 }: {
   size?: number;
+  name?: string | null;
   className?: string;
 }) {
-  const glyph = Math.round(size * 0.53);
+  const label = name?.trim();
   return (
     <div
+      aria-hidden
       className={cn(
-        "flex flex-none items-center justify-center rounded-[10px]",
+        "flex flex-none items-center justify-center rounded-[10px] font-bold text-primary-foreground",
         className,
       )}
       style={{
         width: size,
         height: size,
+        fontSize: Math.round(size * 0.38),
         background: "linear-gradient(140deg,var(--brand),var(--brand-2))",
-        boxShadow: "0 6px 16px -6px var(--brand)",
+        boxShadow: "inset 0 0 0 1px rgba(128,128,128,.3), 0 6px 16px -6px var(--brand)",
       }}
     >
-      <svg viewBox="0 0 24 24" width={glyph} height={glyph}>
-        <path
-          d="M9.6 3h4.8v4.2H19v4.8h-4.6V19H9.6v-7H5V7.2h4.6V3Z"
-          fill="#fff"
-        />
-      </svg>
+      {label ? initials(label) : <Building2 size={Math.round(size * 0.53)} />}
     </div>
   );
 }

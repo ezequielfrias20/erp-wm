@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { connection } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { cachedFor, invalidateCache, CACHE_TTL } from "@/lib/server-cache";
 
@@ -12,6 +13,7 @@ export type Branding = {
   faviconUrl: string | null;
   primaryColor: string | null;
   accentColor: string | null;
+  loginImageUrl: string | null;
 };
 
 const EMPTY: Branding = {
@@ -21,6 +23,7 @@ const EMPTY: Branding = {
   faviconUrl: null,
   primaryColor: null,
   accentColor: null,
+  loginImageUrl: null,
 };
 
 async function loadBranding(): Promise<Branding> {
@@ -35,6 +38,8 @@ async function loadBranding(): Promise<Branding> {
       faviconUrl: data.favicon_url,
       primaryColor: data.primary_color,
       accentColor: data.accent_color,
+      // `?? null`: un negocio sin login_image.sql aplicado no devuelve la columna.
+      loginImageUrl: data.login_image_url ?? null,
     };
   } catch {
     return EMPTY;
@@ -49,10 +54,12 @@ async function loadBranding(): Promise<Branding> {
  * medidos— en cada navegación, para datos que cambian una vez al año. Las acciones
  * de Configuración llaman a `invalidateBrandingCache()`.
  */
-export const getBranding = cache(
-  (): Promise<Branding> =>
-    cachedFor(BRANDING_KEY, CACHE_TTL.branding, loadBranding),
-);
+export const getBranding = cache(async (): Promise<Branding> => {
+  // La marca es dato de ejecución: sin esto, al compilar no hay petición, `loadBranding` cae a
+  // EMPTY y /login queda prerenderizado sin logo, color ni imagen hasta la siguiente revalidación.
+  await connection();
+  return cachedFor(BRANDING_KEY, CACHE_TTL.branding, loadBranding);
+});
 
 export function invalidateBrandingCache() {
   invalidateCache(BRANDING_KEY);

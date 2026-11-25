@@ -12,18 +12,27 @@ export function ImageUpload({
   onUploaded,
   label = "Subir imagen",
   className,
+  maxMb = 2,
+  accept = "image/png,image/jpeg,image/webp,image/svg+xml",
 }: {
   folder: string;
   onUploaded: (url: string) => void | Promise<void>;
   label?: ReactNode;
   className?: string;
+  maxMb?: number;
+  accept?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
 
   async function handle(file: File) {
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("La imagen supera los 2 MB.");
+    // `accept` sólo filtra el diálogo: soltar o elegir «Todos los archivos» lo evita.
+    if (!accept.split(",").includes(file.type)) {
+      toast.error("Formato de imagen no admitido.");
+      return;
+    }
+    if (file.size > maxMb * 1024 * 1024) {
+      toast.error(`La imagen supera los ${maxMb} MB.`);
       return;
     }
     setBusy(true);
@@ -50,7 +59,7 @@ export function ImageUpload({
       <input
         ref={inputRef}
         type="file"
-        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+        accept={accept}
         hidden
         onChange={(e) => {
           const f = e.target.files?.[0];

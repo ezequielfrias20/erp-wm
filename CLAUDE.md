@@ -108,6 +108,10 @@ handoff de diseño `World Medics ERP.dc.html` (claude.ai/design) **tal cual**.
 23. `shop_top_products.sql` (aplicada con psql el 2026-11-24; reversión `shop_top_products_revert.sql`) —
     vista `shop.top_products` (más vendidos, 30 días; contrato §4.10). También en `shop_schema.sql`.
     Prueba: `supabase/tests/shop_top_products_rollback.sql`.
+24. `login_image.sql` — `settings.login_image_url` (foto del panel del login) y `wm.branding()` la
+    devuelve (se borra y recrea: cambia el tipo de retorno). Aplicada con psql el 2026-11-25 en
+    fraric, pruebas y join. Sin ella la app usa el fondo genérico y no deja subir la imagen. Ya en
+    `bootstrap/01_schema.sql` y `apply_pending.sh`. Prueba: `supabase/tests/login_image_rollback.sql`.
 Bootstrap del admin (login) se hizo con `execute_sql` (crea `auth.users` + `auth.identities`).
 
 ### Modelo RLS
@@ -303,6 +307,7 @@ para humanos: **`docs/NUEVO-NEGOCIO.md`**. Facturas/OC arrancan en `FAC-000001`/
   `projects_courses.sql`, `daily_closures.sql`, `catalog_view.sql`,
   `catalog_master_guards.sql`, `products_slug.sql` y los ocho scripts de tienda. Excluye los seeds demo.
 - Las vistas usan `security_invoker` → requieren Postgres 15+ (Supabase ya lo cumple).
+- Nombres genéricos de respaldo: `lib/brand-defaults.ts` (nunca el de un cliente).
 - Nada de la marca va fijo en el código: el título de la pestaña sale de `settings.company_name`
   (plantilla `%s · <negocio>` en `app/layout.tsx`); las páginas declaran sólo su parte.
 - **Un archivo y un comando por cliente**: cada negocio tiene `.env.cliente-<nombre>` (sección
@@ -331,8 +336,9 @@ leen por URL pública conocida; el listado vía `storage.objects` solo está dis
   miembros del ERP (`wm_authenticated_read` exige `wm.is_member()`). Escritura y eliminación
   exigen ser miembro activo del ERP (`storage_wm_public_write.sql`). Subidas desde
 Configuración (perfil/marca) vía `components/configuracion/image-upload.tsx`; URLs en
-`profiles.avatar_url` / `settings.logo_url` / `settings.logo_dark_url` / `settings.favicon_url`.
-Cada asset de marca (logo, logo oscuro, favicon) se puede eliminar desde Configuración.
+`profiles.avatar_url` / `settings.logo_url` / `settings.logo_dark_url` / `settings.favicon_url` /
+`settings.login_image_url`.
+Cada asset de marca (logo, logo oscuro, favicon, imagen del login) se puede eliminar desde Configuración.
 
 ## Branding dinámico
 La marca subida en **Configuración → Marca** se consume en todo el sistema (render en servidor,
@@ -345,6 +351,13 @@ sin parpadeo) vía `getBranding()` (`lib/queries/branding.ts`, cacheado por requ
   Si no hay logo, cae al glifo `<Logo/>` + nombre/subtítulo. Cada asset se puede **eliminar**
   desde Configuración → Marca: `removeBrandAsset` pone la columna en `null` y borra el archivo
   del bucket `wm-public` (best-effort).
+- **Login** (`app/(auth)/layout.tsx`, `components/auth/*`; compartido con `/invite`): tarjeta con el
+  formulario y un panel de imagen (`settings.login_image_url`; JPG/PNG/WebP, 5 MB). Sin imagen usa
+  `AuthArt`, un fondo generado sólo con `--brand`; sin logo, `Logo` pone las iniciales del negocio
+  (o un icono neutro) y sin nombre «ERP». **Nada de un cliente va fijo ahí.** Reemplazar o eliminar
+  la imagen borra el archivo anterior del bucket (los logos no se borran al reemplazar).
+- `getBranding()` llama a `connection()`: `/login` debe salir dinámica (ƒ) en el build; si sale
+  estática (○) queda congelada sin marca.
 - **Favicon** (`favicon_url`): se inyecta en `generateMetadata` del root layout (`app/layout.tsx`)
   con un único icon link `faviconUrl ?? "/favicon-default.ico"`. El archivo estático se movió
   a `public/favicon-default.ico` (fue `app/favicon.ico`). Las acciones de marca

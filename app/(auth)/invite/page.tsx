@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AuthHeading } from "@/components/auth/auth-heading";
 import { InviteForm } from "./invite-form";
 
 export const metadata = { title: "Activar cuenta" };
@@ -11,22 +12,21 @@ export default async function InvitePage({
   const email = (await searchParams).email ?? "";
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-6 shadow-card-md">
-      <div className="mb-5">
-        <h2 className="text-[16px] font-bold tracking-tight text-foreground">
-          Activar cuenta
-        </h2>
-        <p className="mt-1 text-[12.5px] text-text-3">
-          Define tu contraseña con el correo de tu invitación.
-        </p>
-      </div>
+    <>
+      <AuthHeading
+        title="Activa tu cuenta"
+        subtitle="Define tu contraseña con el correo de tu invitación."
+      />
       <InviteForm initialEmail={email} />
-      <p className="mt-5 text-center text-[12.5px] text-text-3">
+      <p className="mt-8 text-center text-[13px] text-text-2">
         ¿Ya tienes cuenta?{" "}
-        <Link href="/login" className="font-medium text-brand hover:underline">
+        <Link
+          href="/login"
+          className="font-semibold text-foreground underline decoration-brand decoration-2 underline-offset-4"
+        >
           Inicia sesión
         </Link>
       </p>
-    </div>
+    </>
   );
 }

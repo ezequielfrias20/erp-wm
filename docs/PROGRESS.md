@@ -22,6 +22,7 @@ Estado por fase. Actualizar al cerrar cada módulo. Leyenda: ✅ hecho · 🚧 e
 | 16 | Catálogo clasificado para ecommerce | 🚧 | Planes 1 y 2 ✅ (limpieza aplicada en producción 2026-11-16); plan 3 en curso; ver detalle abajo |
 | 17 | Tienda online / Pedidos online | 🚧 | Base de datos fase 1 aplicada en producción (2026-11-19); fase 2 del ERP terminada en esta rama, pendiente de despliegue; fase 3 (storefront) pendiente |
 | 18 | Keep-alive de Supabase (latido diario por Vercel Cron + indicador en Configuración) | ✅ | `keep_alive.sql` aplicado en producción y código en `main` (2026-11-21); confirmar el primer latido en Configuración → Empresa |
+| 19 | Rediseño del login / invitación e imagen configurable (Configuración → Marca) | 🚧 | `login_image.sql` aplicado en fraric, pruebas y join (2026-11-25); falta desplegar. También se quitó «World Medics» fijo de facturas, cierres, reportes y correos |
 
 ## Fase 13 — Mejoras operativas
 
